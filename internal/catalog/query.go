@@ -302,9 +302,10 @@ func (s *Service) ListEntities(ctx context.Context, f EntityFilter) (*EntityPage
 	if f.ProjectIDs != nil && len(f.ProjectIDs) == 0 {
 		return &EntityPage{Items: []*Entity{}}, nil
 	}
-	if f.Limit <= 0 || f.Limit > 500 {
+	if f.Limit <= 0 {
 		f.Limit = 50
 	}
+	f.Limit = min(f.Limit, 500)
 	cur, err := decodeCursor(f.Cursor)
 	if err != nil {
 		return nil, err
@@ -544,9 +545,10 @@ func (s *Service) Changes(ctx context.Context, f ChangeFilter) ([]ChangeEvent, e
 	if f.ProjectIDs != nil && len(f.ProjectIDs) == 0 {
 		return []ChangeEvent{}, nil
 	}
-	if f.Limit <= 0 || f.Limit > 1000 {
+	if f.Limit <= 0 {
 		f.Limit = 100
 	}
+	f.Limit = min(f.Limit, 1000)
 	var conds []string
 	var args []any
 	if f.ObjectID != "" {
@@ -744,9 +746,10 @@ func (s *Service) ListRelations(ctx context.Context, f RelationFilter) (*Relatio
 	if f.ProjectIDs != nil && len(f.ProjectIDs) == 0 {
 		return &RelationPage{Items: []*Relation{}}, nil
 	}
-	if f.Limit <= 0 || f.Limit > 1000 {
+	if f.Limit <= 0 {
 		f.Limit = 100
 	}
+	f.Limit = min(f.Limit, 1000)
 	cur, err := decodeCursor(f.Cursor)
 	if err != nil {
 		return nil, err
@@ -843,9 +846,10 @@ func (s *Service) Unresolved(ctx context.Context, projectIDs []string, limit int
 	if projectIDs != nil {
 		where = " WHERE " + inClause("project_id", projectIDs, &args)
 	}
-	if limit <= 0 || limit > 1000 {
+	if limit <= 0 {
 		limit = 200
 	}
+	limit = min(limit, 1000)
 	rows, err := s.Store.R().QueryContext(ctx, `SELECT id, source_id, project_id, type, from_ref, to_ref, COALESCE(from_entity, ''), first_seen_at, last_seen_at
 		FROM unresolved_refs`+where+` ORDER BY last_seen_at DESC LIMIT ?`, append(args, limit)...)
 	if err != nil {
