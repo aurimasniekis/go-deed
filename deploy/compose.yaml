@@ -1,0 +1,31 @@
+# Production-style single-host deployment: Deed behind your TLS-terminating reverse proxy.
+#   1. deed keys init -out ./secrets/deed_kek      (or: docker run --rm -v "$PWD/secrets:/out" deed keys init -out /out/deed_kek)
+#   2. DEED_PUBLIC_URL=https://deed.example.com docker compose -f deploy/compose.yaml up -d
+#   3. docker compose -f deploy/compose.yaml exec deed deed admin bootstrap
+# See docs/DEPLOYMENT.md and docs/CLOUDFLARE.md.
+name: deed
+
+services:
+  deed:
+    image: ${DEED_IMAGE:-ghcr.io/aurimasniekis/deed:latest}
+    restart: unless-stopped
+    environment:
+      DEED_PUBLIC_URL: ${DEED_PUBLIC_URL:?set DEED_PUBLIC_URL to the public https origin}
+      DEED_PROXY_TRUSTED_PROXIES: ${DEED_TRUSTED_PROXIES:-}
+    secrets:
+      - deed_kek
+    volumes:
+      - deed-data:/var/lib/deed
+    ports:
+      - "127.0.0.1:8080:8080"   # the reverse proxy on this host connects here; 9464 is never published
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+
+secrets:
+  deed_kek:
+    file: ${DEED_KEK_FILE:-./secrets/deed_kek}
+
+volumes:
+  deed-data:

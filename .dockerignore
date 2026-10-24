@@ -1,0 +1,33 @@
+# Allowlist: everything is excluded unless re-included below, so local secrets, databases, KEK files and VCS
+# metadata never reach an image layer or the build cache.
+*
+
+!go.mod
+!go.sum
+!cmd/
+!internal/
+!pkg/
+!web/
+!scripts/
+!api/openapi.json
+!LICENSE
+!NOTICE
+!deploy/deed.container.yaml
+
+web/node_modules/
+web/test-results/
+web/playwright-report/
+web/blob-report/
+internal/webui/dist/
+
+bin/
+data/
+.git/
+**/*.kek
+**/kek
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*_test.go
+**/testdata/
+**/.DS_Store

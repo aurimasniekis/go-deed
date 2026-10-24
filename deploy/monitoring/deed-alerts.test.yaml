@@ -1,0 +1,47 @@
+rule_files: [deed-alerts.yaml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="deed",instance="d1"}'
+        values: '0x5'
+      - series: 'deed_ready{instance="d1"}'
+        values: '0x10'
+      - series: 'deed_source_freshness_state{source="github",state="stale"}'
+        values: '1x20'
+      - series: 'deed_outbox_oldest_pending_age_seconds'
+        values: '1000x10'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DeedDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: deed, instance: d1}
+            exp_annotations: {summary: "Deed metrics endpoint is unreachable", description: "d1 has not been scraped for 2 minutes."}
+      - eval_time: 6m
+        alertname: DeedNotReady
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: d1}
+            exp_annotations: {summary: "Deed reports not ready", description: "/readyz has failed for 5 minutes on d1 (database, keyring or migrations)."}
+      - eval_time: 16m
+        alertname: DeedSourceStale
+        exp_alerts:
+          - exp_labels: {severity: warning, source: github, state: stale}
+            exp_annotations: {summary: "Source github is stale", description: "No successful sync or push within its expected interval."}
+      - eval_time: 6m
+        alertname: DeedOutboxBacklog
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Deed events are not reaching Pulse", description: "The oldest unpublished outbox event is 16m 40s old."}
+  - interval: 1m
+    input_series:
+      - series: 'deed_backup_last_success_timestamp_seconds'
+        values: '0x900'
+    alert_rule_test:
+      - eval_time: 6h
+        alertname: DeedBackupMissing
+        exp_alerts: []
+      - eval_time: 14h
+        alertname: DeedBackupMissing
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "No successful Deed backup for more than 12 hours", description: "Adjust the threshold to twice backup.interval."}

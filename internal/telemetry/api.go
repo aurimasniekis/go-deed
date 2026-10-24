@@ -508,10 +508,18 @@ func (a *API) stream(w http.ResponseWriter, r *http.Request, d *httpapi.Deps) {
 	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
+	// Keep-alive comments keep idle streams open through proxies with read timeouts (Cloudflare: 100 s).
+	hb := time.NewTicker(20 * time.Second)
+	defer hb.Stop()
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-hb.C:
+			_ = rc.SetWriteDeadline(time.Now().Add(15 * time.Second))
+			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil || rc.Flush() != nil {
+				return
+			}
 		case <-t.C:
 			if tick() != nil {
 				return

@@ -1,0 +1,27 @@
+# Deed configuration for the container image, baked in as /etc/deed/deed.yaml (DEED_CONFIG points there). Mount your
+# own copy read-only over it, or override single keys with DEED_<PATH> variables (e.g. DEED_PUBLIC_URL,
+# DEED_PROXY_TRUSTED_PROXIES=172.30.0.0/24). Unknown keys and unknown DEED_* variables are rejected.
+#
+# Secret-free: the KEK is mounted separately (compose secret) and never lives here or in the data volume.
+
+mode: production
+data_dir: /var/lib/deed
+# public_url is required: the externally reachable https origin. Set DEED_PUBLIC_URL=https://deed.example.com
+# public_url: https://deed.example.com
+
+kek:
+  source: file
+  file: /run/secrets/deed_kek
+
+http:
+  listen: 0.0.0.0:8080            # plain HTTP behind a TLS-terminating proxy, or set tls_cert_file/tls_key_file
+
+management:
+  listen: 0.0.0.0:9464            # metrics + health for the compose network; never publish this port
+
+proxy:
+  trusted_proxies: []             # CIDR(s) of the reverse proxy
+
+log:
+  level: info
+  format: json

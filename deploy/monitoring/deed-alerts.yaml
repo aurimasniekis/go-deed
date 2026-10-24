@@ -1,0 +1,100 @@
+# Prometheus alerting rules for Deed, built only from metrics Deed exports (internal/obs/metrics).
+# Test: promtool test rules deed-alerts.test.yaml   (deploy/monitoring/check.sh)
+groups:
+  - name: deed
+    rules:
+      - alert: DeedDown
+        expr: up{job="deed"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Deed metrics endpoint is unreachable"
+          description: "{{ $labels.instance }} has not been scraped for 2 minutes."
+      - alert: DeedNotReady
+        expr: deed_ready == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Deed reports not ready"
+          description: "/readyz has failed for 5 minutes on {{ $labels.instance }} (database, keyring or migrations)."
+      - alert: DeedHigh5xxRate
+        expr: |
+          sum by (instance) (rate(deed_http_requests_total{code=~"5.."}[5m]))
+            / clamp_min(sum by (instance) (rate(deed_http_requests_total[5m])), 1e-9) > 0.05
+          and sum by (instance) (rate(deed_http_requests_total[5m])) > 0.1
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 5% of Deed requests fail"
+      - alert: DeedSlowWriteTransactions
+        expr: histogram_quantile(0.99, sum by (le) (rate(deed_store_tx_duration_seconds_bucket[10m]))) > 0.1
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "p99 write transaction above 100 ms (ADR-001 budget)"
+      - alert: DeedWriterContention
+        expr: histogram_quantile(0.99, sum by (le) (rate(deed_store_writer_wait_seconds_bucket[10m]))) > 0.5
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "Writers wait more than 500 ms for the SQLite write lock (p99)"
+      - alert: DeedSourceStale
+        expr: deed_source_freshness_state{state="stale"} == 1
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "Source {{ $labels.source }} is stale"
+          description: "No successful sync or push within its expected interval."
+      - alert: DeedSourceRunsFailing
+        expr: sum by (provider) (increase(deed_source_runs_total{result="error"}[1h])) >= 3
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.provider }} source runs keep failing"
+      - alert: DeedOutboxBacklog
+        expr: deed_outbox_oldest_pending_age_seconds > 900
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Deed events are not reaching Pulse"
+          description: "The oldest unpublished outbox event is {{ $value | humanizeDuration }} old."
+      - alert: DeedOutboxDeadLetters
+        expr: deed_outbox_events{state="dead"} > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Deed events were dead-lettered"
+      - alert: DeedPulseDisconnected
+        expr: deed_pulse_connected == 0
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Deed's Pulse connection {{ $labels.conn }} is down"
+      - alert: DeedTelemetryIntegrationDown
+        expr: deed_telemetry_integration_up == 0
+        for: 30m
+        labels: {severity: info}
+        annotations:
+          summary: "Telemetry integration {{ $labels.integration }} ({{ $labels.adapter }}) failed its last test"
+      - alert: DeedBackupMissing
+        expr: time() - deed_backup_last_success_timestamp_seconds > 2 * 6 * 3600
+        for: 10m
+        labels: {severity: critical}
+        annotations:
+          summary: "No successful Deed backup for more than 12 hours"
+          description: "Adjust the threshold to twice backup.interval."
+      - alert: DeedBackupFailing
+        expr: increase(deed_backup_runs_total{result="error"}[6h]) > 0 and increase(deed_backup_runs_total{result="ok"}[6h]) == 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Deed backups fail and none succeeded in 6 hours"
+      - alert: DeedCriticalAlertsFiring
+        expr: deed_alerts_firing{severity="critical"} > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Deed has {{ $value }} critical alert(s) firing (see the Deed dashboard)"
+      - alert: DeedLiveClientsResyncing
+        expr: sum(rate(deed_live_dropped_total[10m])) > 0.1
+        for: 15m
+        labels: {severity: info}
+        annotations:
+          summary: "Live-update clients are repeatedly forced to resync"
