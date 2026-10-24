@@ -204,39 +204,34 @@ func (e *Engine) compute(ctx context.Context) ([]Finding, error) {
 		}
 		out = append(out, f)
 	}
-	rows, err := d.QueryContext(ctx, `SELECT id, project_id, kind, name, display_name, owner, health, freshness, valid, effective_json, provenance_json,
-		validation_json, version_declared, version_observed, last_seen_at FROM entities WHERE tombstoned_at IS NULL`)
-	if err != nil {
-		return nil, err
-	}
 	var ents []ent
-	for rows.Next() {
+	err := each(ctx, d, `SELECT id, project_id, kind, name, display_name, owner, health, freshness, valid, effective_json, provenance_json,
+		validation_json, version_declared, version_observed, last_seen_at FROM entities WHERE tombstoned_at IS NULL`, func(rows *sql.Rows) error {
 		var x ent
 		var eff, prov string
 		if err := rows.Scan(&x.id, &x.project, &x.kind, &x.name, &x.display, &x.owner, &x.health, &x.freshness, &x.valid, &eff, &prov, &x.validation,
 			&x.verDeclared, &x.verObserved, &x.lastSeen); err != nil {
-			rows.Close()
-			return nil, err
+			return err
 		}
 		_ = json.Unmarshal([]byte(eff), &x.eff)
 		_ = json.Unmarshal([]byte(prov), &x.prov)
 		ents = append(ents, x)
-	}
-	rows.Close()
-	ownedBy := map[string]bool{}
-	orows, err := d.QueryContext(ctx, `SELECT DISTINCT r.from_id FROM relations r WHERE r.type = 'owned_by' AND r.live = 1`)
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	for orows.Next() {
+	ownedBy := map[string]bool{}
+	if err := each(ctx, d, `SELECT DISTINCT r.from_id FROM relations r WHERE r.type = 'owned_by' AND r.live = 1`, func(rows *sql.Rows) error {
 		var id string
-		if err := orows.Scan(&id); err != nil {
-			orows.Close()
-			return nil, err
+		if err := rows.Scan(&id); err != nil {
+			return err
 		}
 		ownedBy[id] = true
+		return nil
+	}); err != nil {
+		return nil, err
 	}
-	orows.Close()
 	for _, x := range ents {
 		spec, _ := x.eff["spec"].(map[string]any)
 		subject := func(f Finding) Finding {
@@ -322,22 +317,19 @@ func (e *Engine) compute(ctx context.Context) ([]Finding, error) {
 		}
 	}
 	// Conflicts.
-	crows, err := d.QueryContext(ctx, `SELECT c.entity_id, e.project_id, e.kind, e.name, COUNT(*) FROM conflicts c JOIN entities e ON e.id = c.entity_id
-		WHERE e.tombstoned_at IS NULL GROUP BY c.entity_id`)
-	if err != nil {
-		return nil, err
-	}
-	for crows.Next() {
+	if err := each(ctx, d, `SELECT c.entity_id, e.project_id, e.kind, e.name, COUNT(*) FROM conflicts c JOIN entities e ON e.id = c.entity_id
+		WHERE e.tombstoned_at IS NULL GROUP BY c.entity_id`, func(rows *sql.Rows) error {
 		var id, project, kind, name string
 		var n int
-		if err := crows.Scan(&id, &project, &kind, &name, &n); err != nil {
-			crows.Close()
-			return nil, err
+		if err := rows.Scan(&id, &project, &kind, &name, &n); err != nil {
+			return err
 		}
 		add(Finding{DedupKey: TypeConflict + "|" + id, Type: TypeConflict, Severity: Warning, Class: ClassConfirmed, ProjectID: project, EntityID: id,
 			Title: "Sources disagree: " + kind + "/" + name, Message: fmt.Sprintf("%d fields have conflicting values in the same layer", n)})
+		return nil
+	}); err != nil {
+		return nil, err
 	}
-	crows.Close()
 	// Duplicate candidates: identity keys shared by more than one live entity.
 	drows, err := d.QueryContext(ctx, `SELECT project_id, kind, key_value, GROUP_CONCAT(entity_id) FROM entity_identity_keys
 		GROUP BY project_id, kind, key_value HAVING COUNT(DISTINCT entity_id) > 1`)
@@ -357,6 +349,9 @@ func (e *Engine) compute(ctx context.Context) ([]Finding, error) {
 			Evidence: map[string]any{"key": key, "entities": list}})
 	}
 	drows.Close()
+	if err := drows.Err(); err != nil {
+		return nil, err
+	}
 	// Missing relationship targets.
 	urows, err := d.QueryContext(ctx, `SELECT u.source_id, u.project_id, u.type, u.from_ref, u.to_ref, COALESCE(u.from_entity, ''), s.name
 		FROM unresolved_refs u JOIN sources s ON s.id = u.source_id`)
@@ -374,6 +369,9 @@ func (e *Engine) compute(ctx context.Context) ([]Finding, error) {
 			Evidence: map[string]any{"source": srcName, "type": typ, "from": from, "to": to}})
 	}
 	urows.Close()
+	if err := urows.Err(); err != nil {
+		return nil, err
+	}
 	// Sources: stale and failing.
 	srcs, err := e.Catalog.Sources(ctx, nil)
 	if err != nil {
@@ -417,6 +415,9 @@ func (e *Engine) compute(ctx context.Context) ([]Finding, error) {
 			Title: kind + "/" + name + " is no longer reported by " + sname, Message: "kept because the source's on_absent policy is orphan"})
 	}
 	arows.Close()
+	if err := arows.Err(); err != nil {
+		return nil, err
+	}
 	// Expected event connections not recently observed (only where a fresh Pulse tail exists to observe them).
 	cut := now.Add(-c.ExpectedWindow).UnixMicro()
 	erows, err := d.QueryContext(ctx, `SELECT r.id, r.project_id, r.type, fe.name, te.name,
@@ -445,6 +446,9 @@ func (e *Engine) compute(ctx context.Context) ([]Finding, error) {
 			Evidence: ev})
 	}
 	erows.Close()
+	if err := erows.Err(); err != nil {
+		return nil, err
+	}
 	// Versions.
 	vrows, err := d.QueryContext(ctx, `SELECT v.entity_id, e.project_id, e.kind, e.name, v.status, v.latest, v.eol_date, e.version_observed, e.version_declared, v.evidence_json
 		FROM version_checks v JOIN entities e ON e.id = v.entity_id WHERE e.tombstoned_at IS NULL AND v.status IN ('update_available', 'eol')`)
@@ -476,6 +480,9 @@ func (e *Engine) compute(ctx context.Context) ([]Finding, error) {
 		}
 	}
 	vrows.Close()
+	if err := vrows.Err(); err != nil {
+		return nil, err
+	}
 	// Telemetry integrations.
 	irows, err := d.QueryContext(ctx, `SELECT id, name, COALESCE(last_error, '') FROM integrations WHERE enabled = 1 AND last_test_ok = 0`)
 	if err != nil {
@@ -491,6 +498,9 @@ func (e *Engine) compute(ctx context.Context) ([]Finding, error) {
 			Message: msg, Evidence: map[string]any{"integration_id": id}})
 	}
 	irows.Close()
+	if err := irows.Err(); err != nil {
+		return nil, err
+	}
 	// Backups.
 	if c.BackupInterval > 0 {
 		var last sql.NullInt64
@@ -578,6 +588,9 @@ func (e *Engine) reconcile(ctx context.Context, cur []Finding) error {
 			toClose = append(toClose, closing{key, typ, project})
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
 		for _, c := range toClose {
 			if _, err := tx.Exec(ctx, `UPDATE findings SET state = 'closed', closed_at = ? WHERE dedup_key = ?`, tx.NowMicros(), c.key); err != nil {
 				return err
@@ -605,6 +618,9 @@ func (e *Engine) exportMetrics(ctx context.Context) {
 			m[[2]string{t, s}] = n
 		}
 	}
+	if rows.Err() != nil {
+		return
+	}
 	e.Metrics.SetFindings(m)
 }
 
@@ -614,4 +630,19 @@ func (e *Engine) Prune(ctx context.Context, retention time.Duration) error {
 		_, err := tx.Exec(ctx, `DELETE FROM findings WHERE state = 'closed' AND closed_at < ?`, tx.Now.Add(-retention).UnixMicro())
 		return err
 	})
+}
+
+// each runs a query and calls fn per row, closing the rows and reporting iteration errors.
+func each(ctx context.Context, d *sql.DB, q string, fn func(*sql.Rows) error, args ...any) error {
+	rows, err := d.QueryContext(ctx, q, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		if err := fn(rows); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
 }

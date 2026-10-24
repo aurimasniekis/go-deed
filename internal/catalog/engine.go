@@ -118,7 +118,7 @@ func (s *Service) ResolveRef(ctx context.Context, tx *store.Tx, src *Source, ref
 		if ref.Project != "" {
 			p, err := projectTx(ctx, tx, ref.Project)
 			if err != nil {
-				return "", nil
+				return "", nil //nolint:nilerr // an unknown project leaves the reference unresolved (recorded by the caller)
 			}
 			project = p.ID
 		}
@@ -453,6 +453,9 @@ func (s *Service) matchIdentity(ctx context.Context, tx *store.Tx, project strin
 			found = append(found, id)
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return "", err
+		}
 		if len(found) == 1 {
 			return found[0], nil
 		}
@@ -935,6 +938,9 @@ func (s *Service) syncConflicts(ctx context.Context, tx *store.Tx, entityID stri
 		}
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	for _, x := range stale {
 		if _, err := tx.Exec(ctx, `DELETE FROM conflicts WHERE entity_id = ? AND pointer = ? AND loser_source = ?`, entityID, x[0], x[1]); err != nil {
 			return err

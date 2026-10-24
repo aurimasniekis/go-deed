@@ -193,6 +193,9 @@ func (s *Service) GetEntity(ctx context.Context, id string) (*Entity, error) {
 		e.Metadata.Aliases = append(e.Metadata.Aliases, a)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	rows, err = d.QueryContext(ctx, `SELECT x.source_id, s.name, x.external_id FROM entity_external_ids x JOIN sources s ON s.id = x.source_id
 		WHERE x.entity_id = ? ORDER BY s.name, x.external_id`, id)
 	if err != nil {
@@ -207,6 +210,9 @@ func (s *Service) GetEntity(ctx context.Context, id string) (*Entity, error) {
 		e.Metadata.ExternalIDs = append(e.Metadata.ExternalIDs, x)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	rows, err = d.QueryContext(ctx, `SELECT severity, COUNT(*) FROM findings WHERE entity_id = ? AND state = 'open' GROUP BY severity`, id)
 	if err == nil {
 		for rows.Next() {
@@ -217,6 +223,9 @@ func (s *Service) GetEntity(ctx context.Context, id string) (*Entity, error) {
 			}
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	}
 	return e, nil
 }
@@ -897,7 +906,7 @@ func (s *Service) CountEntities(ctx context.Context, projectIDs []string) (*Coun
 	d := s.Store.R()
 	for col, m := range map[string]map[string]int{"e.kind": c.ByKind, "e.environment": c.ByEnvironment, "e.owner": c.ByOwner, "e.health": c.ByHealth,
 		"e.freshness": c.ByFreshness} {
-		rows, err := d.QueryContext(ctx, `SELECT `+col+`, COUNT(*) FROM entities e`+where+` GROUP BY `+col, args...)
+		rows, err := d.QueryContext(ctx, `SELECT `+col+`, COUNT(*) FROM entities e`+where+` GROUP BY `+col, args...) //nolint:gosec // col comes from a fixed map; values are bound
 		if err != nil {
 			return nil, err
 		}
@@ -911,6 +920,9 @@ func (s *Service) CountEntities(ctx context.Context, projectIDs []string) (*Coun
 			m[k] = n
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	}
 	for _, n := range c.ByKind {
 		c.Entities += n
@@ -960,7 +972,7 @@ func (s *Service) FindByPointer(ctx context.Context, projectID string, kinds []s
 	var args []any
 	args = append(args, projectID, pointer+"="+strings.ToLower(value))
 	kin := inClause("kind", kinds, &args)
-	rows, err := d.QueryContext(ctx, `SELECT DISTINCT entity_id FROM entity_identity_keys WHERE project_id = ? AND key_value = ? AND `+kin+` LIMIT 2`, args...)
+	rows, err := d.QueryContext(ctx, `SELECT DISTINCT entity_id FROM entity_identity_keys WHERE project_id = ? AND key_value = ? AND `+kin+` LIMIT 2`, args...) //nolint:gosec // inClause emits placeholders only
 	if err == nil {
 		var found []string
 		for rows.Next() {
@@ -970,6 +982,9 @@ func (s *Service) FindByPointer(ctx context.Context, projectID string, kinds []s
 			}
 		}
 		rows.Close()
+		if rows.Err() != nil {
+			return "", false
+		}
 		if len(found) == 1 {
 			return found[0], true
 		}
@@ -980,7 +995,7 @@ func (s *Service) FindByPointer(ctx context.Context, projectID string, kinds []s
 	path := "$." + strings.ReplaceAll(strings.TrimPrefix(pointer, "/"), "/", ".")
 	args = []any{projectID, path, strings.ToLower(value)}
 	kin = inClause("kind", kinds, &args)
-	rows, err = d.QueryContext(ctx, `SELECT id FROM entities WHERE project_id = ? AND tombstoned_at IS NULL AND lower(json_extract(effective_json, ?)) = ? AND `+kin+` LIMIT 2`, args...)
+	rows, err = d.QueryContext(ctx, `SELECT id FROM entities WHERE project_id = ? AND tombstoned_at IS NULL AND lower(json_extract(effective_json, ?)) = ? AND `+kin+` LIMIT 2`, args...) //nolint:gosec // inClause emits placeholders only
 	if err != nil {
 		return "", false
 	}
@@ -991,6 +1006,9 @@ func (s *Service) FindByPointer(ctx context.Context, projectID string, kinds []s
 		if rows.Scan(&id) == nil {
 			found = append(found, id)
 		}
+	}
+	if rows.Err() != nil {
+		return "", false
 	}
 	if len(found) == 1 {
 		return found[0], true

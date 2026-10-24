@@ -285,7 +285,7 @@ func TestLokiNATSOpenSearchGrafana(t *testing.T) {
 			_, _ = io.WriteString(w, `{"server_name":"n1","version":"2.11.0","in_msgs":`+itoa(varzMsgs.Load())+`}`)
 		case "/jsz":
 			if req.URL.Query().Get("streams") != "true" {
-				w.WriteHeader(400)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 			_, _ = io.WriteString(w, `{"account_details":[{"stream_detail":[{"name":"OTHER","state":{"messages":1}},{"name":"EVENTS","state":{"messages":42}}]}]}`)
@@ -296,7 +296,7 @@ func TestLokiNATSOpenSearchGrafana(t *testing.T) {
 		case "/api/search":
 			_, _ = io.WriteString(w, `[{"uid":"abc","title":"Node","url":"/d/abc/node","folderTitle":"Infra"},{"uid":"x","title":"Evil","url":"https://evil.example.net/"}]`)
 		default:
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer srv.Close()

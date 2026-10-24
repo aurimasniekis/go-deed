@@ -46,7 +46,7 @@ func TokenFromRequest(r *http.Request) string {
 
 // SessionCookie builds the session cookie; maxAge < 0 deletes it.
 func SessionCookie(secure bool, token string, maxAge int) *http.Cookie {
-	return &http.Cookie{Name: CookieFor(secure), Value: token, Path: "/", HttpOnly: true, Secure: secure,
+	return &http.Cookie{Name: CookieFor(secure), Value: token, Path: "/", HttpOnly: true, Secure: secure, //nolint:gosec // Secure is off only for http:// development origins
 		SameSite: http.SameSiteLaxMode, MaxAge: maxAge}
 }
 

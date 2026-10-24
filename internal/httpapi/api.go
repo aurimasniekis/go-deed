@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -400,5 +399,3 @@ func (d *Deps) RequireRecent(ctx context.Context) error {
 
 // Actor returns the audit actor of the request.
 func Actor(ctx context.Context) audit.Actor { return PrincipalFrom(ctx).Actor() }
-
-func oneOf(v string, allowed ...string) bool { return slices.Contains(allowed, v) }

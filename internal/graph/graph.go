@@ -148,6 +148,9 @@ func (e *Engine) loadNodes(ctx context.Context, scope Scope, ids []string) (map[
 			out[n.ID] = &n
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -224,6 +227,9 @@ func (e *Engine) edgesOf(ctx context.Context, ids []string, dir string, q Query)
 			out = append(out, x)
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -764,6 +770,9 @@ func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, g
 			Cluster: &Cluster{Key: groupBy + "|" + v, Count: n, GroupBy: groupBy, Value: v}})
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	ecol := strings.ReplaceAll(col, "e.", "fe.")
 	tcol := strings.ReplaceAll(col, "e.", "te.")
 	ewhere := strings.ReplaceAll(where, "e.project_id", "fe.project_id")

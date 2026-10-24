@@ -79,7 +79,7 @@ func TestStreamResumeAndAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		b := make([]byte, 500)
 		n, _ := resp.Body.Read(b)
 		t.Fatalf("status %d: %s", resp.StatusCode, b[:n])

@@ -131,7 +131,7 @@ func runOpenAPI(_ context.Context, args []string, stdout, stderr io.Writer) erro
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
-	b, err := OpenAPIDocument()
+	b, err := OpenAPIDocument() //nolint:contextcheck // builds the spec offline; no request context exists
 	if err != nil {
 		return err
 	}

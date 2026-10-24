@@ -186,7 +186,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if r.URL.User != nil {
 		return nil, ErrNotAllowlisted
 	}
-	if r.URL.Scheme != "https" && !(r.URL.Scheme == "http" && t.insecure) {
+	if r.URL.Scheme != "https" && (r.URL.Scheme != "http" || !t.insecure) {
 		return nil, fmt.Errorf("%w: scheme %s", ErrNotAllowlisted, r.URL.Scheme)
 	}
 	if len(t.allow) > 0 {

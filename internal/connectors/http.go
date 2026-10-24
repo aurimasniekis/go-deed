@@ -6,6 +6,7 @@ package connectors
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -99,7 +100,8 @@ func (c *apiClient) getURL(ctx context.Context, u string, out any) (http.Header,
 var errNotFound = apperr.New(apperr.CodeNotFound, "not found")
 
 func message(err error) string {
-	if ae, ok := err.(*apperr.Error); ok {
+	var ae *apperr.Error
+	if errors.As(err, &ae) {
 		return ae.Message
 	}
 	return "request failed: " + safehttp.Classify(err)

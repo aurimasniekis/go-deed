@@ -65,11 +65,11 @@ func Sanitize(in []byte) ([]byte, bool, error) {
 	rootSeen, mono := false, true
 	for {
 		tok, err := dec.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return nil, false, fmt.Errorf("%w: %v", ErrInvalid, err)
+			return nil, false, fmt.Errorf("%w: %w", ErrInvalid, err)
 		}
 		switch t := tok.(type) {
 		case xml.Directive:

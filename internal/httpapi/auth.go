@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"time"
@@ -315,7 +314,7 @@ func registerOIDCRedirects(mux *http.ServeMux, d *Deps) {
 		if d.Secure {
 			name = oidc.StateCookie
 		}
-		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: d.Secure, SameSite: http.SameSiteLaxMode})
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: d.Secure, SameSite: http.SameSiteLaxMode}) //nolint:gosec // Secure is off only for http:// development origins
 		if err != nil {
 			fail(w, r, err)
 			return
@@ -326,5 +325,3 @@ func registerOIDCRedirects(mux *http.ServeMux, d *Deps) {
 		http.Redirect(w, r, httpx.SafeReturnTo(res.ReturnTo, "/"), http.StatusFound)
 	})
 }
-
-var errNoUser = errors.New("no user")

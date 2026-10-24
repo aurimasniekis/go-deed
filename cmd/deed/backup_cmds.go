@@ -182,9 +182,10 @@ func (f *fetchFlags) fetch(ctx context.Context, tempDir string) (*backup.Fetched
 	if len(keys) == 0 && !*f.skipVerify {
 		return nil, "", errors.New("-verify-key (from `deed backup verify-key` or GET /api/v1/backups) is required, or pass -skip-verify")
 	}
-	if tempDir == "" {
+	switch tempDir {
+	case "":
 		tempDir = os.TempDir()
-	} else if tempDir == "data" {
+	case "data":
 		tempDir = dataDir
 		if err := os.MkdirAll(dataDir, 0o700); err != nil {
 			return nil, "", err

@@ -3,6 +3,7 @@ package connectors
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -298,7 +299,7 @@ func ownerRepos(ctx context.Context, gc *apiClient, owner string, max int) ([]gh
 		return ghList[ghRepo](ctx, gc, "/user/repos", url.Values{"affiliation": {"owner"}, "sort": {"full_name"}}, max, nil)
 	}
 	repos, err := ghList[ghRepo](ctx, gc, "/orgs/"+url.PathEscape(owner)+"/repos", url.Values{"type": {"all"}, "sort": {"full_name"}}, max, nil)
-	if err == errNotFound {
+	if errors.Is(err, errNotFound) {
 		return ghList[ghRepo](ctx, gc, "/users/"+url.PathEscape(owner)+"/repos", url.Values{"type": {"owner"}, "sort": {"full_name"}}, max, nil)
 	}
 	return repos, err
@@ -380,7 +381,7 @@ func (GitHub) Sync(ctx context.Context, env sources.Env, em sources.Emitter) err
 	for _, full := range c.Repositories {
 		var r ghRepo
 		if _, err := gc.get(ctx, "/repos/"+full, nil, &r); err != nil {
-			if err == errNotFound {
+			if errors.Is(err, errNotFound) {
 				em.Diag(sources.Diagnostic{Level: "warning", Code: "repository", Message: full + ": not found or not visible to the token"})
 				continue
 			}

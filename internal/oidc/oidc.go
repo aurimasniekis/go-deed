@@ -255,7 +255,7 @@ func (s *Service) Start(ctx context.Context, slug, purpose, returnTo string, cur
 	if s.Secure {
 		name = StateCookie
 	}
-	cookie := &http.Cookie{Name: name, Value: binding, Path: "/", HttpOnly: true, Secure: s.Secure, SameSite: http.SameSiteLaxMode,
+	cookie := &http.Cookie{Name: name, Value: binding, Path: "/", HttpOnly: true, Secure: s.Secure, SameSite: http.SameSiteLaxMode, //nolint:gosec // Secure is off only for http:// development origins
 		MaxAge: int(stateTTL.Seconds())}
 	return &StartResult{RedirectURL: s.oauthConfig(p, op).AuthCodeURL(state, opts...), Cookie: cookie}, nil
 }
@@ -690,6 +690,9 @@ func (s *Service) syncRoles(ctx context.Context, tx *store.Tx, slug, userID stri
 		existing[pid] = m
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	for pid, role := range g.projects {
 		m, ok := existing[pid]
 		if ok && (m.src != src && projRank[m.role] >= projRank[role] || m.role == role) {

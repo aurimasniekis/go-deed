@@ -5,19 +5,16 @@ package app
 
 import (
 	"context"
-	"net/http"
-
-	"github.com/danielgtaylor/huma/v2"
-
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/aurimasniekis/go-deed/internal/findings"
-	"github.com/aurimasniekis/go-deed/internal/httpapi"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
+
+	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/aurimasniekis/go-deed/internal/alerts"
 	"github.com/aurimasniekis/go-deed/internal/audit"
@@ -27,7 +24,9 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/clock"
 	"github.com/aurimasniekis/go-deed/internal/config"
+	"github.com/aurimasniekis/go-deed/internal/findings"
 	"github.com/aurimasniekis/go-deed/internal/graph"
+	"github.com/aurimasniekis/go-deed/internal/httpapi"
 	"github.com/aurimasniekis/go-deed/internal/httpx"
 	"github.com/aurimasniekis/go-deed/internal/ids"
 	"github.com/aurimasniekis/go-deed/internal/ingest"

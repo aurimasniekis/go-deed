@@ -28,7 +28,6 @@ type Result struct {
 type ent struct {
 	kind, name string
 	md, spec   map[string]any
-	health     string
 }
 
 type rel struct{ typ, fromKind, from, toKind, to string }
@@ -42,7 +41,9 @@ func labels(extra map[string]any) map[string]any {
 }
 
 func dataset(now time.Time, scale int) ([]ent, []rel) {
-	e := func(kind, name string, md, spec map[string]any) ent { return ent{kind: kind, name: name, md: labels(md), spec: spec} }
+	e := func(kind, name string, md, spec map[string]any) ent {
+		return ent{kind: kind, name: name, md: labels(md), spec: spec}
+	}
 	ents := []ent{
 		e("group", "team-platform", map[string]any{"displayName": "Platform team"}, nil),
 		e("location", "home-rack", map[string]any{"displayName": "Home rack (synthetic)"}, nil),

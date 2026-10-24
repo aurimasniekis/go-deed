@@ -60,7 +60,7 @@ func TestTelemetryAuthorization(t *testing.T) {
 	}
 
 	// The telemetry stream sends a snapshot immediately and refuses unreadable entities.
-	req, _ := http.NewRequest("GET", h.srv.URL+"/api/v1/stream/telemetry?entity="+b, nil)
+	req, _ := http.NewRequest(http.MethodGet, h.srv.URL+"/api/v1/stream/telemetry?entity="+b, nil)
 	req.Header.Set("Authorization", "Bearer "+viewer.bearer)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -70,7 +70,7 @@ func TestTelemetryAuthorization(t *testing.T) {
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("stream of an unreadable entity: %d", resp.StatusCode)
 	}
-	req, _ = http.NewRequest("GET", h.srv.URL+"/api/v1/stream/telemetry?entity="+a, nil)
+	req, _ = http.NewRequest(http.MethodGet, h.srv.URL+"/api/v1/stream/telemetry?entity="+a, nil)
 	req.Header.Set("Authorization", "Bearer "+viewer.bearer)
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {

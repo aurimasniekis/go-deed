@@ -36,7 +36,7 @@ func TestDockerCollect(t *testing.T) {
 		case "/networks":
 			_, _ = io.WriteString(w, `[{"Name":"site_default","Id":"n1","Driver":"bridge","Scope":"local","IPAM":{"Config":[{"Subnet":"172.18.0.0/16","Gateway":"172.18.0.1"}]}},{"Name":"host","Id":"h","Driver":"host","Scope":"local"}]`)
 		default:
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	})}
 	go func() { _ = srv.Serve(l) }()

@@ -7,7 +7,7 @@ name: deed
 
 services:
   deed:
-    image: ${DEED_IMAGE:-ghcr.io/aurimasniekis/deed:latest}
+    image: ${DEED_IMAGE:-ghcr.io/aurimasniekis/go-deed:latest}
     restart: unless-stopped
     environment:
       DEED_PUBLIC_URL: ${DEED_PUBLIC_URL:?set DEED_PUBLIC_URL to the public https origin}

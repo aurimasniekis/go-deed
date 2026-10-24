@@ -31,6 +31,7 @@ type HallPassConfig struct {
 	IncludeDisabled bool     `json:"include_disabled,omitempty"`
 }
 
+//nolint:gosec // G101: a JSON Schema, not a credential
 const hallpassSchema = `{
   "type": "object", "additionalProperties": false, "required": ["url"],
   "properties": {

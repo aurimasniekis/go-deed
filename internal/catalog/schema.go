@@ -221,7 +221,7 @@ func compat(path string, o, n map[string]any, probs *[]string) {
 			add("type constraint added")
 		} else {
 			for t := range ot {
-				if !nt[t] && !(t == "integer" && nt["number"]) {
+				if !nt[t] && (t != "integer" || !nt["number"]) {
 					add("type %q no longer accepted", t)
 				}
 			}

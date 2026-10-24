@@ -67,7 +67,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
           -X github.com/aurimasniekis/go-deed/internal/buildinfo.Date=${BUILD_DATE}" \
         -o /out/$b ./cmd/$b || exit 1; \
     done
-RUN install -d -m 0700 -o 65532 -g 65532 /rootfs/var/lib/deed && \
+RUN install -d -m 0700 -o 65532 -g 65532 /rootfs/var/lib/deed /rootfs/var/lib/deed-kek && \
     install -d -m 0755 -o 0 -g 0 /rootfs/etc/deed
 COPY --chmod=0444 deploy/deed.container.yaml /rootfs/etc/deed/deed.yaml
 

@@ -202,6 +202,9 @@ func (e *Engine) Evaluate(ctx context.Context) error {
 			open = append(open, f)
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
 		active := map[string]bool{}
 		for _, r := range rules {
 			if !r.Enabled {
@@ -234,6 +237,9 @@ func (e *Engine) Evaluate(ctx context.Context) error {
 			}
 		}
 		crows.Close()
+		if err := crows.Err(); err != nil {
+			return err
+		}
 		e.Metrics.SetAlertsFiring(m)
 		return nil
 	})
@@ -309,6 +315,9 @@ func (e *Engine) resolveInactive(ctx context.Context, tx *store.Tx, rules []*Rul
 		}
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	for _, x := range resolve {
 		if _, err := tx.Exec(ctx, `UPDATE alerts SET state = 'resolved', resolved_at = ?, updated_at = ? WHERE id = ?`, tx.NowMicros(), tx.NowMicros(), x.id); err != nil {
 			return err

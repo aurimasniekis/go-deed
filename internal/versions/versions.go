@@ -285,6 +285,9 @@ func (c *Checker) Run(ctx context.Context) (int, error) {
 		cands = append(cands, x)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
 	// Newest non-prerelease release of the repository each entity is deployed from (catalog-only source).
 	releases := map[string]string{}
 	rrows, err := d.QueryContext(ctx, `SELECT r.from_id, json_extract(rel.effective_json, '$.spec.tag')
@@ -309,6 +312,9 @@ func (c *Checker) Run(ctx context.Context) (int, error) {
 		}
 	}
 	rrows.Close()
+	if err := rrows.Err(); err != nil {
+		return 0, err
+	}
 	now := c.Clock.Now()
 	max := c.MaxProducts
 	if max <= 0 {

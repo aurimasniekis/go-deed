@@ -3,6 +3,7 @@ package connectors
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"sort"
@@ -142,7 +143,7 @@ func porchTenants(ctx context.Context, pc *apiClient, c *PorchConfig) ([]porchTe
 		for _, slug := range c.Tenants {
 			var t porchTenant
 			if _, err := pc.get(ctx, "/tenants/"+url.PathEscape(slug), nil, &t); err != nil {
-				if err == errNotFound {
+				if errors.Is(err, errNotFound) {
 					return nil, fmt.Errorf("tenant %s: %w", slug, err)
 				}
 				return nil, err

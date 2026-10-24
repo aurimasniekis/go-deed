@@ -215,7 +215,7 @@ func Restore(ctx context.Context, f *Fetched, o RestoreOptions) (*Validation, er
 	if err != nil {
 		return nil, fmt.Errorf("restore needs the server stopped: %w", err)
 	}
-	defer lock.Release()
+	defer func() { _ = lock.Release() }()
 	latest, err := store.LatestSchemaVersion()
 	if err != nil {
 		return nil, err

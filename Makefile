@@ -1,0 +1,104 @@
+# Deed developer tasks. `make check` is what CI runs (except the browser e2e and container jobs).
+SHELL := bash
+GO ?= go
+PNPM ?= pnpm
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null)
+DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -s -w -X github.com/aurimasniekis/go-deed/internal/buildinfo.Version=$(VERSION) \
+	-X github.com/aurimasniekis/go-deed/internal/buildinfo.Commit=$(COMMIT) \
+	-X github.com/aurimasniekis/go-deed/internal/buildinfo.Date=$(DATE)
+GOLANGCI_VERSION ?= v2.15.0
+FUZZTIME ?= 10s
+HAS_WEB := $(wildcard web/package.json)
+
+.PHONY: all build run fmt fmt-check vet lint test race fuzz-smoke openapi openapi-check vuln secrets monitoring-check \
+	web-install web-build web-gen web-check web-e2e check docker container-smoke e2e bench release-build clean
+
+all: build
+
+build: ## build bin/deed and bin/deed-agent (embeds internal/webui/dist as built)
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/deed ./cmd/deed
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/deed-agent ./cmd/deed-agent
+
+run: build ## run against deploy/dev/deed.yaml
+	bin/deed serve -config deploy/dev/deed.yaml
+
+fmt:
+	gofmt -w cmd internal pkg
+
+fmt-check:
+	@out=$$(gofmt -l cmd internal pkg); if [[ -n "$$out" ]]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+
+vet:
+	$(GO) vet ./...
+
+lint:
+	golangci-lint run --timeout 10m ./...
+
+test:
+	$(GO) test ./...
+
+race: ## race tests (DEED_TEST_TX_MAX relaxes the 100 ms transaction guard on loaded runners)
+	$(GO) test -race -count=1 ./...
+
+fuzz-smoke:
+	$(GO) test -run '^$$' -fuzz FuzzSanitize -fuzztime $(FUZZTIME) ./internal/icons/
+	$(GO) test -run '^$$' -fuzz FuzzParse -fuzztime $(FUZZTIME) ./internal/tfimport/
+
+openapi: ## regenerate api/openapi.json
+	$(GO) run ./cmd/deed openapi > api/openapi.json.tmp && mv api/openapi.json.tmp api/openapi.json
+
+openapi-check: ## fail when api/openapi.json is stale
+	@$(GO) run ./cmd/deed openapi > /tmp/deed-openapi.json && cmp -s /tmp/deed-openapi.json api/openapi.json || \
+		{ echo "api/openapi.json is stale: run make openapi"; exit 1; }
+
+vuln:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+secrets:
+	gitleaks git --redact --config .gitleaks.toml .
+
+monitoring-check:
+	deploy/monitoring/check.sh
+
+web-install:
+	$(PNPM) --dir web install --frozen-lockfile
+
+web-gen: ## regenerate the typed API client from api/openapi.json
+	$(PNPM) --dir web run gen:api
+
+web-build: ## typecheck, vite build into internal/webui/dist, scripts/check-dist.mjs
+	$(PNPM) --dir web run build
+
+web-check:
+ifneq ($(HAS_WEB),)
+	$(PNPM) --dir web run typecheck
+	$(PNPM) --dir web run lint
+	$(PNPM) --dir web run test
+else
+	@echo "web/ not present; skipping"
+endif
+
+web-e2e:
+	$(PNPM) --dir web run e2e
+
+check: fmt-check vet lint race openapi-check monitoring-check web-check ## everything CI checks without browsers or Docker
+
+docker:
+	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_DATE=$(DATE) -t deed:local .
+
+container-smoke: docker
+	scripts/container-smoke.sh deed:local
+
+e2e: ## §18 end-to-end scenario against the dev stack (docs/VALIDATION.md)
+	scripts/e2e.sh
+
+bench:
+	$(GO) test -run '^$$' -bench . -benchmem ./internal/graph/ ./internal/catalog/
+
+release-build:
+	scripts/release-build.sh -o dist
+
+clean:
+	rm -rf bin dist

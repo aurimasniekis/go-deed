@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -300,34 +301,48 @@ func TestPruneDropsIncompleteAndOld(t *testing.T) {
 	}
 }
 
-// TestMinIO runs a backup against a real MinIO server when the binary is installed, including an outage.
+// TestMinIO runs a backup against a real MinIO server: DEED_TEST_S3 (http://user:password@host:port, as in CI service
+// containers) or a local `minio` binary, which this test also stops to simulate an outage.
 func TestMinIO(t *testing.T) {
-	bin, err := exec.LookPath("minio")
-	if err != nil {
-		t.Skip("minio not installed")
-	}
-	l, _ := net.Listen("tcp", "127.0.0.1:0")
-	addr := l.Addr().String()
-	_ = l.Close()
-	cmd := exec.Command(bin, "server", t.TempDir(), "--address", addr, "--console-address", "127.0.0.1:0", "--quiet")
-	cmd.Env = append(os.Environ(), "MINIO_ROOT_USER=deedtest", "MINIO_ROOT_PASSWORD=deedtest-secret")
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	stop := func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait() }
-	defer stop()
 	ctx := context.Background()
-	mc, _ := minio.New(addr, &minio.Options{Creds: credentials.NewStaticV4("deedtest", "deedtest-secret", ""), Secure: false})
+	var endpoint, user, pass string
+	var stop func()
+	if v := os.Getenv("DEED_TEST_S3"); v != "" {
+		u, err := url.Parse(v)
+		if err != nil || u.User == nil {
+			t.Fatalf("DEED_TEST_S3 must be http://user:password@host:port")
+		}
+		endpoint, user = u.Host, u.User.Username()
+		pass, _ = u.User.Password()
+	} else {
+		bin, err := exec.LookPath("minio")
+		if err != nil {
+			t.Skip("set DEED_TEST_S3 or install minio")
+		}
+		l, _ := net.Listen("tcp", "127.0.0.1:0")
+		endpoint = l.Addr().String()
+		_ = l.Close()
+		user, pass = "deedtest", "deedtest-secret"
+		cmd := exec.Command(bin, "server", t.TempDir(), "--address", endpoint, "--console-address", "127.0.0.1:0", "--quiet")
+		cmd.Env = append(os.Environ(), "MINIO_ROOT_USER="+user, "MINIO_ROOT_PASSWORD="+pass)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		stop = func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait() }
+		defer stop()
+	}
+	bucket := fmt.Sprintf("deed-test-%d", time.Now().UnixNano())
+	mc, _ := minio.New(endpoint, &minio.Options{Creds: credentials.NewStaticV4(user, pass, ""), Secure: false})
 	deadline := time.Now().Add(20 * time.Second)
 	for {
-		if err := mc.MakeBucket(ctx, "deed", minio.MakeBucketOptions{}); err == nil {
+		if err := mc.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err == nil {
 			break
 		} else if time.Now().After(deadline) {
-			t.Fatalf("minio did not start: %v", err)
+			t.Fatalf("minio not reachable: %v", err)
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	s3, err := NewS3(S3Options{Endpoint: addr, Bucket: "deed", Prefix: "deed/", AccessKey: "deedtest", SecretKey: "deedtest-secret", Insecure: true, Lookup: "path"})
+	s3, err := NewS3(S3Options{Endpoint: endpoint, Bucket: bucket, Prefix: "deed/", AccessKey: user, SecretKey: pass, Insecure: true, Lookup: "path"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,8 +355,13 @@ func TestMinIO(t *testing.T) {
 	if err != nil || f.Counts["entities"] != 50 {
 		t.Fatalf("fetch from minio: %v", err)
 	}
-	// Outage: the server goes away mid-life.
-	stop()
+	// Outage: the server goes away (local binary) or the endpoint is wrong (service container).
+	if stop != nil {
+		stop()
+	} else {
+		bad, _ := NewS3(S3Options{Endpoint: "127.0.0.1:1", Bucket: bucket, AccessKey: user, SecretKey: pass, Insecure: true, Lookup: "path"})
+		r.svc.o.Objects = bad
+	}
 	failed, err := r.svc.Run(ctx, "schedule", audit.System)
 	if err == nil || failed.Result != "error" {
 		t.Fatalf("backup during outage: %+v", failed)

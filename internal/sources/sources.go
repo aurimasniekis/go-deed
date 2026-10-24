@@ -603,6 +603,9 @@ func (r *Runner) due(ctx context.Context) ([]*catalog.Source, error) {
 			ds = append(ds, d)
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
 		for _, d := range ds {
 			if p, ok := r.Registry.Get(sourceProvider(ctx, tx, d.id)); !ok || !p.Describe().Capabilities.Pull {
 				if _, err := tx.Exec(ctx, `UPDATE sources SET next_run_at = NULL WHERE id = ?`, d.id); err != nil {

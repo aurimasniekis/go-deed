@@ -198,6 +198,7 @@ func (svc *Service) insertToken(ctx context.Context, tx *store.Tx, t *Token, raw
 	return err
 }
 
+//nolint:gosec // G101: a column list, not a credential
 const tokenCols = `id, kind, name, COALESCE(user_id, ''), COALESCE(source_id, ''), COALESCE(installation_role, ''), COALESCE(project_role, ''),
 	projects_json, COALESCE(created_by, ''), created_at, expires_at, last_used_at, revoked_at`
 

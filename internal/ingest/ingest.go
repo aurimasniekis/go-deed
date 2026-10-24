@@ -666,6 +666,9 @@ func (s *Service) handleAbsent(ctx context.Context, tx *store.Tx, src *catalog.S
 		facets = append(facets, f)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	rows, err = tx.Query(ctx, `SELECT id, relation_id FROM relation_assertions WHERE source_id = ? AND tombstoned_at IS NULL AND generation < ?`, src.ID, gen)
 	if err != nil {
 		return err
@@ -679,6 +682,9 @@ func (s *Service) handleAbsent(ctx context.Context, tx *store.Tx, src *catalog.S
 		asserts = append(asserts, f)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	absent := len(facets) + len(asserts)
 	if absent == 0 {
 		return nil

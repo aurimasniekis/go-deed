@@ -78,6 +78,9 @@ func (r *Relay) Once(ctx context.Context) (published, failed int, err error) {
 		due = append(due, x)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, 0, err
+	}
 	for _, x := range due {
 		pctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		_, perr := r.Pub.Publish(pctx, x.subject, x.typ, json.RawMessage(x.payload), pulse.WithID(x.id), pulse.WithTime(clock.FromMicros(x.created)))

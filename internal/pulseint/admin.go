@@ -3,6 +3,7 @@ package pulseint
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -233,7 +234,8 @@ func (Admin) Test(ctx context.Context, env sources.Env) []sources.Diagnostic {
 }
 
 func message(err error) string {
-	if ae, ok := err.(*apperr.Error); ok {
+	var ae *apperr.Error
+	if errors.As(err, &ae) {
 		return ae.Message
 	}
 	return "request failed: " + safehttp.Classify(err)

@@ -414,6 +414,9 @@ func (s *Service) recomputeRelationTx(ctx context.Context, tx *store.Tx, relID s
 		as = append(as, a)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	newLive := len(as) > 0
 	best, allInferred := EvidenceInferred, true
 	attrs := map[string]any{}

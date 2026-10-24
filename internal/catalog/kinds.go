@@ -201,6 +201,9 @@ func loadKinds(ctx context.Context, q querier) (map[string]*Kind, error) {
 		byID[k.ID] = &k
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	vrows, err := q.QueryContext(ctx, `SELECT kind_id, version, schema_json, breaking, migration, created_at FROM kind_versions`)
 	if err != nil {
 		return nil, err
@@ -632,6 +635,9 @@ func (s *Service) revalidateKindTx(ctx context.Context, tx *store.Tx, kind, vers
 		out = append(out, res{id: id, errs: rawJSON(fe), valid: len(fe) == 0})
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, 0, err
+	}
 	for _, r := range out {
 		checked++
 		if !r.valid {

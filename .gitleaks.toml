@@ -4,13 +4,17 @@ title = "deed gitleaks config"
 useDefault = true
 
 [allowlist]
-description = "Placeholder token shapes in docs and tests; gitignored local run artefacts"
+description = "Placeholder token shapes in docs and tests; synthetic planted secrets in redaction fixtures; local artefacts"
 paths = [
-  '''deploy/\.dev/''',
   '''(^|/)node_modules/''',
   '''^bin/''',
+  '''(^|/)\.claude/''',
+  '''deploy/dev/secrets/''',
 ]
 regexes = [
-  '''deed_(at|st|setup)_EXAMPLE[A-Za-z0-9_]*''',
-  '''AGE-SECRET-KEY-1EXAMPLE[A-Z0-9]*''',
+  '''deed_(at|st)_(EXAMPLE|test|x)[A-Za-z0-9_]*''',
+  '''PLANTED-SECRET[A-Za-z0-9_-]*''',
+  '''deed-dev-secret''',
+  '''deedtest-secret''',
+  '''deedsmoke-secret''',
 ]

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -196,7 +197,8 @@ func registerKinds(api huma.API, d *Deps) {
 			}
 			res, err := d.Catalog.PublishVersion(ctx, Actor(ctx), in.Name, in.Body.Schema, in.Body.Breaking, in.Body.Migration, v)
 			if err != nil {
-				if pr, ok := d.Fail("publish-kind-version", err).(*Problem); ok && res != nil {
+				var pr *Problem
+				if errors.As(d.Fail("publish-kind-version", err), &pr) && res != nil {
 					for _, p := range res.CompatibilityProblems {
 						pr.Fields = append(pr.Fields, apperr.FieldError{Field: "schema", Message: p})
 					}
@@ -216,7 +218,7 @@ func registerKinds(api huma.API, d *Deps) {
 			cs, err := catalog.ParseSchema(in.Body.Schema)
 			if err != nil {
 				out.Error = err.Error()
-				return &schemaCheckOutput{Body: out}, nil
+				return &schemaCheckOutput{Body: out}, nil //nolint:nilerr // an invalid schema is the check's answer, not a request failure
 			}
 			out.Valid = true
 			if k := d.Catalog.Kind(in.Name); k != nil {

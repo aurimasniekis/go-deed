@@ -456,9 +456,9 @@ func (a *API) stream(w http.ResponseWriter, r *http.Request, d *httpapi.Deps) {
 		}
 		return rc.Flush()
 	}
-	tick := func() error {
+	tick := func() error { //nolint:contextcheck // every tick uses the stream request's own context
 		// Authorization is re-checked every tick: revoked sessions, tokens and project access end the stream.
-		cur, err := d.Revalidate(r)
+		cur, err := d.Revalidate(r) //nolint:contextcheck // revalidates with the stream request's own context
 		if err != nil {
 			_ = send("closed", map[string]any{"reason": "credentials revoked or expired"})
 			return err

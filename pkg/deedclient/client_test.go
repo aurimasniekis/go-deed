@@ -18,7 +18,7 @@ func TestRetriesReuseIdempotencyKey(t *testing.T) {
 		n := len(keys)
 		mu.Unlock()
 		if r.Header.Get("Authorization") != "Bearer deed_st_x" {
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		if n < 3 {

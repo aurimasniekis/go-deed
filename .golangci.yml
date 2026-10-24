@@ -1,3 +1,4 @@
+# Adapted from Porch .golangci.yml (Apache-2.0).
 version: "2"
 
 run:
@@ -20,7 +21,8 @@ linters:
     - noctx
     - revive
     - rowserrcheck
-    - sqlclosecheck
+    # sqlclosecheck is not enabled: several loops close their rows explicitly before issuing more statements on the
+    # same transaction, which a deferred Close would not do.
     - unconvert
     - usestdlibvars
   settings:
@@ -76,3 +78,7 @@ formatters:
     goimports:
       local-prefixes:
         - github.com/aurimasniekis/go-deed
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

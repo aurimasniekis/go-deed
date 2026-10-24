@@ -61,7 +61,7 @@ func runImportTerraform(ctx context.Context, args []string, stdout, stderr io.Wr
 	}
 	cctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	req, err := http.NewRequestWithContext(cctx, http.MethodPost, u, body)
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, u, body) //nolint:gosec // G704: the operator chooses the Deed endpoint
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func runImportTerraform(ctx context.Context, args []string, stdout, stderr io.Wr
 	req.Header.Set("User-Agent", "deed-cli")
 	tc := &tls.Config{MinVersion: tls.VersionTLS12}
 	if *caFile != "" {
-		pem, err := os.ReadFile(*caFile)
+		pem, err := os.ReadFile(*caFile) //nolint:gosec // G703: operator-supplied CA file
 		if err != nil {
 			return err
 		}
@@ -83,7 +83,7 @@ func runImportTerraform(ctx context.Context, args []string, stdout, stderr io.Wr
 	}
 	client := &http.Client{Transport: &http.Transport{TLSClientConfig: tc, Proxy: http.ProxyFromEnvironment},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // G704: the operator chooses the Deed endpoint
 	if err != nil {
 		return err
 	}
