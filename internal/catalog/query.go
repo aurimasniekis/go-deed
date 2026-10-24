@@ -945,3 +945,51 @@ func (s *Service) LatestSeqTx(ctx context.Context, tx *store.Tx) (int64, error) 
 	err := tx.QueryRow(ctx, `SELECT MAX(seq) FROM change_log`).Scan(&seq)
 	return seq.Int64, err
 }
+
+// FindByPointer finds a single live entity in a project whose effective value at pointer equals value (case
+// insensitive), among kinds. It prefers identity keys and falls back to a bounded JSON scan.
+func (s *Service) FindByPointer(ctx context.Context, projectID string, kinds []string, pointer, value string) (string, bool) {
+	if len(kinds) == 0 || value == "" || !strings.HasPrefix(pointer, "/") {
+		return "", false
+	}
+	d := s.Store.R()
+	var args []any
+	args = append(args, projectID, pointer+"="+strings.ToLower(value))
+	kin := inClause("kind", kinds, &args)
+	rows, err := d.QueryContext(ctx, `SELECT DISTINCT entity_id FROM entity_identity_keys WHERE project_id = ? AND key_value = ? AND `+kin+` LIMIT 2`, args...)
+	if err == nil {
+		var found []string
+		for rows.Next() {
+			var id string
+			if rows.Scan(&id) == nil {
+				found = append(found, id)
+			}
+		}
+		rows.Close()
+		if len(found) == 1 {
+			return found[0], true
+		}
+		if len(found) > 1 {
+			return "", false
+		}
+	}
+	path := "$." + strings.ReplaceAll(strings.TrimPrefix(pointer, "/"), "/", ".")
+	args = []any{projectID, path, strings.ToLower(value)}
+	kin = inClause("kind", kinds, &args)
+	rows, err = d.QueryContext(ctx, `SELECT id FROM entities WHERE project_id = ? AND tombstoned_at IS NULL AND lower(json_extract(effective_json, ?)) = ? AND `+kin+` LIMIT 2`, args...)
+	if err != nil {
+		return "", false
+	}
+	defer rows.Close()
+	var found []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			found = append(found, id)
+		}
+	}
+	if len(found) == 1 {
+		return found[0], true
+	}
+	return "", false
+}

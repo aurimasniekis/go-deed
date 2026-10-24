@@ -1,0 +1,38 @@
+# Proxmox: Telmate/proxmox (proxmox_vm_qemu, proxmox_lxc) and bpg/proxmox (proxmox_virtual_environment_vm).
+mappings:
+  - resource: proxmox_vm_qemu
+    kind: vm
+    icon: simple-icons:proxmox
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/hostname: name
+      /spec/ipv4: default_ipv4_address
+      /spec/cpu_cores: cores
+      /spec/memory_mb: memory
+      /spec/provider: const:proxmox
+    join: [target_node]
+    relations:
+      - {type: runs_on, attribute: target_node, target_kinds: [hypervisor], target_pointer: /spec/hostname, confidence: 0.9}
+  - resource: proxmox_lxc
+    kind: container
+    icon: simple-icons:proxmox
+    name: '{{ default .name .attr.hostname | slug }}'
+    fields:
+      /spec/image: ostemplate
+      /spec/state: lower:status
+    join: [target_node]
+    relations:
+      - {type: runs_on, attribute: target_node, target_kinds: [hypervisor], target_pointer: /spec/hostname, confidence: 0.9}
+  - resource: proxmox_virtual_environment_vm
+    kind: vm
+    icon: simple-icons:proxmox
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/hostname: name
+      /spec/ipv4: ipv4_addresses.1.0
+      /spec/cpu_cores: cpu.0.cores
+      /spec/memory_mb: memory.0.dedicated
+      /spec/provider: const:proxmox
+    join: [node_name]
+    relations:
+      - {type: runs_on, attribute: node_name, target_kinds: [hypervisor], target_pointer: /spec/hostname, confidence: 0.9}

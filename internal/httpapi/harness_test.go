@@ -19,6 +19,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/oidc"
 	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/testenv"
+	"github.com/aurimasniekis/go-deed/internal/tfimport"
 )
 
 // fastParams keep Argon2id cheap in tests.
@@ -43,8 +44,11 @@ func newHarness(t *testing.T) *harness {
 		Clock: env.Clock, LocalAuth: true, OIDC: &oidc.Service{}}
 	ing := &ingest.Service{Store: env.Store, Catalog: env.Catalog, Audit: env.Audit, Clock: env.Clock,
 		Limits: ingest.Limits{MaxItems: 1000, MaxSnapshotItems: 10000, SnapshotTimeout: time.Hour, MaxRemovalPercent: 25}}
-	runner := &sources.Runner{Store: env.Store, Catalog: env.Catalog, Ingest: ing, Audit: env.Audit, Registry: sources.NewRegistry(), Clock: env.Clock}
-	d.Extensions = append(d.Extensions, (&sources.API{Runner: runner, Ingest: ing}).Register)
+	reg := sources.NewRegistry()
+	tf := &tfimport.Provider{Catalog: tfimport.MustBuiltin()}
+	reg.Register(tf)
+	runner := &sources.Runner{Store: env.Store, Catalog: env.Catalog, Ingest: ing, Audit: env.Audit, Registry: reg, Clock: env.Clock}
+	d.Extensions = append(d.Extensions, (&sources.API{Runner: runner, Ingest: ing}).Register, (&tfimport.PushAPI{Provider: tf, Ingest: ing, Runner: runner}).Register)
 	h.srv = httptest.NewServer(resolver.Middleware(httpx.RequestID(mux)))
 	d.Origin = h.srv.URL
 	httpapi.New(mux, d)

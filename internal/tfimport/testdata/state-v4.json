@@ -1,0 +1,77 @@
+{
+  "version": 4,
+  "terraform_version": "1.11.4",
+  "serial": 42,
+  "lineage": "00000000-0000-4000-8000-000000000000",
+  "outputs": {
+    "db_password": {"value": "PLANTED-SECRET-output", "type": "string", "sensitive": true}
+  },
+  "resources": [
+    {
+      "mode": "managed", "type": "cloudflare_zone", "name": "example", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
+      "instances": [{"schema_version": 0, "attributes": {"id": "zone0000000000000000000000000001", "zone": "example.com", "plan": "free",
+        "name_servers": ["ns1.example.net", "ns2.example.net"], "status": "active"}, "sensitive_attributes": []}]
+    },
+    {
+      "mode": "managed", "type": "cloudflare_record", "name": "www", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
+      "instances": [{"schema_version": 2, "attributes": {"id": "rec1", "hostname": "www.example.com", "name": "www", "type": "A",
+        "content": "198.51.100.10", "ttl": 1, "proxied": true, "zone_id": "zone0000000000000000000000000001"}, "sensitive_attributes": [],
+        "dependencies": ["cloudflare_zone.example", "hcloud_server.web"]}]
+    },
+    {
+      "mode": "managed", "type": "cloudflare_record", "name": "api", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
+      "instances": [{"schema_version": 2, "attributes": {"id": "rec2", "hostname": "api.example.com", "name": "api", "type": "A",
+        "content": "198.51.100.11", "ttl": 300, "proxied": false, "zone_id": "zone0000000000000000000000000001"}, "sensitive_attributes": []}]
+    },
+    {
+      "mode": "managed", "type": "hcloud_server", "name": "web", "provider": "provider[\"registry.terraform.io/hetznercloud/hcloud\"]",
+      "instances": [{"schema_version": 0, "attributes": {"id": "1001", "name": "web-1", "ipv4_address": "198.51.100.10", "ipv6_address": "2001:db8::10",
+        "server_type": "cx22", "image": "debian-13", "location": "fsn1", "status": "running",
+        "user_data": "#cloud-config\npassword: PLANTED-SECRET-userdata", "labels": {"role": "web"}},
+        "sensitive_attributes": [[{"type": "get_attr", "value": "user_data"}]]}]
+    },
+    {
+      "mode": "managed", "type": "hcloud_server", "name": "worker", "provider": "provider[\"registry.terraform.io/hetznercloud/hcloud\"]",
+      "instances": [
+        {"index_key": 0, "schema_version": 0, "attributes": {"id": "1002", "name": "worker-1", "ipv4_address": "198.51.100.21", "server_type": "cx22",
+          "image": "debian-13", "location": "fsn1", "status": "running"}, "sensitive_attributes": []},
+        {"index_key": 1, "schema_version": 0, "attributes": {"id": "1003", "name": "worker-2", "ipv4_address": "198.51.100.22", "server_type": "cx22",
+          "image": "debian-13", "location": "fsn1", "status": "running"}, "sensitive_attributes": []}
+      ]
+    },
+    {
+      "mode": "managed", "type": "tls_private_key", "name": "ca", "provider": "provider[\"registry.terraform.io/hashicorp/tls\"]",
+      "instances": [{"schema_version": 1, "attributes": {"id": "abc", "algorithm": "ECDSA",
+        "private_key_pem": "-----BEGIN EC PRIVATE KEY-----\nPLANTED-SECRET-pem\n-----END EC PRIVATE KEY-----\n"},
+        "sensitive_attributes": [[{"type": "get_attr", "value": "private_key_pem"}]]}]
+    },
+    {
+      "mode": "managed", "type": "random_password", "name": "db", "provider": "provider[\"registry.terraform.io/hashicorp/random\"]",
+      "instances": [{"schema_version": 3, "attributes": {"id": "none", "result": "PLANTED-SECRET-random", "length": 32},
+        "sensitive_attributes": [[{"type": "get_attr", "value": "result"}]]}]
+    },
+    {
+      "mode": "managed", "type": "github_repository", "name": "deed", "provider": "provider[\"registry.terraform.io/integrations/github\"]",
+      "instances": [{"schema_version": 1, "attributes": {"id": "go-deed", "name": "go-deed", "full_name": "example/go-deed",
+        "html_url": "https://github.com/example/go-deed", "visibility": "public", "archived": false, "description": "Example repository",
+        "default_branch": "main", "private": false}, "sensitive_attributes": []}]
+    },
+    {
+      "mode": "managed", "type": "acme_certificate", "name": "www", "provider": "provider[\"registry.terraform.io/vancluever/acme\"]",
+      "instances": [{"schema_version": 5, "attributes": {"id": "cert1", "common_name": "www.example.com", "subject_alternative_names": ["api.example.com"],
+        "certificate_not_after": "2026-12-01T00:00:00Z", "private_key_pem": "-----BEGIN RSA PRIVATE KEY-----\nPLANTED-SECRET-acme\n-----END RSA PRIVATE KEY-----"},
+        "sensitive_attributes": [[{"type": "get_attr", "value": "private_key_pem"}]]}]
+    },
+    {
+      "mode": "data", "type": "cloudflare_zones", "name": "all", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
+      "instances": [{"schema_version": 0, "attributes": {"id": "x"}}]
+    },
+    {
+      "module": "module.observability", "mode": "managed", "type": "grafana_dashboard", "name": "overview",
+      "provider": "provider[\"registry.terraform.io/grafana/grafana\"]",
+      "instances": [{"schema_version": 1, "attributes": {"id": "1:overview", "uid": "overview", "url": "https://grafana.example.com/d/overview",
+        "folder": "infra", "config_json": "{\"title\":\"Infrastructure overview\",\"panels\":[]}"}, "sensitive_attributes": []}]
+    }
+  ],
+  "check_results": null
+}

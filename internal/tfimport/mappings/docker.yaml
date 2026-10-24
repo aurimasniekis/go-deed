@@ -1,0 +1,23 @@
+# kreuzwerker/docker provider.
+mappings:
+  - resource: docker_container
+    kind: container
+    icon: simple-icons:docker
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ .attr.name }}'
+    fields:
+      /spec/image: image
+      /spec/restart_policy: restart
+      /spec/state: lower:status
+    join: [network_data.0.network_name]
+    relations:
+      - {type: member_of, attribute: network_data.0.network_name, target_kinds: [network], target_attribute: name, confidence: 1}
+  - resource: docker_network
+    kind: network
+    icon: simple-icons:docker
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/type: driver
+      /spec/cidr: ipam_config.0.subnet
+      /spec/gateway: ipam_config.0.gateway
+    join: [name]

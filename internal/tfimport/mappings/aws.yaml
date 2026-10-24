@@ -1,0 +1,58 @@
+# AWS provider (selected resources).
+mappings:
+  - resource: aws_instance
+    kind: vm
+    icon: tabler:brand-aws
+    name: '{{ default .name .attr.tags.Name | slug }}'
+    display_name: '{{ default .name .attr.tags.Name }}'
+    fields:
+      /spec/hostname: private_dns
+      /spec/ipv4: public_ip|private_ip
+      /spec/instance_type: instance_type
+      /spec/image: ami
+      /spec/region: availability_zone
+      /spec/status: instance_state
+      /spec/provider: const:aws
+    join: [id, private_ip, public_ip, tags.Name]
+  - resource: aws_route53_zone
+    kind: dns_zone
+    icon: tabler:brand-aws
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/zone: name
+      /spec/zone_id: zone_id
+      /spec/provider: const:aws-route53
+    join: [zone_id]
+  - resource: aws_route53_record
+    kind: dns_record
+    icon: tabler:brand-aws
+    name: '{{ slug (default .name .attr.fqdn) }}-{{ lower (default "" .attr.type) }}'
+    fields:
+      /spec/fqdn: fqdn|name
+      /spec/type: type
+      /spec/content: first:records
+      /spec/ttl: ttl
+      /spec/zone: zone_id
+    join: [zone_id, records]
+    relations:
+      - {type: contains, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: zone_id, confidence: 1}
+      - {type: resolves_to, attribute: records, target_kinds: [vm, server], target_pointer: /spec/ipv4}
+  - resource: aws_s3_bucket
+    kind: storage
+    icon: tabler:brand-aws
+    name: '{{ default .name .attr.bucket | slug }}'
+    fields:
+      /spec/type: const:s3
+      /spec/bucket: bucket
+      /spec/endpoint: bucket_regional_domain_name
+      /spec/provider: const:aws
+  - resource: aws_db_instance
+    kind: database
+    icon: tabler:brand-aws
+    name: '{{ default .name .attr.identifier | slug }}'
+    fields:
+      /spec/engine: engine
+      /spec/version: engine_version
+      /spec/host: address
+      /spec/port: port
+      /spec/database: db_name

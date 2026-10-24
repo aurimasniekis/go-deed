@@ -1,0 +1,13 @@
+# VMware vSphere provider.
+mappings:
+  - resource: vsphere_virtual_machine
+    kind: vm
+    icon: tabler:server-2
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/hostname: name
+      /spec/ipv4: default_ip_address
+      /spec/cpu_cores: num_cpus
+      /spec/memory_mb: memory
+      /spec/os: guest_id
+      /spec/provider: const:vsphere

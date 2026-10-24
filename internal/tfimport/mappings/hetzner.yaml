@@ -1,0 +1,34 @@
+# Hetzner Cloud provider (hcloud).
+mappings:
+  - resource: hcloud_server
+    kind: vm
+    icon: simple-icons:hetzner
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ .attr.name }}'
+    fields:
+      /spec/hostname: name
+      /spec/ipv4: ipv4_address
+      /spec/ipv6: ipv6_address
+      /spec/instance_type: server_type
+      /spec/image: image
+      /spec/region: location|datacenter
+      /spec/status: status
+      /spec/provider: const:hetzner
+  - resource: hcloud_network
+    kind: network
+    icon: simple-icons:hetzner
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/cidr: ip_range
+      /spec/type: const:hcloud-network
+  - resource: hcloud_volume
+    kind: storage
+    icon: simple-icons:hetzner
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/type: const:volume
+      /spec/capacity_gb: size
+      /spec/provider: const:hetzner
+    join: [server_id]
+    relations:
+      - {type: stored_in, direction: in, attribute: server_id, target_kinds: [vm], target_attribute: id, confidence: 1}

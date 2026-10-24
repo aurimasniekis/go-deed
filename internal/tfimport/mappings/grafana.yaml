@@ -1,0 +1,12 @@
+# Grafana provider: dashboards are link targets (Grafana is not treated as a metrics store).
+mappings:
+  - resource: grafana_dashboard
+    kind: grafana_dashboard
+    icon: simple-icons:grafana
+    name: '{{ default .name .attr.uid | slug }}'
+    display_name: '{{ default .name .attr.title }}'
+    fields:
+      /spec/uid: uid
+      /spec/url: url
+      /spec/folder: folder
+      /spec/title: json:config_json.title

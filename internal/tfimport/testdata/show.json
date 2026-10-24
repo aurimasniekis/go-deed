@@ -1,0 +1,26 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.11.4",
+  "values": {
+    "outputs": {"token": {"sensitive": true, "value": "PLANTED-SECRET-show-output"}},
+    "root_module": {
+      "resources": [
+        {"address": "digitalocean_droplet.app", "mode": "managed", "type": "digitalocean_droplet", "name": "app",
+         "provider_name": "registry.terraform.io/digitalocean/digitalocean", "schema_version": 1,
+         "values": {"id": "2001", "name": "app-1", "ipv4_address": "203.0.113.5", "size": "s-1vcpu-1gb", "image": "debian-12-x64", "region": "fra1",
+                    "status": "active", "user_data": "PLANTED-SECRET-show-userdata"},
+         "sensitive_values": {"user_data": true}}
+      ],
+      "child_modules": [
+        {"address": "module.dns", "resources": [
+          {"address": "module.dns.digitalocean_domain.main", "mode": "managed", "type": "digitalocean_domain", "name": "main",
+           "provider_name": "registry.terraform.io/digitalocean/digitalocean", "values": {"id": "example.org", "name": "example.org"}, "sensitive_values": {}},
+          {"address": "module.dns.digitalocean_record.app", "mode": "managed", "type": "digitalocean_record", "name": "app",
+           "provider_name": "registry.terraform.io/digitalocean/digitalocean",
+           "values": {"id": "3001", "domain": "example.org", "fqdn": "app.example.org", "type": "A", "value": "203.0.113.5", "ttl": 1800},
+           "sensitive_values": {}, "depends_on": ["module.dns.digitalocean_domain.main"]}
+        ]}
+      ]
+    }
+  }
+}

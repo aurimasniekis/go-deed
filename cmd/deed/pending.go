@@ -14,7 +14,6 @@ func backupCommands() []*command {
 	return []*command{{name: "run", summary: "take a backup now", run: pendingCmd}}
 }
 
-func runRestore(context.Context, []string, io.Writer, io.Writer) error         { return errPending }
-func runImportTerraform(context.Context, []string, io.Writer, io.Writer) error { return errPending }
-func runDemoSeed(context.Context, []string, io.Writer, io.Writer) error        { return errPending }
-func pendingCmd(context.Context, []string, io.Writer, io.Writer) error         { return errPending }
+func runRestore(context.Context, []string, io.Writer, io.Writer) error  { return errPending }
+func runDemoSeed(context.Context, []string, io.Writer, io.Writer) error { return errPending }
+func pendingCmd(context.Context, []string, io.Writer, io.Writer) error  { return errPending }

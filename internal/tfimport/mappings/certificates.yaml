@@ -1,0 +1,29 @@
+# Certificates from the tls and acme providers. Only public metadata is read: never key or certificate PEM.
+mappings:
+  - resource: acme_certificate
+    kind: certificate
+    icon: simple-icons:letsencrypt
+    name: '{{ default .name .attr.common_name | slug }}'
+    fields:
+      /spec/common_name: common_name
+      /spec/sans: subject_alternative_names
+      /spec/not_after: certificate_not_after
+      /spec/issuer: const:acme
+  - resource: tls_self_signed_cert
+    kind: certificate
+    icon: tabler:certificate
+    name: '{{ .name | slug }}'
+    fields:
+      /spec/common_name: subject.0.common_name
+      /spec/sans: dns_names
+      /spec/not_before: validity_start_time
+      /spec/not_after: validity_end_time
+      /spec/issuer: const:self-signed
+  - resource: tls_locally_signed_cert
+    kind: certificate
+    icon: tabler:certificate
+    name: '{{ .name | slug }}'
+    fields:
+      /spec/not_before: validity_start_time
+      /spec/not_after: validity_end_time
+      /spec/issuer: const:local-ca

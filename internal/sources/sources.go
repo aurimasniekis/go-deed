@@ -85,6 +85,8 @@ type Env struct {
 	HTTP  func(p safehttp.Policy) (*http.Client, error)
 	Log   *slog.Logger
 	Clock clock.Clock
+	// Lookup finds a single existing entity of the source's project by an effective value (inference joins).
+	Lookup func(ctx context.Context, kinds []string, pointer, value string) (string, bool)
 }
 
 // Emitter receives a provider's facts.
@@ -368,8 +370,14 @@ func (r *Runner) Env(src *catalog.Source) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
+	if r.Log == nil {
+		r.Log = slog.New(slog.DiscardHandler)
+	}
 	return Env{Source: src, Config: src.Config, Secrets: secrets, Log: r.Log.With("source", src.Name, "provider", src.Provider), Clock: r.Clock,
-		HTTP: func(p safehttp.Policy) (*http.Client, error) { return r.Guard.Client(p) }}, nil
+		HTTP: func(p safehttp.Policy) (*http.Client, error) { return r.Guard.Client(p) },
+		Lookup: func(ctx context.Context, kinds []string, pointer, value string) (string, bool) {
+			return r.Catalog.FindByPointer(ctx, src.ProjectID, kinds, pointer, value)
+		}}, nil
 }
 
 // ErrBusy means a sync of the source is already running.
@@ -630,4 +638,42 @@ func jittered(d time.Duration) time.Duration {
 	_, _ = rand.Read(b[:])
 	f := float64(binary.BigEndian.Uint64(b[:])>>11)/(1<<53)*0.2 - 0.1
 	return time.Duration(float64(d) * (1 + f))
+}
+
+// RecordPush records a run for data pushed to a source (Terraform state uploads).
+func (r *Runner) RecordPush(ctx context.Context, src *catalog.Source, trigger string, res *ingest.CommitResult, diags []Diagnostic, runErr error) *Run {
+	now := r.Clock.Now()
+	run := &Run{ID: ids.New(ids.SourceRun), SourceID: src.ID, Trigger: trigger, StartedAt: now, FinishedAt: &now, Diagnostics: diags, Stats: json.RawMessage("{}")}
+	switch {
+	case runErr != nil:
+		run.Result, run.Error = "error", safeError(runErr)
+	case res != nil && res.DryRun:
+		run.Result = "dry_run"
+	case res != nil && res.Summary.Errors > 0:
+		run.Result = "partial"
+	default:
+		run.Result = "ok"
+	}
+	if res != nil {
+		run.Stats, _ = json.Marshal(res.Summary)
+	}
+	if run.Diagnostics == nil {
+		run.Diagnostics = []Diagnostic{}
+	}
+	if run.Result == "dry_run" {
+		return run
+	}
+	r.Metrics.SourceRun(src.Name, src.Provider, run.Result, now)
+	dj, _ := json.Marshal(run.Diagnostics)
+	_ = r.Store.W().TxNamed(context.WithoutCancel(ctx), "sources.push_run", func(tx *store.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO source_runs (id, source_id, trigger, started_at, finished_at, result, stats_json, diagnostics_json, error)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, run.ID, src.ID, trigger, tx.NowMicros(), tx.NowMicros(), run.Result, string(run.Stats), string(dj), run.Error); err != nil {
+			return err
+		}
+		if runErr != nil {
+			return catalog.RecordRun(ctx, tx, src.ID, false, run.Error, 0)
+		}
+		return nil
+	})
+	return run
 }

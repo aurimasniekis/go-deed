@@ -1,0 +1,42 @@
+# DigitalOcean provider.
+mappings:
+  - resource: digitalocean_droplet
+    kind: vm
+    icon: simple-icons:digitalocean
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ .attr.name }}'
+    fields:
+      /spec/hostname: name
+      /spec/ipv4: ipv4_address
+      /spec/ipv6: ipv6_address
+      /spec/instance_type: size
+      /spec/image: image
+      /spec/region: region
+      /spec/status: status
+      /spec/memory_mb: memory
+      /spec/cpu_cores: vcpus
+      /spec/disk_gb: disk
+      /spec/provider: const:digitalocean
+  - resource: digitalocean_domain
+    kind: dns_zone
+    icon: simple-icons:digitalocean
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/zone: name
+      /spec/provider: const:digitalocean
+    join: [name]
+  - resource: digitalocean_record
+    kind: dns_record
+    icon: simple-icons:digitalocean
+    name: '{{ slug (default .name .attr.fqdn) }}-{{ lower (default "" .attr.type) }}'
+    fields:
+      /spec/fqdn: fqdn
+      /spec/type: type
+      /spec/content: value
+      /spec/ttl: ttl
+      /spec/priority: priority
+      /spec/zone: domain
+    join: [domain]
+    relations:
+      - {type: contains, direction: in, attribute: domain, target_kinds: [dns_zone], target_attribute: name, confidence: 1}
+      - {type: resolves_to, attribute: value, target_kinds: [server, vm, docker_host], target_pointer: /spec/ipv4}

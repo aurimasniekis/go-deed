@@ -1,0 +1,16 @@
+# integrations/github provider.
+mappings:
+  - resource: github_repository
+    kind: repository
+    icon: simple-icons:github
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .attr.name .attr.full_name }}'
+    fields:
+      /spec/url: html_url
+      /spec/full_name: full_name
+      /spec/provider: const:github
+      /spec/default_branch: default_branch
+      /spec/visibility: visibility
+      /spec/archived: archived
+      /metadata/description: description
+    join: [name]

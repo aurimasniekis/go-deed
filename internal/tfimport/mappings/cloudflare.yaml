@@ -1,0 +1,49 @@
+# Cloudflare provider v4 (cloudflare_record, cloudflare_zone.zone) and v5 (cloudflare_dns_record, cloudflare_zone.name).
+mappings:
+  - resource: cloudflare_zone
+    kind: dns_zone
+    icon: simple-icons:cloudflare
+    name: '{{ default .name .attr.zone | slug }}'
+    display_name: '{{ default .attr.name .attr.zone }}'
+    fields:
+      /spec/zone: zone|name
+      /spec/zone_id: id
+      /spec/plan: plan|plan.legacy_id
+      /spec/provider: const:cloudflare
+    join: [id]
+  - resource: cloudflare_record
+    kind: dns_record
+    icon: simple-icons:cloudflare
+    name: '{{ slug (default .name .attr.hostname) }}-{{ lower (default "" .attr.type) }}'
+    display_name: '{{ .attr.hostname }} {{ .attr.type }}'
+    fields:
+      /spec/fqdn: hostname|name
+      /spec/type: type
+      /spec/content: content|value
+      /spec/ttl: ttl
+      /spec/proxied: proxied
+      /spec/priority: priority
+      /spec/zone: zone_id
+    join: [zone_id]
+    relations:
+      - {type: contains, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
+      - {type: resolves_to, attribute: content|value, target_kinds: [server, vm, hypervisor, docker_host], target_pointer: /spec/ipv4}
+      - {type: resolves_to, attribute: content|value, target_kinds: [server, vm, hypervisor, docker_host], target_pointer: /spec/ipv6}
+  - resource: cloudflare_dns_record
+    kind: dns_record
+    icon: simple-icons:cloudflare
+    name: '{{ slug (default .name .attr.name) }}-{{ lower (default "" .attr.type) }}'
+    display_name: '{{ .attr.name }} {{ .attr.type }}'
+    fields:
+      /spec/fqdn: name
+      /spec/type: type
+      /spec/content: content
+      /spec/ttl: ttl
+      /spec/proxied: proxied
+      /spec/priority: priority
+      /spec/zone: zone_id
+    join: [zone_id]
+    relations:
+      - {type: contains, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
+      - {type: resolves_to, attribute: content, target_kinds: [server, vm, hypervisor, docker_host], target_pointer: /spec/ipv4}
+      - {type: resolves_to, attribute: content, target_kinds: [server, vm, hypervisor, docker_host], target_pointer: /spec/ipv6}

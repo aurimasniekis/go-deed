@@ -17,6 +17,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/ops"
 	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/store"
+	"github.com/aurimasniekis/go-deed/internal/tfimport"
 	"github.com/aurimasniekis/go-deed/internal/views"
 )
 
@@ -27,11 +28,13 @@ func (a *App) initExtensions(ctx context.Context) error {
 		Limits: ingest.Limits{MaxItems: cfg.Limits.IngestMaxItems, MaxSnapshotItems: 200_000, SnapshotTimeout: cfg.Sources.SnapshotTimeout.D(),
 			MaxRemovalPercent: cfg.Limits.MaxRemovalPercent}}
 	a.Registry = sources.NewRegistry()
-	registerProviders(a.Registry)
+	tf := registerProviders(a.Registry)
+	tf.MaxBytes = cfg.Limits.StateMaxBytes
+	a.TerraformKinds = tf.Catalog.KindTypes
 	a.Runner = &sources.Runner{Store: a.Store, Catalog: a.Catalog, Ingest: a.Ingest, Audit: a.Audit, Registry: a.Registry, Guard: a.Guard, Clock: a.Clock,
 		Metrics: a.Metrics, Log: a.Log.With("component", "sources"), MaxItems: 200_000, Timeout: 10 * time.Minute}
 	srcAPI := &sources.API{Runner: a.Runner, Ingest: a.Ingest, Rate: httpx.NewLimiter(a.Clock, cfg.Limits.IngestPerSourceRPM, max(cfg.Limits.IngestPerSourceRPM/6, 10))}
-	a.apiExt = append(a.apiExt, srcAPI.Register)
+	a.apiExt = append(a.apiExt, srcAPI.Register, (&tfimport.PushAPI{Provider: tf, Ingest: a.Ingest, Runner: a.Runner}).Register)
 	httpapi.KindSupport = func(kind string) catalog.Support { return a.Registry.Support(kind, a.terraformKinds) }
 	a.Graph = &graph.Engine{Store: a.Store, Catalog: a.Catalog, Clock: a.Clock, MaxDepth: cfg.Limits.GraphMaxDepth, MaxNodes: cfg.Limits.GraphMaxNodes,
 		ClusterAbove: cfg.Limits.GraphClusterAbove, DegreeCollapse: 50}
@@ -76,14 +79,19 @@ func (a *App) terraformKinds(kind string) []string {
 }
 
 // registerProviders adds the built-in source providers.
-func registerProviders(r *sources.Registry) {}
+func registerProviders(r *sources.Registry) *tfimport.Provider {
+	tf := &tfimport.Provider{Catalog: tfimport.MustBuiltin()}
+	r.Register(tf)
+	return tf
+}
 
 // APIExtensionsForSpec returns every API extension so `deed openapi` documents the complete API without services.
 func APIExtensionsForSpec() []func(huma.API, *httpapi.Deps) {
 	reg := sources.NewRegistry()
-	registerProviders(reg)
+	tf := registerProviders(reg)
 	return []func(huma.API, *httpapi.Deps){
 		(&sources.API{Runner: &sources.Runner{Registry: reg}}).Register,
+		(&tfimport.PushAPI{Provider: tf}).Register,
 		(&graph.Engine{}).Register,
 		(&views.Service{}).Register,
 		(&ops.API{}).Register,

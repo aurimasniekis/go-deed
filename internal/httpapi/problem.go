@@ -99,7 +99,9 @@ func init() {
 				continue
 			}
 			if d, ok := e.(huma.ErrorDetailer); ok {
-				p.Errors = append(p.Errors, d.ErrorDetail())
+				det := d.ErrorDetail()
+				// Never echo submitted values back: request bodies may carry sensitive data (Terraform state, credentials).
+				p.Errors = append(p.Errors, &huma.ErrorDetail{Message: det.Message, Location: det.Location})
 			} else {
 				p.Errors = append(p.Errors, &huma.ErrorDetail{Message: e.Error()})
 			}

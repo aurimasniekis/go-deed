@@ -3212,6 +3212,28 @@
         ],
         "type": "object"
       },
+      "PushResult": {
+        "additionalProperties": false,
+        "properties": {
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            },
+            "type": "array"
+          },
+          "result": {
+            "$ref": "#/components/schemas/CommitResult"
+          },
+          "run": {
+            "$ref": "#/components/schemas/Run"
+          }
+        },
+        "required": [
+          "result",
+          "diagnostics"
+        ],
+        "type": "object"
+      },
       "PutAssertionInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -10823,6 +10845,97 @@
         "summary": "Run a pull source now",
         "tags": [
           "sources"
+        ]
+      }
+    },
+    "/sources/{id}/terraform/state": {
+      "post": {
+        "description": "The body is parsed in memory, never stored. Only allowlisted attributes of mapped resource types are imported; the upload is a complete snapshot of the source unless partial=true. dry_run previews the result.",
+        "operationId": "push-terraform-state",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Preview the import without writing.",
+            "explode": false,
+            "in": "query",
+            "name": "dry_run",
+            "schema": {
+              "description": "Preview the import without writing.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Upsert only; never tombstone resources missing from this state.",
+            "explode": false,
+            "in": "query",
+            "name": "partial",
+            "schema": {
+              "description": "Upsert only; never tombstone resources missing from this state.",
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "allow_mass_removal",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload a Terraform state (or `terraform show -json`) to a terraform_state source",
+        "tags": [
+          "ingest"
         ]
       }
     },
