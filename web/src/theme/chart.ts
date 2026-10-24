@@ -86,3 +86,20 @@ export function topN(counts: Record<string, number>, max = 10, labelOf: (k: stri
   const rest = rows.slice(max - 1).reduce((s, r) => s + r.value, 0)
   return [...head, { key: '__other__', label: `Other (${rows.length - max + 1})`, value: rest }]
 }
+
+/** Default accent per kind group (kinds without their own colour), from the categorical palette in a fixed order. */
+const GROUP_COLORS: Record<string, string> = {
+  infra: '#2a78d6',
+  network: '#1baf7a',
+  software: '#6250d6',
+  events: '#eda100',
+  observability: '#eb6834',
+  identity: '#e87ba4',
+  home: '#008300',
+  org: '#868e96',
+  ops: '#7048e8',
+}
+
+export function kindAccent(color: string | undefined, group: string | undefined): string {
+  return color || GROUP_COLORS[group ?? ''] || '#adb5bd'
+}

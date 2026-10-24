@@ -29,16 +29,13 @@ export function SyntheticBanner() {
       wrap="nowrap"
       role="status"
       data-testid="synthetic-banner"
-      style={{
-        background: 'light-dark(var(--mantine-color-yellow-0), rgba(250, 176, 5, 0.12))',
-        borderBottom: '1px solid light-dark(var(--mantine-color-yellow-3), rgba(250, 176, 5, 0.35))',
-      }}
+      className="deed-banner"
     >
-      <IconFlask size={16} aria-hidden color="light-dark(#8a4b00, #ffe066)" />
-      <Text size="sm" fw={600} c="light-dark(#6b3a00, #ffe066)">
+      <IconFlask size={16} aria-hidden color="var(--deed-banner-icon)" />
+      <Text size="sm" fw={600} c="var(--deed-banner-fg)">
         Synthetic demo data
       </Text>
-      <Text size="sm" c="light-dark(#6b3a00, #fff3bf)" truncate>
+      <Text size="sm" c="var(--deed-banner-fg)" truncate>
         {synthetic.length > 0
           ? `${synthetic.map((p) => p.display_name || p.name).join(', ')} ${synthetic.length === 1 ? 'contains' : 'contain'} generated sample data, not real infrastructure.`
           : 'Some data on this installation is generated sample data, not real infrastructure.'}

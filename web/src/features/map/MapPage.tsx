@@ -83,6 +83,7 @@ import { NODE_SIZE, nodeTypes, type EntityNodeData, type GroupNodeData } from '.
 import { OptionsDrawer } from './OptionsDrawer'
 import { PathFinder } from './PathFinder'
 import type { MapNode } from './types'
+import { kindAccent } from '@/theme/chart'
 import { useEdgeRates } from './useEdgeRates'
 import { useMapData } from './useMapData'
 import './map.css'
@@ -312,7 +313,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           node: n,
           kindTitle: k?.title ?? humanize(n.cluster?.value ?? n.kind),
           kindIcon: k?.icon ?? 'tabler:cube',
-          kindColor: k?.color || 'var(--mantine-color-gray-5)',
+          kindColor: kindAccent(k?.color, k?.group),
           compact: compactCards,
           iconSize: style.iconSize,
           sourcePos: hp.source,

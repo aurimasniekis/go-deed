@@ -1,11 +1,28 @@
 :root {
   --deed-mono: var(--mantine-font-family-monospace);
-  --deed-border: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
-  --deed-surface: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
-  --deed-surface-2: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
-  --deed-canvas: light-dark(#f8f9fb, #1c1d21);
+  --deed-border: var(--mantine-color-gray-3);
+  --deed-surface: var(--mantine-color-white);
+  --deed-surface-2: var(--mantine-color-gray-0);
+  --deed-canvas: #f8f9fb;
   --deed-text-muted: var(--mantine-color-dimmed);
   --deed-focus: #4263eb;
+  --deed-banner-bg: var(--mantine-color-yellow-0);
+  --deed-banner-border: var(--mantine-color-yellow-3);
+  --deed-banner-fg: #6b3a00;
+  --deed-banner-icon: #8a4b00;
+}
+
+/* Mantine puts data-mantine-color-scheme on <html> itself, so the dark tokens are scoped to :root[…], not nested. */
+:root[data-mantine-color-scheme='dark'] {
+  --deed-border: var(--mantine-color-dark-4);
+  --deed-surface: var(--mantine-color-dark-7);
+  --deed-surface-2: var(--mantine-color-dark-6);
+  --deed-canvas: #1c1d21;
+  --deed-focus: #91a7ff;
+  --deed-banner-bg: rgba(250, 176, 5, 0.12);
+  --deed-banner-border: rgba(250, 176, 5, 0.35);
+  --deed-banner-fg: #ffe066;
+  --deed-banner-icon: #ffe066;
 }
 
 body {
@@ -18,10 +35,6 @@ body {
 :focus-visible {
   outline: 2px solid var(--deed-focus);
   outline-offset: 2px;
-}
-
-[data-mantine-color-scheme='dark'] {
-  --deed-focus: #91a7ff;
 }
 
 [data-mantine-color-scheme='dark'] .theme-light-only,
@@ -80,4 +93,10 @@ kbd,
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+.deed-banner {
+  background: var(--deed-banner-bg);
+  border-bottom: 1px solid var(--deed-banner-border);
+  color: var(--deed-banner-fg);
 }

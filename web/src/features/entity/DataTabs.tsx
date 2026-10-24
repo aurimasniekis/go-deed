@@ -43,7 +43,7 @@ const compareMeta: Record<
 
 function Value({ v }: { v: unknown }) {
   return (
-    <Text span className="mono" size="xs" style={{ wordBreak: 'break-all' }}>
+    <Text span className="mono" size="xs" style={{ overflowWrap: 'anywhere' }}>
       {truncate(jsonValue(v), 160)}
     </Text>
   )
@@ -147,8 +147,12 @@ export function CompareTab({ e }: { e: Entity }) {
                   <Table.Td>
                     <Value v={r.effective} />
                   </Table.Td>
-                  <Table.Td>
-                    <MetaBadge meta={compareMeta[r.state]} size="xs" />
+                  <Table.Td w={140} style={{ whiteSpace: 'nowrap' }}>
+                    <MetaBadge
+                      meta={compareMeta[r.state]}
+                      size="xs"
+                      styles={{ root: { overflow: 'visible' }, label: { overflow: 'visible' } }}
+                    />
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -223,11 +227,11 @@ export function ProvenanceTab({ e, highlight }: { e: Entity; highlight?: string 
                     <Value v={r.value} />
                   </Table.Td>
                   <Table.Td>{r.source}</Table.Td>
-                  <Table.Td>
+                  <Table.Td style={{ whiteSpace: 'nowrap' }}>
                     <LayerBadge layer={r.layer} size="xs" />
                   </Table.Td>
                   <Table.Td className="mono">{r.revision}</Table.Td>
-                  <Table.Td>
+                  <Table.Td style={{ whiteSpace: 'nowrap' }}>
                     <TimeAgo value={r.observed_at} />
                   </Table.Td>
                   <Table.Td>
@@ -238,7 +242,7 @@ export function ProvenanceTab({ e, highlight }: { e: Entity; highlight?: string 
                     ) : (
                       <Stack gap={2}>
                         {r.losing.map((c) => (
-                          <Group key={c.source} gap={4} wrap="nowrap">
+                          <Group key={c.source} gap={4} wrap="wrap">
                             <Text size="xs">{c.source}</Text>
                             <LayerBadge layer={c.layer} size="xs" />
                             <Value v={c.value} />
