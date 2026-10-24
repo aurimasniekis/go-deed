@@ -21,7 +21,7 @@ var MaxTxDuration = func() time.Duration {
 	if v, err := time.ParseDuration(os.Getenv("DEED_TEST_TX_MAX")); err == nil && v > 0 {
 		return v
 	}
-	return 100 * time.Millisecond
+	return raceFactor * 100 * time.Millisecond
 }()
 
 // Option customizes Open.

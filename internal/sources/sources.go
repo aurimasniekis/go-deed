@@ -66,6 +66,8 @@ type Descriptor struct {
 	DefaultSchedule int             `json:"default_schedule_seconds"`
 	Docs            string          `json:"docs,omitempty"`
 	Verified        string          `json:"verified" doc:"How this integration was validated (contract fixtures, local service, real service)."`
+	// DefaultPolicy is applied when a source is created without a policy (e.g. high churn of pull requests).
+	DefaultPolicy *catalog.Policy `json:"default_policy,omitempty"`
 }
 
 // Diagnostic is a safe, non-sensitive message from a provider run or connectivity test.

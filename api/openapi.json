@@ -1305,6 +1305,9 @@
           "default_layer": {
             "type": "string"
           },
+          "default_policy": {
+            "$ref": "#/components/schemas/Policy"
+          },
           "default_schedule_seconds": {
             "format": "int64",
             "type": "integer"

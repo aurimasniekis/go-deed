@@ -371,3 +371,8 @@ func decodeObject(s string) map[string]any {
 	}
 	return m
 }
+
+// ValidLabel reports whether a label pair would pass metadata validation (connectors drop the rest).
+func ValidLabel(k, v string) bool {
+	return labelKeyRE.MatchString(k) && len(v) <= 256 && utf8.ValidString(v) && !redact.IsSensitiveKey(k)
+}

@@ -1,0 +1,25 @@
+{
+  "_comment": "Synthetic fixtures shaped by Porch api/openapi.json (paths under /api/v1). Keys are path?query.",
+  "/tenants?limit=100": {"items": [{"id": "ten_01", "slug": "home", "name": "Home", "status": "active", "version": 1, "managed_by": "", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}], "next_cursor": "n1"},
+  "/tenants?cursor=n1&limit=100": {"items": [{"id": "ten_02", "slug": "lab", "name": "Lab", "status": "disabled", "version": 1, "managed_by": "", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}]},
+  "/tenants/home/applications": [
+    {"id": "app_01", "tenant_id": "ten_01", "slug": "grafana", "name": "Grafana", "kind": "oidc", "description": "Dashboards", "launch_url": "https://grafana.example.com/",
+     "enabled": true, "disclosure": {}, "access_mode": "assigned", "hosts": [], "forward_headers": {}, "group": "ops", "icon_source": "", "icon_ref": "", "icon_url": "",
+     "version": 2, "managed_by": "terraform", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
+     "client": {"client_id": "grafana-client", "client_type": "confidential", "application_type": "web", "redirect_uris": ["https://grafana.example.com/login/generic_oauth", "http://127.0.0.1:3000/cb"],
+       "post_logout_redirect_uris": [], "grant_types": ["authorization_code", "refresh_token"], "allowed_scopes": ["openid", "groups"], "audiences": [], "allowed_origins": [],
+       "require_pkce": true, "signing_alg": "ES256", "access_token_ttl_seconds": 600, "id_token_ttl_seconds": 600, "refresh_ttl_seconds": 86400, "refresh_idle_seconds": 3600,
+       "issuer": "https://id.example.com", "discovery_url": "https://id.example.com/.well-known/openid-configuration", "redirect_uris_exact": true, "secret_hint": "x9z"}},
+    {"id": "app_02", "tenant_id": "ten_01", "slug": "nas", "name": "NAS", "kind": "forward_auth", "description": "", "launch_url": "", "enabled": true,
+     "disclosure": {}, "access_mode": "all_members", "hosts": ["nas.example.com"], "forward_headers": {"X-User": "email"}, "group": "", "icon_source": "",
+     "icon_ref": "", "icon_url": "", "version": 1, "managed_by": "", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"},
+    {"id": "app_03", "tenant_id": "ten_01", "slug": "old", "name": "Old", "kind": "oidc", "description": "", "launch_url": "", "enabled": false,
+     "disclosure": {}, "access_mode": "assigned", "hosts": [], "forward_headers": {}, "group": "", "icon_source": "", "icon_ref": "", "icon_url": "",
+     "version": 1, "managed_by": "", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}
+  ],
+  "/tenants/home/service-accounts": [
+    {"token_endpoint": "https://id.example.com/token", "id": "sa_01", "tenant_id": "ten_01", "slug": "deed", "name": "Deed", "description": "Inventory reader",
+     "enabled": true, "secret_hint": "abc", "audiences": ["https://deed.example.com"], "access_token_ttl_seconds": 600, "version": 1, "managed_by": "",
+     "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z", "last_used_at": "2026-09-30T00:00:00Z"}
+  ]
+}

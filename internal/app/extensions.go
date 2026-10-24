@@ -8,6 +8,7 @@ import (
 
 	"github.com/aurimasniekis/go-deed/internal/alerts"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
+	"github.com/aurimasniekis/go-deed/internal/connectors"
 	"github.com/aurimasniekis/go-deed/internal/findings"
 	"github.com/aurimasniekis/go-deed/internal/graph"
 	"github.com/aurimasniekis/go-deed/internal/httpapi"
@@ -116,6 +117,9 @@ func registerProviders(r *sources.Registry) *tfimport.Provider {
 	r.Register(tf)
 	r.Register(pulseint.Admin{})
 	r.Register(pulseint.TailProvider{})
+	r.Register(connectors.GitHub{})
+	r.Register(connectors.HallPass{})
+	r.Register(connectors.Porch{})
 	return tf
 }
 

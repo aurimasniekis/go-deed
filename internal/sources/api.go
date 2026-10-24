@@ -313,6 +313,10 @@ func (a *API) Register(api huma.API, d *httpapi.Deps) {
 			if !desc.Capabilities.Pull {
 				sched = 0
 			}
+			if in.Body.Policy == nil && desc.DefaultPolicy != nil {
+				pol := *desc.DefaultPolicy
+				in.Body.Policy = &pol
+			}
 			src, err := d.Catalog.CreateSource(ctx, httpapi.Actor(ctx), catalog.SourceInput{ProjectID: pr.ID, Name: in.Body.Name, DisplayName: in.Body.DisplayName,
 				Provider: in.Body.Provider, Layer: in.Body.Layer, Enabled: in.Body.Enabled, Config: in.Body.Config, Policy: in.Body.Policy,
 				ScheduleSeconds: sched, ExpectedIntervalSeconds: in.Body.ExpectedIntervalSeconds}, in.Body.Secrets)

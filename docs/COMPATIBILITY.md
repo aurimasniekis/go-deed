@@ -25,3 +25,6 @@ version or reports an API major version it does not know.
 | Prometheus API | Prometheus 2.x/3.x, Mimir | `X-Scope-OrgID` supported |
 | Loki | 2.9+ / 3.x | |
 | OpenSearch | 2.x | |
+| GitHub REST API | `X-GitHub-Api-Version: 2022-11-28`; github.com and GitHub Enterprise Server (`/api/v3`) | fine-grained read-only token |
+| HallPass | `/api/v1` as described by HallPass `api/openapi.yaml` | auditor `hallpass_at_` token |
+| Porch | `/api/v1` as described by Porch `api/openapi.json` | read-only `porch_at_` token |
