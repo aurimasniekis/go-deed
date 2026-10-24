@@ -338,10 +338,15 @@ func (s *Service) applyEntity(ctx context.Context, tx *store.Tx, src *Source, it
 		if o.IfMatch > 0 && o.IfMatch != curVersion {
 			return nil, apperr.New(apperr.CodePrecondition, "declaration was modified concurrently (version %d, expected %d)", curVersion, o.IfMatch)
 		}
-		if it.Revision > 0 && (it.Revision <= curRev || it.Revision <= tombRev) {
-			return &ApplyResult{EntityID: entityID, Action: ActionStale, FacetVersion: curVersion}, nil
-		}
-		if it.Revision == 0 && it.ObservedAt != nil && observedAt.UnixMicro() < curObserved {
+		stale := (it.Revision > 0 && (it.Revision <= curRev || it.Revision <= tombRev)) ||
+			(it.Revision == 0 && it.ObservedAt != nil && observedAt.UnixMicro() < curObserved)
+		if stale {
+			// A stale item still proves the facet is present in this snapshot generation.
+			if o.Generation > 0 && !tomb.Valid {
+				if _, err := tx.Exec(ctx, `UPDATE facets SET generation = MAX(generation, ?) WHERE id = ?`, o.Generation, facetID); err != nil {
+					return nil, err
+				}
+			}
 			return &ApplyResult{EntityID: entityID, Action: ActionStale, FacetVersion: curVersion}, nil
 		}
 	} else if o.IfMatch > 0 {

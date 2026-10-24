@@ -21,9 +21,17 @@ type Problem struct {
 	Errors   []*huma.ErrorDetail `json:"errors,omitempty" doc:"Request-schema validation details."`
 	Instance string              `json:"instance,omitempty"`
 	Action   string              `json:"action,omitempty" doc:"What the client should do next (re-authentication URL)."`
+
+	headers http.Header
 }
 
+// GetHeaders implements huma.HeadersError (Retry-After on 429/503).
+func (p *Problem) GetHeaders() http.Header { return p.headers }
+
 func writeProblem(api huma.API, ctx huma.Context, p *Problem) error {
+	for k, v := range p.headers {
+		ctx.SetHeader(k, v[0])
+	}
 	ctx.SetHeader("Content-Type", "application/problem+json")
 	ctx.SetHeader("Cache-Control", "no-store")
 	ctx.SetStatus(p.Status)
@@ -42,7 +50,11 @@ func (p *Problem) ContentType(ct string) string {
 }
 
 func problem(status int, code apperr.Code, detail string, fields []apperr.FieldError) *Problem {
-	return &Problem{Type: "about:blank", Title: http.StatusText(status), Status: status, Detail: detail, Code: string(code), Fields: fields}
+	p := &Problem{Type: "about:blank", Title: http.StatusText(status), Status: status, Detail: detail, Code: string(code), Fields: fields}
+	if status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable {
+		p.headers = http.Header{"Retry-After": []string{"5"}}
+	}
+	return p
 }
 
 // NewProblem builds a problem (extension packages).

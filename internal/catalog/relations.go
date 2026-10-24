@@ -221,6 +221,11 @@ func (s *Service) applyRelation(ctx context.Context, tx *store.Tx, src *Source, 
 			return nil, apperr.New(apperr.CodeAlreadyExists, "relationship %s is already declared by source %q", relID, src.Name)
 		}
 		if it.Revision > 0 && (it.Revision <= curRev || it.Revision <= tombRev) {
+			if o.Generation > 0 && !tomb.Valid {
+				if _, err := tx.Exec(ctx, `UPDATE relation_assertions SET generation = MAX(generation, ?) WHERE id = ?`, o.Generation, aid); err != nil {
+					return nil, err
+				}
+			}
 			return &RelationResult{RelationID: relID, Action: ActionStale}, nil
 		}
 	}

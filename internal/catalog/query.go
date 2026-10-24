@@ -15,6 +15,7 @@ import (
 
 	"github.com/aurimasniekis/go-deed/internal/apperr"
 	"github.com/aurimasniekis/go-deed/internal/clock"
+	"github.com/aurimasniekis/go-deed/internal/store"
 )
 
 // Entity is the API envelope of an entity (ADR-002).
@@ -936,4 +937,11 @@ func ParseIntDefault(s string, def int) int {
 		return def
 	}
 	return n
+}
+
+// LatestSeqTx returns the newest change-log sequence number inside a transaction.
+func (s *Service) LatestSeqTx(ctx context.Context, tx *store.Tx) (int64, error) {
+	var seq sql.NullInt64
+	err := tx.QueryRow(ctx, `SELECT MAX(seq) FROM change_log`).Scan(&seq)
+	return seq.Int64, err
 }

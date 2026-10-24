@@ -15,7 +15,9 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/authn"
 	"github.com/aurimasniekis/go-deed/internal/httpapi"
 	"github.com/aurimasniekis/go-deed/internal/httpx"
+	"github.com/aurimasniekis/go-deed/internal/ingest"
 	"github.com/aurimasniekis/go-deed/internal/oidc"
+	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/testenv"
 )
 
@@ -39,6 +41,10 @@ func newHarness(t *testing.T) *harness {
 	mux := http.NewServeMux()
 	d := &httpapi.Deps{Version: "test", Store: env.Store, Keyring: env.Keyring, Audit: env.Audit, Authn: auth, Catalog: env.Catalog,
 		Clock: env.Clock, LocalAuth: true, OIDC: &oidc.Service{}}
+	ing := &ingest.Service{Store: env.Store, Catalog: env.Catalog, Audit: env.Audit, Clock: env.Clock,
+		Limits: ingest.Limits{MaxItems: 1000, MaxSnapshotItems: 10000, SnapshotTimeout: time.Hour, MaxRemovalPercent: 25}}
+	runner := &sources.Runner{Store: env.Store, Catalog: env.Catalog, Ingest: ing, Audit: env.Audit, Registry: sources.NewRegistry(), Clock: env.Clock}
+	d.Extensions = append(d.Extensions, (&sources.API{Runner: runner, Ingest: ing}).Register)
 	h.srv = httptest.NewServer(resolver.Middleware(httpx.RequestID(mux)))
 	d.Origin = h.srv.URL
 	httpapi.New(mux, d)

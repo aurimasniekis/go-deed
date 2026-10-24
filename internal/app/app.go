@@ -26,10 +26,12 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/config"
 	"github.com/aurimasniekis/go-deed/internal/httpx"
 	"github.com/aurimasniekis/go-deed/internal/ids"
+	"github.com/aurimasniekis/go-deed/internal/ingest"
 	"github.com/aurimasniekis/go-deed/internal/keyring"
 	"github.com/aurimasniekis/go-deed/internal/obs/metrics"
 	"github.com/aurimasniekis/go-deed/internal/oidc"
 	"github.com/aurimasniekis/go-deed/internal/safehttp"
+	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/store"
 )
 
@@ -48,6 +50,11 @@ type App struct {
 	Catalog  *catalog.Service
 	Guard    *safehttp.Guard
 	ClientIP *httpx.ClientIPResolver
+	Ingest   *ingest.Service
+	Registry *sources.Registry
+	Runner   *sources.Runner
+	// TerraformKinds lists Terraform resource types mapped to a kind (support matrix).
+	TerraformKinds func(kind string) []string
 
 	// Modules extend the app (ingest, sources, Pulse, graph, telemetry, findings, alerts, live, backups).
 	Modules []Module

@@ -78,6 +78,71 @@
         ],
         "type": "object"
       },
+      "Batch": {
+        "additionalProperties": false,
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityItem"
+            },
+            "type": "array"
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/RelationItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "BatchResult": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ItemResult"
+            },
+            "type": "array"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "seq": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "accepted",
+          "errors",
+          "replayed"
+        ],
+        "type": "object"
+      },
+      "BeginInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "description": "A complete snapshot tombstones facts it no longer contains (per the source's on_absent policy); a partial one never does.",
+            "type": "boolean"
+          },
+          "generation": {
+            "description": "Monotonic per source; 0 = last committed + 1.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "complete"
+        ],
+        "type": "object"
+      },
       "Bridge": {
         "additionalProperties": false,
         "properties": {
@@ -195,6 +260,56 @@
         ],
         "type": "object"
       },
+      "Capabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "incremental": {
+            "type": "boolean"
+          },
+          "pull": {
+            "description": "Deed fetches data on a schedule.",
+            "type": "boolean"
+          },
+          "push": {
+            "description": "An external program pushes data with a source token.",
+            "type": "boolean"
+          },
+          "snapshot": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pull",
+          "push",
+          "snapshot",
+          "incremental"
+        ],
+        "type": "object"
+      },
+      "Change": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "action",
+          "label"
+        ],
+        "type": "object"
+      },
       "ChangeEvent": {
         "additionalProperties": false,
         "properties": {
@@ -257,6 +372,65 @@
         },
         "required": [
           "code"
+        ],
+        "type": "object"
+      },
+      "CommitOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_mass_removal": {
+            "type": "boolean"
+          },
+          "allow_partial_errors": {
+            "description": "Tombstone absent facts even though some items failed.",
+            "type": "boolean"
+          },
+          "dry_run": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CommitResult": {
+        "additionalProperties": false,
+        "properties": {
+          "changes": {
+            "description": "Preview only: what the commit would change (capped at 500).",
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            },
+            "type": "array"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "removed": {
+            "description": "Facts no longer present (capped at 500).",
+            "items": {
+              "$ref": "#/components/schemas/Removal"
+            },
+            "type": "array"
+          },
+          "results": {
+            "description": "Per-item outcomes (errors, unresolved and stale items only; capped at 500).",
+            "items": {
+              "$ref": "#/components/schemas/ItemResult"
+            },
+            "type": "array"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/Snapshot"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          }
+        },
+        "required": [
+          "snapshot",
+          "summary",
+          "results",
+          "removed",
+          "dry_run"
         ],
         "type": "object"
       },
@@ -573,6 +747,26 @@
         ],
         "type": "object"
       },
+      "CreateTokenInputBody1": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_in_days": {
+            "default": 90,
+            "format": "int64",
+            "maximum": 366,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateUserInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -670,6 +864,71 @@
         ],
         "type": "object"
       },
+      "CreatedTokenOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "installation_role": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_role": {
+            "type": "string"
+          },
+          "projects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revoked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "token": {
+            "description": "The source token (deed_st_…). Shown once.",
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "id",
+          "kind",
+          "name",
+          "projects",
+          "created_at",
+          "expires_at"
+        ],
+        "type": "object"
+      },
       "Declaration": {
         "additionalProperties": false,
         "properties": {
@@ -739,6 +998,113 @@
         },
         "type": "object"
       },
+      "Descriptor": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/Capabilities"
+          },
+          "config_schema": {},
+          "default_layer": {
+            "type": "string"
+          },
+          "default_schedule_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "docs": {
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/KindSupport"
+            },
+            "type": "array"
+          },
+          "relationship_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "secret_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "verified": {
+            "description": "How this integration was validated (contract fixtures, local service, real service).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "description",
+          "default_layer",
+          "config_schema",
+          "secret_fields",
+          "capabilities",
+          "kinds",
+          "relationship_types",
+          "default_schedule_seconds",
+          "verified"
+        ],
+        "type": "object"
+      },
+      "Diagnostic": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "level": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "DiagnosticsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            },
+            "type": "array"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "diagnostics"
+        ],
+        "type": "object"
+      },
       "Entity": {
         "additionalProperties": false,
         "properties": {
@@ -766,6 +1132,54 @@
           "spec",
           "status"
         ],
+        "type": "object"
+      },
+      "EntityItem": {
+        "additionalProperties": false,
+        "properties": {
+          "delete": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/HealthReport"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "observed": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "spec": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
         "type": "object"
       },
       "EntityMetadata": {
@@ -1137,6 +1551,21 @@
         ],
         "type": "object"
       },
+      "HealthReport": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
       "Identity": {
         "additionalProperties": false,
         "properties": {
@@ -1202,6 +1631,107 @@
         },
         "required": [
           "email"
+        ],
+        "type": "object"
+      },
+      "ItemError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "type": "array"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ItemResult": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ItemError"
+          },
+          "index": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "relation_id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "type",
+          "action"
+        ],
+        "type": "object"
+      },
+      "ItemsInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "atomic": {
+            "description": "Reject the whole batch if any item fails.",
+            "type": "boolean"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityItem"
+            },
+            "type": "array"
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/RelationItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ItemsResult": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "description": "False when an atomic batch was rejected.",
+            "type": "boolean"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ItemResult"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          }
+        },
+        "required": [
+          "results",
+          "summary",
+          "applied"
         ],
         "type": "object"
       },
@@ -1328,6 +1858,25 @@
         },
         "required": [
           "title"
+        ],
+        "type": "object"
+      },
+      "KindSupport": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "level"
         ],
         "type": "object"
       },
@@ -1627,6 +2176,21 @@
         ],
         "type": "object"
       },
+      "ObservationsInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/EntityItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "observations"
+        ],
+        "type": "object"
+      },
       "PasswordInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -1642,6 +2206,40 @@
         "required": [
           "new"
         ],
+        "type": "object"
+      },
+      "Policy": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "default_ttl_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "field_priority": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "max_removal_percent": {
+            "format": "double",
+            "type": "number"
+          },
+          "on_absent": {
+            "type": "string"
+          },
+          "priority": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "Problem": {
@@ -2245,6 +2843,62 @@
         ],
         "type": "object"
       },
+      "RelationItem": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "confidence": {
+            "format": "double",
+            "type": "number"
+          },
+          "delete": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "evidence_class": {
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "inferred": {
+            "type": "boolean"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
       "RelationPage": {
         "additionalProperties": false,
         "properties": {
@@ -2268,6 +2922,35 @@
         ],
         "type": "object"
       },
+      "Removal": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "action"
+        ],
+        "type": "object"
+      },
       "RenameInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2278,6 +2961,66 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "Run": {
+        "additionalProperties": false,
+        "properties": {
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            },
+            "type": "array"
+          },
+          "error": {
+            "type": "string"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stats": {},
+          "trigger": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "trigger",
+          "started_at",
+          "result",
+          "stats",
+          "diagnostics"
+        ],
+        "type": "object"
+      },
+      "RunOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/CommitResult"
+          },
+          "run": {
+            "$ref": "#/components/schemas/Run"
+          }
+        },
+        "required": [
+          "run"
         ],
         "type": "object"
       },
@@ -2392,6 +3135,305 @@
         },
         "required": [
           "token"
+        ],
+        "type": "object"
+      },
+      "Snapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "error_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "item_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Summary"
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "generation",
+          "complete",
+          "state",
+          "item_count",
+          "error_count",
+          "created_at",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "SourceBody": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {},
+          "display_name": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expected_interval_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "layer": {
+            "enum": [
+              "declared",
+              "imported",
+              "discovered",
+              "observation",
+              ""
+            ],
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 63,
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/Policy"
+          },
+          "project": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "schedule_seconds": {
+            "description": "0 = push only.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "secrets": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Write-only credentials (keys from the provider's secret_fields). Omit to keep, {} to clear.",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "SourceView": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {},
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expected_interval_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "has_secrets": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "last_generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_heartbeat_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_run_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_success_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "next_run_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/Policy"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_title": {
+            "type": "string"
+          },
+          "pull": {
+            "type": "boolean"
+          },
+          "push": {
+            "type": "boolean"
+          },
+          "resource_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "schedule_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "secret_fields_set": {
+            "description": "Secret fields that have a stored value (values are never returned).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "system": {
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret_fields_set",
+          "provider_title",
+          "pull",
+          "push",
+          "running",
+          "id",
+          "project_id",
+          "name",
+          "display_name",
+          "provider",
+          "layer",
+          "system",
+          "enabled",
+          "config",
+          "has_secrets",
+          "policy",
+          "schedule_seconds",
+          "expected_interval_seconds",
+          "last_generation",
+          "created_at",
+          "updated_at",
+          "resource_version",
+          "freshness"
+        ],
+        "type": "object"
+      },
+      "Summary": {
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "deleted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "errors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "not_found": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "orphaned": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stale": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unchanged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unresolved": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created",
+          "updated",
+          "unchanged",
+          "deleted",
+          "stale",
+          "not_found",
+          "unresolved",
+          "errors",
+          "removed",
+          "orphaned"
         ],
         "type": "object"
       },
@@ -5975,6 +7017,48 @@
         ]
       }
     },
+    "/providers": {
+      "get": {
+        "operationId": "list-providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Descriptor"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Source provider types with config schemas, capabilities and supported kinds",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
     "/relations": {
       "get": {
         "operationId": "list-relations",
@@ -6646,6 +7730,1150 @@
         "summary": "Replace a custom relationship type",
         "tags": [
           "kinds"
+        ]
+      }
+    },
+    "/sources": {
+      "get": {
+        "operationId": "list-sources",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sources of readable projects with freshness",
+        "tags": [
+          "sources"
+        ]
+      },
+      "post": {
+        "operationId": "create-source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceView"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a source (project admin)",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/sources/{id}": {
+      "delete": {
+        "description": "Entities keep the facets of other sources; entities left without facets are tombstoned. The source's tokens are revoked.",
+        "operationId": "delete-source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a source and every fact it owns (project admin, recent sign-in)",
+        "tags": [
+          "sources"
+        ]
+      },
+      "get": {
+        "operationId": "get-source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceView"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a source",
+        "tags": [
+          "sources"
+        ]
+      },
+      "patch": {
+        "operationId": "update-source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceView"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update a source's config, credentials, policy or schedule (project admin)",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/sources/{id}/heartbeat": {
+      "post": {
+        "operationId": "source-heartbeat",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report liveness (freshness without data)",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/sources/{id}/items": {
+      "post": {
+        "description": "Each item carries an optional per-source monotonic revision; items not newer than the stored revision (or the deletion's) are reported as stale and ignored, so delayed messages never resurrect deleted facts. Results are per item; atomic=true rejects the batch on any error.",
+        "operationId": "ingest-items",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemsInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemsResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Incremental upserts and deletes",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/sources/{id}/observations": {
+      "post": {
+        "description": "Each item references an existing entity and sets observed values and/or health with an expires_at; observations never create entities or touch spec.",
+        "operationId": "ingest-observations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObservationsInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemsResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Time-bounded observations and health (observation-layer sources)",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/sources/{id}/preview": {
+      "post": {
+        "operationId": "preview-source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Dry-run a pull source: what a sync would create, update and remove",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/sources/{id}/runs": {
+      "get": {
+        "operationId": "list-source-runs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Run"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sync history with diagnostics and mapping errors",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/sources/{id}/snapshots": {
+      "post": {
+        "operationId": "begin-snapshot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Begin a snapshot",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/sources/{id}/snapshots/{snapshot}": {
+      "get": {
+        "operationId": "get-snapshot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Snapshot state",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/sources/{id}/snapshots/{snapshot}/abort": {
+      "post": {
+        "operationId": "abort-snapshot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Abort a snapshot; the previous generation stays intact",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/sources/{id}/snapshots/{snapshot}/batches/{seq}": {
+      "put": {
+        "operationId": "put-snapshot-batch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "seq",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Batch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stage a batch (idempotent per seq)",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/sources/{id}/snapshots/{snapshot}/commit": {
+      "post": {
+        "description": "Applies every staged item in one transaction. Complete snapshots then handle absent facts per the source's on_absent policy behind the mass-removal guard (409 mass_removal_refused unless allow_mass_removal). A refused or failed commit changes nothing.",
+        "operationId": "commit-snapshot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commit (or dry-run) a snapshot atomically",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/sources/{id}/sync": {
+      "post": {
+        "operationId": "sync-source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Run a pull source now",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/sources/{id}/test": {
+      "post": {
+        "operationId": "test-source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Safe connectivity diagnostics (writes nothing)",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/sources/{id}/tokens": {
+      "get": {
+        "operationId": "list-source-tokens",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Token"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Source tokens (never their secrets)",
+        "tags": [
+          "sources"
+        ]
+      },
+      "post": {
+        "operationId": "create-source-token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenInputBody1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedTokenOutputBody"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Issue a source token (shown once; project admin, recent sign-in)",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/sources/{id}/tokens/{token}": {
+      "delete": {
+        "operationId": "revoke-source-token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke a source token",
+        "tags": [
+          "sources"
         ]
       }
     },
