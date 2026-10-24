@@ -657,11 +657,16 @@ func (s *Service) DeleteKind(ctx context.Context, actor audit.Actor, name string
 	}
 	err := s.Store.W().TxNamed(ctx, "catalog.kind_delete", func(tx *store.Tx) error {
 		var n int
-		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM entities WHERE kind = ?`, name).Scan(&n); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM entities WHERE kind = ? AND tombstoned_at IS NULL`, name).Scan(&n); err != nil {
 			return err
 		}
 		if n > 0 {
-			return apperr.New(apperr.CodeConflict, "%d entities still use kind %q (including tombstones awaiting compaction)", n, name)
+			return apperr.New(apperr.CodeConflict, "%d live entities still use kind %q", n, name)
+		}
+		// Tombstones of the kind are compacted now instead of after the retention period: without the kind they
+		// could never be resurrected meaningfully, and a later kind of the same name must start clean.
+		if _, err := tx.Exec(ctx, `DELETE FROM entities WHERE kind = ? AND tombstoned_at IS NOT NULL`, name); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM kind_definitions WHERE id = ?`, k.ID); err != nil {
 			return err
@@ -853,11 +858,14 @@ func (s *Service) DeleteRelType(ctx context.Context, actor audit.Actor, name str
 	}
 	err := s.Store.W().TxNamed(ctx, "catalog.reltype_delete", func(tx *store.Tx) error {
 		var n int
-		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM relations WHERE type = ?`, name).Scan(&n); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM relations WHERE type = ? AND live = 1`, name).Scan(&n); err != nil {
 			return err
 		}
 		if n > 0 {
-			return apperr.New(apperr.CodeConflict, "%d relations still use %q", n, name)
+			return apperr.New(apperr.CodeConflict, "%d live relations still use %q", n, name)
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM relations WHERE type = ? AND live = 0`, name); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM relationship_types WHERE name = ?`, name); err != nil {
 			return err

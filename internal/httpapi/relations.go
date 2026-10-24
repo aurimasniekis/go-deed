@@ -219,7 +219,7 @@ func registerRelations(api huma.API, d *Deps) {
 			if err != nil {
 				return nil, d.Fail("put-relation-assertion", err)
 			}
-			src, err := d.declaringSource(ctx, r.ProjectID, in.Source)
+			src, err := d.assertionSource(ctx, r, in.Source)
 			if err != nil {
 				return nil, d.Fail("put-relation-assertion", err)
 			}
@@ -238,7 +238,7 @@ func registerRelations(api huma.API, d *Deps) {
 			if err != nil {
 				return nil, d.Fail("delete-relation-assertion", err)
 			}
-			src, err := d.declaringSource(ctx, r.ProjectID, in.Source)
+			src, err := d.assertionSource(ctx, r, in.Source)
 			if err != nil {
 				return nil, d.Fail("delete-relation-assertion", err)
 			}
@@ -322,4 +322,38 @@ func registerAudit(api huma.API, d *Deps) {
 			res, err := audit.Verify(cctx, d.Store.R())
 			return &auditVerifyOutput{Body: res}, d.Fail("verify-audit", err)
 		})
+}
+
+// assertionSource finds the declaring source named name for a relation: a cross-project relation may have been
+// declared through either endpoint's project, so the project whose source already asserts it wins, then the from
+// entity's project, then the to entity's.
+func (d *Deps) assertionSource(ctx context.Context, r *catalog.Relation, name string) (*catalog.Source, error) {
+	projects := []string{r.ProjectID}
+	if r.To.ProjectID != "" && r.To.ProjectID != r.ProjectID {
+		projects = append(projects, r.To.ProjectID)
+	}
+	if name == "" {
+		name = "api"
+	}
+	for _, a := range r.Assertions {
+		if a.Source != name {
+			continue
+		}
+		for _, pid := range projects {
+			if src, err := d.Catalog.SourceByName(ctx, pid, name); err == nil && src.ID == a.SourceID {
+				return d.declaringSource(ctx, pid, name)
+			}
+		}
+	}
+	var first error
+	for _, pid := range projects {
+		src, err := d.declaringSource(ctx, pid, name)
+		if err == nil {
+			return src, nil
+		}
+		if first == nil {
+			first = err
+		}
+	}
+	return nil, first
 }

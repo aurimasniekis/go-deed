@@ -24,6 +24,10 @@ var nonConfigEnv = map[string]bool{
 	"DEED_ENDPOINT":     true, // CLI / provider client endpoint
 	"DEED_TOKEN":        true, // CLI / provider client token
 	"DEED_SOURCE_TOKEN": true, // deed-agent source token
+	"DEED_SOURCE":       true, // Terraform provider declaring source
+	"DEED_CA_FILE":      true, // CLI / provider CA bundle
+	"DEED_ACC_KEEP":     true, // provider acceptance tests: keep the server
+	"DEED_BINARY":       true, // provider acceptance tests: deed binary path
 }
 
 // EnvKeys lists every supported override variable, sorted. Used for documentation and tests.
