@@ -1,0 +1,16 @@
+title = "deed gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholder token shapes in docs and tests; gitignored local run artefacts"
+paths = [
+  '''deploy/\.dev/''',
+  '''(^|/)node_modules/''',
+  '''^bin/''',
+]
+regexes = [
+  '''deed_(at|st|setup)_EXAMPLE[A-Za-z0-9_]*''',
+  '''AGE-SECRET-KEY-1EXAMPLE[A-Z0-9]*''',
+]

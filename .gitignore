@@ -1,0 +1,43 @@
+# Build output
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# Local runtime data and secrets — never commit
+/data/
+/.deed/
+*.kek
+kek
+*.db
+*.db-wal
+*.db-shm
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+/deploy/.dev/
+/deploy/secrets/
+/deploy/.env
+*.age
+!testdata/**/*.age
+
+# Frontend
+node_modules/
+/web/dist/
+/internal/webui/dist/*
+!/internal/webui/dist/README.txt
+/web/test-results/
+/web/playwright-report/
+/web/blob-report/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+.claude/
+
+# Root binaries
+/deed
+/deed-agent
