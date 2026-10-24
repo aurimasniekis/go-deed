@@ -6,13 +6,17 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/aurimasniekis/go-deed/internal/alerts"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
+	"github.com/aurimasniekis/go-deed/internal/findings"
 	"github.com/aurimasniekis/go-deed/internal/graph"
 	"github.com/aurimasniekis/go-deed/internal/httpapi"
 	"github.com/aurimasniekis/go-deed/internal/httpx"
 	"github.com/aurimasniekis/go-deed/internal/ingest"
 	"github.com/aurimasniekis/go-deed/internal/live"
+	"github.com/aurimasniekis/go-deed/internal/ops"
 	"github.com/aurimasniekis/go-deed/internal/sources"
+	"github.com/aurimasniekis/go-deed/internal/store"
 	"github.com/aurimasniekis/go-deed/internal/views"
 )
 
@@ -38,6 +42,24 @@ func (a *App) initExtensions(ctx context.Context) error {
 	}
 	a.Catalog.Notify = a.Live.Notify
 	a.rawExt = append(a.rawExt, a.Live.Register)
+	a.Findings = &findings.Engine{Store: a.Store, Catalog: a.Catalog, Clock: a.Clock, Metrics: a.Metrics, Log: a.Log.With("component", "findings")}
+	if cfg.Backup.Enabled {
+		a.Findings.Config.BackupInterval = cfg.Backup.Interval.D()
+	}
+	a.Alerts = &alerts.Engine{Store: a.Store, Audit: a.Audit, Clock: a.Clock, Metrics: a.Metrics}
+	if err := a.Alerts.EnsureBuiltins(ctx); err != nil {
+		return err
+	}
+	a.Findings.OnChange = a.Alerts.Evaluate
+	a.Authn.OnBreakGlass = func(ctx context.Context, tx *store.Tx, userID, ip string) error {
+		return findings.RaiseTx(ctx, tx, findings.Finding{DedupKey: findings.TypeBreakGlass + "|" + userID + "|" + tx.Now.Format("20060102T1504"),
+			Type: findings.TypeBreakGlass, Severity: findings.Critical, Class: findings.ClassConfirmed, Title: "Break-glass sign-in used",
+			Message: "a single-use recovery link signed in without the second factor", Evidence: map[string]any{"user_id": userID, "source_ip": ip}}, 24*time.Hour)
+	}
+	a.OpsAPI = &ops.API{Store: a.Store, Findings: a.Findings, Alerts: a.Alerts, Clock: a.Clock}
+	a.apiExt = append(a.apiExt, a.OpsAPI.Register)
+	a.every("findings", 2*time.Minute, a.Findings.Evaluate)
+	a.every("findings_prune", 24*time.Hour, func(ctx context.Context) error { return a.Findings.Prune(ctx, cfg.Retention.ClosedFindings.D()) })
 	a.every("snapshot_expiry", time.Minute, a.Ingest.ExpireSnapshots)
 	if cfg.Sources.SchedulerEnabled {
 		a.addLoop("scheduler", func(ctx context.Context) { a.Runner.Schedule(ctx, cfg.Sources.Concurrency) })
@@ -64,5 +86,6 @@ func APIExtensionsForSpec() []func(huma.API, *httpapi.Deps) {
 		(&sources.API{Runner: &sources.Runner{Registry: reg}}).Register,
 		(&graph.Engine{}).Register,
 		(&views.Service{}).Register,
+		(&ops.API{}).Register,
 	}
 }

@@ -1,6 +1,80 @@
 {
   "components": {
     "schemas": {
+      "Alert": {
+        "additionalProperties": false,
+        "properties": {
+          "delivery": {
+            "description": "pending, published, retrying or dead (last notification's outbox state); empty before any notification.",
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "finding_id": {
+            "type": "string"
+          },
+          "fired_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_notified_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "notifications": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "resolved_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "silenced_by": {
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rule_id",
+          "rule",
+          "finding_id",
+          "state",
+          "severity",
+          "title",
+          "evidence",
+          "started_at",
+          "notifications",
+          "delivery"
+        ],
+        "type": "object"
+      },
       "Assertion": {
         "additionalProperties": false,
         "properties": {
@@ -576,6 +650,79 @@
         ],
         "type": "object"
       },
+      "Counts": {
+        "additionalProperties": false,
+        "properties": {
+          "by_environment": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "by_freshness": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "by_health": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "by_kind": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "by_owner": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "custom": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entities": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "invalid": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "relations": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "undeclared": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entities",
+          "relations",
+          "by_kind",
+          "by_environment",
+          "by_owner",
+          "by_health",
+          "by_freshness",
+          "invalid",
+          "undeclared",
+          "custom"
+        ],
+        "type": "object"
+      },
       "CreateBridgeInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -723,6 +870,30 @@
           "type",
           "from",
           "to"
+        ],
+        "type": "object"
+      },
+      "CreateSilenceInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "hours": {
+            "format": "int64",
+            "maximum": 2160,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "matcher": {
+            "$ref": "#/components/schemas/Matcher"
+          }
+        },
+        "required": [
+          "matcher",
+          "comment",
+          "hours"
         ],
         "type": "object"
       },
@@ -952,6 +1123,106 @@
           "projects",
           "created_at",
           "expires_at"
+        ],
+        "type": "object"
+      },
+      "Dashboard": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "description": "Firing and pending alerts.",
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            },
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "drift": {
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array"
+          },
+          "expiring": {
+            "description": "Expiring or expired certificates and domains.",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array"
+          },
+          "extra": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "finding_counts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "description": "Open findings by severity.",
+            "type": "object"
+          },
+          "findings_by_type": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outbox": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "recent_changes": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeEvent"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceHealth"
+            },
+            "type": "array"
+          },
+          "synthetic_data": {
+            "description": "True when a readable project contains synthetic demo data.",
+            "type": "boolean"
+          },
+          "unresolved": {
+            "description": "Broken or unresolved relationships.",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array"
+          },
+          "versions": {
+            "description": "Outdated or end-of-life versions with evidence.",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "counts",
+          "finding_counts",
+          "findings_by_type",
+          "sources",
+          "expiring",
+          "unresolved",
+          "versions",
+          "drift",
+          "alerts",
+          "recent_changes",
+          "extra",
+          "synthetic_data"
         ],
         "type": "object"
       },
@@ -1603,6 +1874,84 @@
         "required": [
           "field",
           "message"
+        ],
+        "type": "object"
+      },
+      "Finding": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledged_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "acknowledged_by": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string"
+          },
+          "closed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dedup_key": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "relation_id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "dedup_key",
+          "type",
+          "severity",
+          "class",
+          "title",
+          "message",
+          "evidence",
+          "state",
+          "first_seen_at",
+          "last_seen_at"
         ],
         "type": "object"
       },
@@ -2313,6 +2662,39 @@
           "email",
           "password"
         ],
+        "type": "object"
+      },
+      "Matcher": {
+        "additionalProperties": false,
+        "properties": {
+          "classes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "min_severity": {
+            "enum": [
+              "critical",
+              "warning",
+              "info",
+              ""
+            ],
+            "type": "string"
+          },
+          "projects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "Me": {
@@ -3321,6 +3703,111 @@
         ],
         "type": "object"
       },
+      "Rule": {
+        "additionalProperties": false,
+        "properties": {
+          "builtin": {
+            "type": "boolean"
+          },
+          "cooldown_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "for_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "matcher": {
+            "$ref": "#/components/schemas/Matcher"
+          },
+          "name": {
+            "type": "string"
+          },
+          "resource_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "severity": {
+            "description": "Overrides the finding's severity when set.",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "enabled",
+          "matcher",
+          "for_seconds",
+          "cooldown_seconds",
+          "builtin",
+          "created_at",
+          "updated_at",
+          "resource_version"
+        ],
+        "type": "object"
+      },
+      "RuleInput": {
+        "additionalProperties": false,
+        "properties": {
+          "cooldown_seconds": {
+            "format": "int64",
+            "maximum": 604800,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "for_seconds": {
+            "format": "int64",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "matcher": {
+            "$ref": "#/components/schemas/Matcher"
+          },
+          "name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "warning",
+              "info",
+              ""
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "matcher"
+        ],
+        "type": "object"
+      },
       "Run": {
         "additionalProperties": false,
         "properties": {
@@ -3495,6 +3982,45 @@
         ],
         "type": "object"
       },
+      "Silence": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "matcher": {
+            "$ref": "#/components/schemas/Matcher"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "matcher",
+          "comment",
+          "created_by",
+          "starts_at",
+          "ends_at",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "Snapshot": {
         "additionalProperties": false,
         "properties": {
@@ -3607,6 +4133,49 @@
             "type": "object"
           }
         },
+        "type": "object"
+      },
+      "SourceHealth": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "last_success_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "display_name",
+          "provider",
+          "freshness",
+          "enabled"
+        ],
         "type": "object"
       },
       "SourceView": {
@@ -3733,6 +4302,36 @@
           "updated_at",
           "resource_version",
           "freshness"
+        ],
+        "type": "object"
+      },
+      "Status": {
+        "additionalProperties": false,
+        "properties": {
+          "dead": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "oldest_pending": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pending": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "published_24h": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "dead",
+          "published_24h"
         ],
         "type": "object"
       },
@@ -4228,6 +4827,278 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/alert-rules": {
+      "get": {
+        "operationId": "list-alert-rules",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Rule"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alert rules",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "post": {
+        "operationId": "create-alert-rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create an alert rule (installation admin)",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/alert-rules/{id}": {
+      "delete": {
+        "operationId": "delete-alert-rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a custom alert rule",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "put": {
+        "operationId": "update-alert-rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update an alert rule (installation admin)",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/alerts": {
+      "get": {
+        "operationId": "list-alerts",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "pending",
+                  "firing",
+                  "suppressed",
+                  "resolved"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 200,
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Alert"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alerts with lifecycle and delivery state",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
     "/audit": {
       "get": {
         "description": "Installation owners, admins and auditors see everything; project admins see their projects' records.",
@@ -4851,6 +5722,59 @@
         "summary": "Remove a bridge (admin of both projects)",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "description": "Inventory by kind, environment and owner; source freshness; expiring certificates; unresolved relationships; outdated versions with evidence; drift; alerts; recent changes; and operational summaries contributed by modules.",
+        "operationId": "get-dashboard",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Dashboard summary",
+        "tags": [
+          "dashboard"
         ]
       }
     },
@@ -5989,6 +6913,239 @@
         "summary": "Rename an entity (the old name becomes an alias)",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/findings": {
+      "get": {
+        "operationId": "list-findings",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "entity",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "severity",
+            "schema": {
+              "items": {
+                "enum": [
+                  "critical",
+                  "warning",
+                  "info"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "class",
+            "schema": {
+              "items": {
+                "enum": [
+                  "confirmed",
+                  "warning",
+                  "unknown",
+                  "stale",
+                  "not_applicable"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 200,
+              "format": "int64",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Finding"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Findings with severity and evidence class",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/findings/{id}": {
+      "get": {
+        "operationId": "get-finding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Finding"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a finding",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/findings/{id}/acknowledge": {
+      "post": {
+        "operationId": "acknowledge-finding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Finding"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Acknowledge a finding (editor)",
+        "tags": [
+          "findings"
         ]
       }
     },
@@ -8603,6 +9760,138 @@
         "summary": "Replace a custom relationship type",
         "tags": [
           "kinds"
+        ]
+      }
+    },
+    "/silences": {
+      "get": {
+        "operationId": "list-silences",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Silence"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Silences",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "post": {
+        "operationId": "create-silence",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSilenceInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Silence"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Silence matching alerts for a while (installation admin)",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/silences/{id}": {
+      "delete": {
+        "operationId": "delete-silence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "End a silence",
+        "tags": [
+          "alerts"
         ]
       }
     },

@@ -12,12 +12,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/aurimasniekis/go-deed/internal/findings"
 	"github.com/aurimasniekis/go-deed/internal/httpapi"
 	"io"
 	"log/slog"
 	"os"
 	"time"
 
+	"github.com/aurimasniekis/go-deed/internal/alerts"
 	"github.com/aurimasniekis/go-deed/internal/audit"
 	"github.com/aurimasniekis/go-deed/internal/authn"
 	"github.com/aurimasniekis/go-deed/internal/buildinfo"
@@ -32,6 +34,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/live"
 	"github.com/aurimasniekis/go-deed/internal/obs/metrics"
 	"github.com/aurimasniekis/go-deed/internal/oidc"
+	"github.com/aurimasniekis/go-deed/internal/ops"
 	"github.com/aurimasniekis/go-deed/internal/safehttp"
 	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/store"
@@ -57,6 +60,9 @@ type App struct {
 	Runner   *sources.Runner
 	Graph    *graph.Engine
 	Live     *live.Hub
+	Findings *findings.Engine
+	Alerts   *alerts.Engine
+	OpsAPI   *ops.API
 	// TerraformKinds lists Terraform resource types mapped to a kind (support matrix).
 	TerraformKinds func(kind string) []string
 
