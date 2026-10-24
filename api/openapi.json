@@ -361,6 +361,32 @@
         ],
         "type": "object"
       },
+      "Cluster": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "group_by": {
+            "type": "string"
+          },
+          "key": {
+            "description": "Pass to /graph/expand to load the members.",
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "count",
+          "group_by",
+          "value"
+        ],
+        "type": "object"
+      },
       "CodeInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -1105,6 +1131,51 @@
         ],
         "type": "object"
       },
+      "Edge": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "description": "Aggregated edges: number of relationships bundled.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "cross_project": {
+            "type": "boolean"
+          },
+          "evidence_class": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inferred": {
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "from",
+          "to",
+          "evidence_class",
+          "inferred",
+          "cross_project"
+        ],
+        "type": "object"
+      },
       "Entity": {
         "additionalProperties": false,
         "properties": {
@@ -1603,6 +1674,180 @@
           "groups",
           "created_at"
         ],
+        "type": "object"
+      },
+      "ImpactNode": {
+        "additionalProperties": false,
+        "properties": {
+          "cluster": {
+            "$ref": "#/components/schemas/Cluster"
+          },
+          "declared": {
+            "type": "boolean"
+          },
+          "depth": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "evidence": {
+            "description": "Weakest evidence class along the path.",
+            "type": "string"
+          },
+          "findings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "health": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "potential": {
+            "description": "Always true: impact is evidence-based graph analysis, not observed failure.",
+            "type": "boolean"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "redacted": {
+            "type": "boolean"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "via": {
+            "description": "Relationship types along the shortest impact path.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "via",
+          "evidence",
+          "potential",
+          "id",
+          "kind",
+          "name",
+          "project_id",
+          "health",
+          "freshness",
+          "declared",
+          "valid",
+          "findings",
+          "depth"
+        ],
+        "type": "object"
+      },
+      "ImpactResult": {
+        "additionalProperties": false,
+        "properties": {
+          "cycles": {
+            "type": "boolean"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/Edge"
+            },
+            "type": "array"
+          },
+          "elapsed_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactNode"
+            },
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/Node"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "root",
+          "direction",
+          "nodes",
+          "edges",
+          "cycles",
+          "truncated",
+          "notes",
+          "elapsed_ms"
+        ],
+        "type": "object"
+      },
+      "Input": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "inventory",
+              "map",
+              "dashboard",
+              ""
+            ],
+            "type": "string"
+          },
+          "layout": {},
+          "name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "project": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          },
+          "state": {}
+        },
         "type": "object"
       },
       "InviteInputBody": {
@@ -2173,6 +2418,80 @@
         },
         "required": [
           "from"
+        ],
+        "type": "object"
+      },
+      "Node": {
+        "additionalProperties": false,
+        "properties": {
+          "cluster": {
+            "$ref": "#/components/schemas/Cluster"
+          },
+          "declared": {
+            "type": "boolean"
+          },
+          "depth": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "findings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "health": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "redacted": {
+            "type": "boolean"
+          },
+          "valid": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "project_id",
+          "health",
+          "freshness",
+          "declared",
+          "valid",
+          "findings",
+          "depth"
         ],
         "type": "object"
       },
@@ -2961,6 +3280,44 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "Result": {
+        "additionalProperties": false,
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/Edge"
+            },
+            "type": "array"
+          },
+          "elapsed_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            },
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges",
+          "truncated",
+          "notes",
+          "elapsed_ms"
         ],
         "type": "object"
       },
@@ -3777,6 +4134,73 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "View": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "editable": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "inventory",
+              "map",
+              "dashboard"
+            ],
+            "type": "string"
+          },
+          "layout": {
+            "description": "Node positions keyed by node ID (map views)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "resource_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "shared": {
+            "type": "boolean"
+          },
+          "state": {
+            "description": "Filters, grouping, columns, edge styles and options (client-defined, ≤ 256 KiB)."
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "description",
+          "owner_id",
+          "shared",
+          "state",
+          "layout",
+          "created_at",
+          "updated_at",
+          "resource_version",
+          "editable"
+        ],
         "type": "object"
       }
     },
@@ -5565,6 +5989,455 @@
         "summary": "Rename an entity (the old name becomes an alias)",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/graph/expand": {
+      "get": {
+        "operationId": "graph-expand",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 500,
+              "format": "int64",
+              "maximum": 20000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Load the members of a collapsed cluster",
+        "tags": [
+          "graph"
+        ]
+      }
+    },
+    "/graph/impact": {
+      "get": {
+        "description": "Follows the dependency semantics of relationship types. Results are potential impact derived from declared and observed relationships, labelled with the weakest evidence along each path.",
+        "operationId": "graph-impact",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "entity",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "downstream: what may be affected if the entity fails; upstream: what it depends on.",
+            "explode": false,
+            "in": "query",
+            "name": "direction",
+            "schema": {
+              "default": "downstream",
+              "description": "downstream: what may be affected if the entity fails; upstream: what it depends on.",
+              "enum": [
+                "downstream",
+                "upstream"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "depth",
+            "schema": {
+              "default": 4,
+              "format": "int64",
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Evidence-based upstream/downstream impact",
+        "tags": [
+          "graph"
+        ]
+      }
+    },
+    "/graph/neighborhood": {
+      "get": {
+        "description": "Breadth-first expansion with depth and node caps. High-degree fans (many neighbors through one relationship type) collapse into cluster nodes that /graph/expand loads on demand. Entities in projects you cannot read appear as redacted stubs and are never expanded.",
+        "operationId": "graph-neighborhood",
+        "parameters": [
+          {
+            "description": "Entity IDs to start from (repeat).",
+            "explode": false,
+            "in": "query",
+            "name": "root",
+            "required": true,
+            "schema": {
+              "description": "Entity IDs to start from (repeat).",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 50,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "depth",
+            "schema": {
+              "default": 2,
+              "format": "int64",
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "direction",
+            "schema": {
+              "default": "both",
+              "enum": [
+                "out",
+                "in",
+                "both"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Relationship types to follow.",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Relationship types to follow.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Only include nodes of these kinds (roots always included).",
+            "explode": false,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "description": "Only include nodes of these kinds (roots always included).",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "evidence",
+            "schema": {
+              "items": {
+                "enum": [
+                  "declared",
+                  "structural",
+                  "observed",
+                  "inferred"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "max_nodes",
+            "schema": {
+              "default": 500,
+              "format": "int64",
+              "maximum": 20000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Keep observed relationships not seen for 7 days.",
+            "explode": false,
+            "in": "query",
+            "name": "include_stale",
+            "schema": {
+              "description": "Keep observed relationships not seen for 7 days.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Bounded neighborhood of entities",
+        "tags": [
+          "graph"
+        ]
+      }
+    },
+    "/graph/overview": {
+      "get": {
+        "operationId": "graph-overview",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "group_by",
+            "schema": {
+              "default": "kind",
+              "enum": [
+                "project",
+                "kind",
+                "environment",
+                "owner"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Aggregated map: groups with counts, health and bundled relationships",
+        "tags": [
+          "graph"
+        ]
+      }
+    },
+    "/graph/path": {
+      "get": {
+        "operationId": "graph-path",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "max_depth",
+            "schema": {
+              "default": 6,
+              "format": "int64",
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "directed",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Shortest relationship path between two entities",
+        "tags": [
+          "graph"
         ]
       }
     },
@@ -9295,6 +10168,299 @@
         "summary": "Issue a single-use password reset link",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/views": {
+      "get": {
+        "operationId": "list-views",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "enum": [
+                "inventory",
+                "map",
+                "dashboard",
+                ""
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/View"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Your views and views shared with your projects",
+        "tags": [
+          "views"
+        ]
+      },
+      "post": {
+        "operationId": "create-view",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/View"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Save a view",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/views/{id}": {
+      "delete": {
+        "operationId": "delete-view",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a view (owner)",
+        "tags": [
+          "views"
+        ]
+      },
+      "get": {
+        "operationId": "get-view",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/View"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Open a view (shareable link target)",
+        "tags": [
+          "views"
+        ]
+      },
+      "put": {
+        "operationId": "update-view",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/View"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update a view",
+        "tags": [
+          "views"
         ]
       }
     }

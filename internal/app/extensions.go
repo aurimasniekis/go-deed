@@ -7,10 +7,12 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/aurimasniekis/go-deed/internal/catalog"
+	"github.com/aurimasniekis/go-deed/internal/graph"
 	"github.com/aurimasniekis/go-deed/internal/httpapi"
 	"github.com/aurimasniekis/go-deed/internal/httpx"
 	"github.com/aurimasniekis/go-deed/internal/ingest"
 	"github.com/aurimasniekis/go-deed/internal/sources"
+	"github.com/aurimasniekis/go-deed/internal/views"
 )
 
 // initExtensions wires ingest, sources, graph, live updates, telemetry, findings, alerts and backups.
@@ -26,6 +28,9 @@ func (a *App) initExtensions(_ context.Context) error {
 	srcAPI := &sources.API{Runner: a.Runner, Ingest: a.Ingest, Rate: httpx.NewLimiter(a.Clock, cfg.Limits.IngestPerSourceRPM, max(cfg.Limits.IngestPerSourceRPM/6, 10))}
 	a.apiExt = append(a.apiExt, srcAPI.Register)
 	httpapi.KindSupport = func(kind string) catalog.Support { return a.Registry.Support(kind, a.terraformKinds) }
+	a.Graph = &graph.Engine{Store: a.Store, Catalog: a.Catalog, Clock: a.Clock, MaxDepth: cfg.Limits.GraphMaxDepth, MaxNodes: cfg.Limits.GraphMaxNodes,
+		ClusterAbove: cfg.Limits.GraphClusterAbove, DegreeCollapse: 50}
+	a.apiExt = append(a.apiExt, a.Graph.Register, (&views.Service{Store: a.Store}).Register)
 	a.every("snapshot_expiry", time.Minute, a.Ingest.ExpireSnapshots)
 	if cfg.Sources.SchedulerEnabled {
 		a.addLoop("scheduler", func(ctx context.Context) { a.Runner.Schedule(ctx, cfg.Sources.Concurrency) })
@@ -50,5 +55,7 @@ func APIExtensionsForSpec() []func(huma.API, *httpapi.Deps) {
 	registerProviders(reg)
 	return []func(huma.API, *httpapi.Deps){
 		(&sources.API{Runner: &sources.Runner{Registry: reg}}).Register,
+		(&graph.Engine{}).Register,
+		(&views.Service{}).Register,
 	}
 }
