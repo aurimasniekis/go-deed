@@ -904,6 +904,93 @@
         ],
         "type": "object"
       },
+      "Check": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cycle": {
+            "type": "string"
+          },
+          "declared": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "eol_date": {
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "latest": {
+            "type": "string"
+          },
+          "latest_source": {
+            "enum": [
+              "catalog_release",
+              "eol_api",
+              ""
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "observed": {
+            "type": "string"
+          },
+          "product": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "current",
+              "update_available",
+              "eol",
+              "unknown",
+              "not_applicable"
+            ],
+            "type": "string"
+          },
+          "support_until": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "project_id",
+          "kind",
+          "name",
+          "status",
+          "evidence",
+          "checked_at"
+        ],
+        "type": "object"
+      },
+      "CheckOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "checked": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "checked"
+        ],
+        "type": "object"
+      },
       "Cluster": {
         "additionalProperties": false,
         "properties": {
@@ -3314,6 +3401,29 @@
         },
         "required": [
           "purpose"
+        ],
+        "type": "object"
+      },
+      "ListOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "eol_source": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Check"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "eol_source",
+          "items"
         ],
         "type": "object"
       },
@@ -13394,6 +13504,118 @@
         "summary": "Issue a single-use password reset link",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/versions": {
+      "get": {
+        "operationId": "list-version-checks",
+        "parameters": [
+          {
+            "description": "Comma-separated statuses.",
+            "explode": false,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "description": "Comma-separated statuses.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 200,
+              "format": "int64",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Version status of entities in readable projects",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/versions/check": {
+      "post": {
+        "operationId": "run-version-check",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Re-check versions now (owner or admin)",
+        "tags": [
+          "versions"
         ]
       }
     },

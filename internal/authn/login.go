@@ -189,15 +189,21 @@ func (svc *Service) login(ctx context.Context, email, password string, meta Sess
 	limited := u.MFAEnrolled || svc.MFARequired(u)
 	needsEnroll := !u.MFAEnrolled && svc.MFARequired(u)
 	var token string
+	// Upgrading the hash parameters re-hashes outside the write transaction: Argon2id must never hold the writer lock.
+	var rehashed string
+	if uint32(paramsVersion) != svc.params().Version && svc.acquire(ctx) == nil { //nolint:gosec // small version
+		if fresh, err := HashPassword(pw, svc.params()); err == nil {
+			rehashed = fresh
+		}
+		svc.release()
+	}
 	err = svc.s.W().TxNamed(ctx, "authn.login", func(tx *store.Tx) error {
 		if err := clearThrottle(ctx, tx, acctK); err != nil {
 			return err
 		}
-		if uint32(paramsVersion) != svc.params().Version { //nolint:gosec // small version
-			if fresh, err := HashPassword(pw, svc.params()); err == nil {
-				if err := setPasswordTx(ctx, tx, userID, fresh, svc.params().Version); err != nil {
-					return err
-				}
+		if rehashed != "" {
+			if err := setPasswordTx(ctx, tx, userID, rehashed, svc.params().Version); err != nil {
+				return err
 			}
 		}
 		var err error

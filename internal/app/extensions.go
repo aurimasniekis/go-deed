@@ -23,6 +23,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/store"
 	"github.com/aurimasniekis/go-deed/internal/telemetry"
 	"github.com/aurimasniekis/go-deed/internal/tfimport"
+	"github.com/aurimasniekis/go-deed/internal/versions"
 	"github.com/aurimasniekis/go-deed/internal/views"
 )
 
@@ -68,6 +69,17 @@ func (a *App) initExtensions(ctx context.Context) error {
 	tAPI := &telemetry.API{Service: a.Telemetry, MaxStreams: cfg.Limits.TelemetryStreams}
 	a.apiExt = append(a.apiExt, tAPI.Register)
 	a.rawExt = append(a.rawExt, tAPI.RegisterStream)
+	vc := &versions.Checker{Store: a.Store, Guard: a.Guard, Clock: a.Clock, Metrics: a.Metrics, Log: a.Log.With("component", "versions")}
+	if cfg.Versions.EOL {
+		vc.EOLURL = cfg.Versions.EOLURL
+	}
+	a.apiExt = append(a.apiExt, (&versions.API{Checker: vc, Enabled: cfg.Versions.Enabled}).Register)
+	if cfg.Versions.Enabled {
+		a.every("versions", cfg.Versions.Interval.D(), func(ctx context.Context) error {
+			_, err := vc.Run(ctx)
+			return err
+		})
+	}
 	if err := a.initBackups(ctx); err != nil {
 		return err
 	}
@@ -166,5 +178,6 @@ func APIExtensionsForSpec() []func(huma.API, *httpapi.Deps) {
 		(&ops.API{}).Register,
 		(&telemetry.API{Service: &telemetry.Service{Registry: telemetryRegistry(nil, nil)}}).Register,
 		(&backup.API{Service: backup.New(backup.Options{})}).Register,
+		(&versions.API{}).Register,
 	}
 }

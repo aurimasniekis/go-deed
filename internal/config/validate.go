@@ -58,7 +58,8 @@ func Default() *Config {
 		Limits: LimitsConfig{MaxEntities: 200000, IngestMaxItems: 1000, IngestMaxBytes: 4 << 20, StateMaxBytes: 64 << 20,
 			GraphMaxDepth: 10, GraphMaxNodes: 2000, GraphClusterAbove: 500, IngestPerSourceRPM: 600, MaxRemovalPercent: 25,
 			TelemetryTimeout: Duration(10 * time.Second), TelemetryConcurrency: 4, TelemetryCacheEntries: 2000, TelemetryStreams: 100},
-		Sources: SourcesConfig{SchedulerEnabled: true, Concurrency: 4, SnapshotTimeout: Duration(time.Hour)},
+		Sources:  SourcesConfig{SchedulerEnabled: true, Concurrency: 4, SnapshotTimeout: Duration(time.Hour)},
+		Versions: VersionsConfig{Enabled: true, Interval: Duration(12 * time.Hour), EOLURL: "https://endoflife.date"},
 	}
 }
 
@@ -159,6 +160,14 @@ func (c *Config) Validate() error {
 	v.within("limits.telemetry_cache_entries", l.TelemetryCacheEntries, 10, 1_000_000)
 	v.within("limits.telemetry_streams", l.TelemetryStreams, 1, 10_000)
 	v.within("sources.concurrency", c.Sources.Concurrency, 1, 64)
+	if c.Versions.Enabled {
+		v.durationRange("versions.interval", c.Versions.Interval, 15*time.Minute, 7*24*time.Hour)
+	}
+	if c.Versions.EOL {
+		if u, err := url.Parse(c.Versions.EOLURL); err != nil || u.Scheme != "https" || u.Host == "" {
+			v.add("versions.eol_url must be an https URL")
+		}
+	}
 	v.durationRange("sources.snapshot_timeout", c.Sources.SnapshotTimeout, time.Minute, 24*time.Hour)
 	return v.err()
 }

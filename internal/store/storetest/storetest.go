@@ -24,6 +24,10 @@ var MaxTxDuration = func() time.Duration {
 	return raceFactor * 100 * time.Millisecond
 }()
 
+// exempt lists transactions the guard ignores: one-off start-up work that runs before the server accepts requests,
+// and unnamed transactions, which only test fixtures and offline CLI commands use (serving code always calls TxNamed).
+var exempt = map[string]bool{"": true, "keyring.load": true, "catalog.seed_builtins": true, "installation.ensure": true}
+
 // Option customizes Open.
 type Option func(*store.Options)
 
@@ -41,7 +45,7 @@ func Open(t testing.TB, opts ...Option) *store.Store {
 	o := store.Options{
 		DataDir: filepath.Join(t.TempDir(), "data"),
 		TxObserver: func(name string, d time.Duration, err error) {
-			if err == nil && d > MaxTxDuration {
+			if err == nil && d > MaxTxDuration && !exempt[name] {
 				mu.Lock()
 				defer mu.Unlock()
 				t.Errorf("write transaction %q took %s (> %s, ADR-001)", name, d, MaxTxDuration)

@@ -68,6 +68,19 @@ type Config struct {
 	Retention  RetentionConfig  `yaml:"retention"`
 	Limits     LimitsConfig     `yaml:"limits"`
 	Sources    SourcesConfig    `yaml:"sources"`
+	Versions   VersionsConfig   `yaml:"versions"`
+}
+
+// VersionsConfig configures version intelligence (§13).
+type VersionsConfig struct {
+	// Enabled runs the checker on Interval. Catalog-only checks (latest release of the deployed repository) need no
+	// network access; EOL data is fetched only when EOL is on.
+	Enabled  bool     `yaml:"enabled"`
+	Interval Duration `yaml:"interval"`
+	// EOL fetches end-of-life and latest-release data per product (metadata.version.product) from EOLURL, an
+	// endoflife.date-compatible API. Off by default: it sends product names to a third party.
+	EOL    bool   `yaml:"eol"`
+	EOLURL string `yaml:"eol_url"`
 }
 
 // KEKConfig locates the master key-encryption key.
