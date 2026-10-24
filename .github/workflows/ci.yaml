@@ -20,6 +20,21 @@ env:
   NODE_VERSION: "24.22.0"
 
 jobs:
+  detect:
+    name: detect optional parts
+    runs-on: ubuntu-24.04
+    outputs:
+      web: ${{ steps.d.outputs.web }}
+      e2e: ${{ steps.d.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: d
+        run: |
+          echo "web=$([[ -f web/package.json ]] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+          echo "e2e=$([[ -f web/playwright.config.ts ]] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+
   go:
     name: go (fmt, lint, vet, race tests with NATS and MinIO, drift, fuzz smoke)
     runs-on: ubuntu-24.04
@@ -52,7 +67,8 @@ jobs:
   web:
     name: web (typecheck, lint, unit tests, build, dist check)
     runs-on: ubuntu-24.04
-    if: hashFiles('web/package.json') != ''
+    needs: detect
+    if: needs.detect.outputs.web == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -74,7 +90,8 @@ jobs:
   e2e:
     name: browser e2e (Playwright, Chromium, axe)
     runs-on: ubuntu-24.04
-    if: hashFiles('web/playwright.config.ts') != ''
+    needs: detect
+    if: needs.detect.outputs.e2e == 'true'
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,7 +114,8 @@ jobs:
   container:
     name: container image + smoke test
     runs-on: ubuntu-24.04
-    if: hashFiles('web/package.json') != ''
+    needs: detect
+    if: needs.detect.outputs.web == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
