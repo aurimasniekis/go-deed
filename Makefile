@@ -9,11 +9,12 @@ LDFLAGS := -s -w -X github.com/aurimasniekis/go-deed/internal/buildinfo.Version=
 	-X github.com/aurimasniekis/go-deed/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/aurimasniekis/go-deed/internal/buildinfo.Date=$(DATE)
 GOLANGCI_VERSION ?= v2.15.0
+DEED_API ?= http://127.0.0.1:8787
 FUZZTIME ?= 10s
 HAS_WEB := $(wildcard web/package.json)
 
 .PHONY: all build run fmt fmt-check vet lint test race fuzz-smoke openapi openapi-check vuln secrets monitoring-check \
-	web-install web-build web-gen web-check web-e2e check docker container-smoke e2e bench release-build clean
+	web web-install web-build web-gen web-check web-test web-lint web-dev web-e2e check docker container-smoke e2e bench release-build clean
 
 all: build
 
@@ -81,7 +82,17 @@ else
 	@echo "web/ not present; skipping"
 endif
 
-web-e2e:
+web: web-install web-build ## install dependencies and build the UI into internal/webui/dist
+
+web-test: web-check ## typecheck, lint and unit tests
+
+web-lint: ## ESLint (type-checked, react-hooks, jsx-a11y) and Prettier
+	$(PNPM) --dir web run lint
+
+web-dev: ## Vite dev server proxying /api and /auth to a running deed (DEED_API)
+	DEED_API=$(DEED_API) $(PNPM) --dir web run dev
+
+web-e2e: ## Playwright + axe against a fresh, seeded deed (builds bin/deed unless DEED_E2E_BINARY is set; run web-build first)
 	$(PNPM) --dir web run e2e
 
 check: fmt-check vet lint race openapi-check monitoring-check web-check ## everything CI checks without browsers or Docker

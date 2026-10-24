@@ -1,0 +1,161 @@
+.deed-map {
+  --xy-background-color: var(--deed-canvas);
+  --xy-minimap-background-color: var(--deed-surface);
+  --xy-controls-button-background-color: var(--deed-surface);
+  --xy-controls-button-color: var(--mantine-color-text);
+  --xy-controls-button-border-color: var(--deed-border);
+  --xy-controls-button-background-color-hover: var(--deed-surface-2);
+  --xy-edge-label-background-color: var(--deed-surface);
+  --xy-node-boxshadow-selected: none;
+}
+
+.deed-node {
+  background: var(--deed-surface);
+  border: 1px solid var(--deed-border);
+  border-left: 4px solid var(--mantine-color-gray-5);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  color: var(--mantine-color-text);
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.deed-node[data-root] {
+  box-shadow:
+    0 0 0 2px var(--mantine-primary-color-light),
+    0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.deed-node[data-selected] {
+  outline: 2px solid var(--deed-focus);
+  outline-offset: 2px;
+}
+
+.deed-node[data-dimmed] {
+  opacity: 0.35;
+}
+
+.deed-node[data-health='failed'] {
+  border-color: var(--mantine-color-red-6);
+  border-left-color: var(--mantine-color-red-6);
+}
+
+.deed-node-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.deed-cluster {
+  border-style: solid;
+  background:
+    linear-gradient(var(--deed-surface), var(--deed-surface)) padding-box,
+    var(--deed-surface-2);
+  box-shadow:
+    3px 3px 0 -1px var(--deed-surface),
+    3px 3px 0 0 var(--deed-border),
+    6px 6px 0 -1px var(--deed-surface),
+    6px 6px 0 0 var(--deed-border);
+}
+
+.deed-cluster-stack {
+  display: flex;
+  align-items: center;
+  color: var(--mantine-color-dimmed);
+}
+
+.deed-group {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-3));
+  border-radius: 6px;
+  background: light-dark(rgba(66, 99, 235, 0.03), rgba(145, 167, 255, 0.04));
+}
+
+.deed-group-header {
+  border-bottom: 1px dashed light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  max-width: 100%;
+}
+
+.deed-edge-label {
+  position: absolute;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--deed-surface);
+  border: 1px solid var(--deed-border);
+  color: var(--mantine-color-text);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Direction hint: marching dashes. Off by default; disabled under prefers-reduced-motion (also by the options panel). */
+.deed-edge-animated .react-flow__edge-path {
+  stroke-dasharray: 6 6;
+  animation: deed-march 0.9s linear infinite;
+}
+
+/* Traffic flow: measured rates only; the period comes from the rate (--deed-flow). */
+.deed-flow {
+  stroke: light-dark(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
+  stroke-dasharray: 0.1 12;
+  stroke-linecap: round;
+  pointer-events: none;
+  animation: deed-flow var(--deed-flow, 2s) linear infinite;
+}
+
+@keyframes deed-flow {
+  to {
+    stroke-dashoffset: -12.1;
+  }
+}
+
+.deed-edge-label[data-rate='measured'] {
+  font-weight: 600;
+}
+
+.deed-edge-label[data-rate='inferred'],
+.deed-edge-label[data-rate='stale'] {
+  font-style: italic;
+  color: var(--mantine-color-dimmed);
+}
+
+@keyframes deed-march {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deed-edge-animated .react-flow__edge-path,
+  .deed-flow {
+    animation: none;
+  }
+}
+
+.deed-map .react-flow__node:focus-visible {
+  outline: none;
+}
+
+.deed-map .react-flow__node:focus-visible > .deed-node {
+  outline: 2px solid var(--deed-focus);
+  outline-offset: 3px;
+}
+
+.deed-map .react-flow__attribution {
+  background: transparent;
+  font-size: 9px;
+}
+
+.deed-map .react-flow__minimap {
+  border: 1px solid var(--deed-border);
+  border-radius: 4px;
+}
+
+.deed-panel {
+  background: var(--deed-surface);
+  border: 1px solid var(--deed-border);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}

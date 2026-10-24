@@ -1,0 +1,83 @@
+:root {
+  --deed-mono: var(--mantine-font-family-monospace);
+  --deed-border: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  --deed-surface: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  --deed-surface-2: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+  --deed-canvas: light-dark(#f8f9fb, #1c1d21);
+  --deed-text-muted: var(--mantine-color-dimmed);
+  --deed-focus: #4263eb;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  background: var(--deed-canvas);
+}
+
+/* Visible focus rings everywhere (WCAG 2.4.7 / 2.4.11). */
+:focus-visible {
+  outline: 2px solid var(--deed-focus);
+  outline-offset: 2px;
+}
+
+[data-mantine-color-scheme='dark'] {
+  --deed-focus: #91a7ff;
+}
+
+[data-mantine-color-scheme='dark'] .theme-light-only,
+[data-mantine-color-scheme='light'] .theme-dark-only {
+  display: none;
+}
+
+.mono {
+  font-family: var(--deed-mono);
+  font-size: 12px;
+}
+
+/* Code must read exactly as typed: no programming ligatures (e.g. != rendered as ≠). */
+code,
+pre,
+kbd,
+.mono {
+  font-variant-ligatures: none;
+  font-feature-settings:
+    'liga' 0,
+    'calt' 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -40px;
+  z-index: 1000;
+  padding: 6px 10px;
+  background: var(--deed-surface);
+  border: 1px solid var(--deed-border);
+  border-radius: 4px;
+}
+
+.skip-link:focus {
+  top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
