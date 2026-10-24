@@ -56,7 +56,8 @@ func Default() *Config {
 			ClosedFindings: Duration(90 * 24 * time.Hour),
 		},
 		Limits: LimitsConfig{MaxEntities: 200000, IngestMaxItems: 1000, IngestMaxBytes: 4 << 20, StateMaxBytes: 64 << 20,
-			GraphMaxDepth: 10, GraphMaxNodes: 2000, GraphClusterAbove: 500, IngestPerSourceRPM: 600, MaxRemovalPercent: 25},
+			GraphMaxDepth: 10, GraphMaxNodes: 2000, GraphClusterAbove: 500, IngestPerSourceRPM: 600, MaxRemovalPercent: 25,
+			TelemetryTimeout: Duration(10 * time.Second), TelemetryConcurrency: 4, TelemetryCacheEntries: 2000, TelemetryStreams: 100},
 		Sources: SourcesConfig{SchedulerEnabled: true, Concurrency: 4, SnapshotTimeout: Duration(time.Hour)},
 	}
 }
@@ -153,6 +154,10 @@ func (c *Config) Validate() error {
 	if l.MaxRemovalPercent <= 0 || l.MaxRemovalPercent > 100 {
 		v.add("limits.max_removal_percent must be within (0, 100]")
 	}
+	v.durationRange("limits.telemetry_timeout", l.TelemetryTimeout, time.Second, 2*time.Minute)
+	v.within("limits.telemetry_concurrency", l.TelemetryConcurrency, 1, 64)
+	v.within("limits.telemetry_cache_entries", l.TelemetryCacheEntries, 10, 1_000_000)
+	v.within("limits.telemetry_streams", l.TelemetryStreams, 1, 10_000)
 	v.within("sources.concurrency", c.Sources.Concurrency, 1, 64)
 	v.durationRange("sources.snapshot_timeout", c.Sources.SnapshotTimeout, time.Minute, 24*time.Hour)
 	return v.err()

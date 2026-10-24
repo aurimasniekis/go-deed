@@ -38,6 +38,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/safehttp"
 	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/store"
+	"github.com/aurimasniekis/go-deed/internal/telemetry"
 )
 
 // App is a running Deed instance's object graph.
@@ -63,6 +64,8 @@ type App struct {
 	Findings *findings.Engine
 	Alerts   *alerts.Engine
 	OpsAPI   *ops.API
+	// Telemetry runs integrations and bindings.
+	Telemetry *telemetry.Service
 	// TerraformKinds lists Terraform resource types mapped to a kind (support matrix).
 	TerraformKinds func(kind string) []string
 

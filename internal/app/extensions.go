@@ -8,6 +8,7 @@ import (
 
 	"github.com/aurimasniekis/go-deed/internal/alerts"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
+	"github.com/aurimasniekis/go-deed/internal/clock"
 	"github.com/aurimasniekis/go-deed/internal/connectors"
 	"github.com/aurimasniekis/go-deed/internal/findings"
 	"github.com/aurimasniekis/go-deed/internal/graph"
@@ -19,6 +20,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/pulseint"
 	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/store"
+	"github.com/aurimasniekis/go-deed/internal/telemetry"
 	"github.com/aurimasniekis/go-deed/internal/tfimport"
 	"github.com/aurimasniekis/go-deed/internal/views"
 )
@@ -61,6 +63,10 @@ func (a *App) initExtensions(ctx context.Context) error {
 			Type: findings.TypeBreakGlass, Severity: findings.Critical, Class: findings.ClassConfirmed, Title: "Break-glass sign-in used",
 			Message: "a single-use recovery link signed in without the second factor", Evidence: map[string]any{"user_id": userID, "source_ip": ip}}, 24*time.Hour)
 	}
+	a.Telemetry = newTelemetry(a)
+	tAPI := &telemetry.API{Service: a.Telemetry, MaxStreams: cfg.Limits.TelemetryStreams}
+	a.apiExt = append(a.apiExt, tAPI.Register)
+	a.rawExt = append(a.rawExt, tAPI.RegisterStream)
 	a.OpsAPI = &ops.API{Store: a.Store, Findings: a.Findings, Alerts: a.Alerts, Clock: a.Clock}
 	a.apiExt = append(a.apiExt, a.OpsAPI.Register)
 	a.every("findings", 2*time.Minute, a.Findings.Evaluate)
@@ -111,6 +117,27 @@ func (a *App) terraformKinds(kind string) []string {
 	return a.TerraformKinds(kind)
 }
 
+// telemetryRegistry returns the built-in telemetry adapters.
+func telemetryRegistry(st *store.Store, clk clock.Clock) *telemetry.Registry {
+	r := telemetry.NewRegistry()
+	r.Register(telemetry.Prometheus{})
+	r.Register(telemetry.Loki{})
+	r.Register(&telemetry.NATSMon{})
+	r.Register(telemetry.OpenSearch{})
+	r.Register(telemetry.Grafana{})
+	r.Register(&telemetry.PulseRollups{Store: st, Clock: clk})
+	return r
+}
+
+func newTelemetry(a *App) *telemetry.Service {
+	reg := telemetryRegistry(a.Store, a.Clock)
+	s := &telemetry.Service{Store: &telemetry.Store{Store: a.Store, Keyring: a.Keyring, Audit: a.Audit, Registry: reg}, Catalog: a.Catalog, Registry: reg,
+		Guard: a.Guard, Metrics: a.Metrics, Clock: a.Clock, Log: a.Log.With("component", "telemetry"), Timeout: a.Cfg.Limits.TelemetryTimeout.D(),
+		Concurrency: a.Cfg.Limits.TelemetryConcurrency, CacheEntries: a.Cfg.Limits.TelemetryCacheEntries}
+	s.Init()
+	return s
+}
+
 // registerProviders adds the built-in source providers.
 func registerProviders(r *sources.Registry) *tfimport.Provider {
 	tf := &tfimport.Provider{Catalog: tfimport.MustBuiltin()}
@@ -133,5 +160,6 @@ func APIExtensionsForSpec() []func(huma.API, *httpapi.Deps) {
 		(&graph.Engine{}).Register,
 		(&views.Service{}).Register,
 		(&ops.API{}).Register,
+		(&telemetry.API{Service: &telemetry.Service{Registry: telemetryRegistry(nil, nil)}}).Register,
 	}
 }

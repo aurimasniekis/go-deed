@@ -272,6 +272,14 @@ type LimitsConfig struct {
 	IngestPerSourceRPM int   `yaml:"ingest_per_source_rpm"`
 	// MaxRemovalPercent is the default snapshot mass-removal guard.
 	MaxRemovalPercent float64 `yaml:"max_removal_percent"`
+	// TelemetryTimeout bounds one upstream telemetry query.
+	TelemetryTimeout Duration `yaml:"telemetry_timeout"`
+	// TelemetryConcurrency is the number of simultaneous queries per integration.
+	TelemetryConcurrency int `yaml:"telemetry_concurrency"`
+	// TelemetryCacheEntries bounds the in-memory telemetry result cache.
+	TelemetryCacheEntries int `yaml:"telemetry_cache_entries"`
+	// TelemetryStreams bounds concurrent telemetry SSE streams.
+	TelemetryStreams int `yaml:"telemetry_streams"`
 }
 
 // SourcesConfig configures the source scheduler.

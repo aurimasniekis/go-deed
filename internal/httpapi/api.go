@@ -187,6 +187,22 @@ func (d *Deps) Authenticate(r *http.Request) (*authn.Principal, error) {
 	return p, nil
 }
 
+// Revalidate re-checks the credentials of a long-lived request (SSE) without extending the session's idle timer, so
+// an open stream never keeps an idle session alive.
+func (d *Deps) Revalidate(r *http.Request) (*authn.Principal, error) {
+	if bearer, ok := BearerToken(r); ok {
+		return d.Authn.AuthenticateToken(r.Context(), bearer, httpx.ClientIP(r.Context()).String())
+	}
+	p, err := d.Authn.Validate(r.Context(), authn.TokenFromRequest(r))
+	if err != nil {
+		return nil, err
+	}
+	if p.Limited {
+		return nil, apperr.New(apperr.CodeMFARequired, "complete the second factor first")
+	}
+	return p, nil
+}
+
 // authenticate resolves the principal for operations that declare security and enforces Origin + CSRF on unsafe
 // methods for cookie sessions.
 func (d *Deps) authenticate(api huma.API) func(huma.Context, func(huma.Context)) {

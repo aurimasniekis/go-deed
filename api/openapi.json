@@ -1,6 +1,55 @@
 {
   "components": {
     "schemas": {
+      "AdapterInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "config_schema": {},
+          "description": {
+            "type": "string"
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "query_help": {
+            "description": "How binding queries are written for this adapter.",
+            "type": "string"
+          },
+          "secret_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "shapes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "description",
+          "config_schema",
+          "secret_fields",
+          "shapes",
+          "query_help",
+          "local",
+          "verified"
+        ],
+        "type": "object"
+      },
       "Alert": {
         "additionalProperties": false,
         "properties": {
@@ -215,6 +264,225 @@
         "required": [
           "complete"
         ],
+        "type": "object"
+      },
+      "Binding": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "freshness_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "integration_id": {
+            "type": "string"
+          },
+          "kinds": {
+            "description": "Entity kinds the binding applies to (empty = every kind).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/BindingParam"
+            },
+            "type": "array"
+          },
+          "query": {
+            "description": "Template with {{param}} placeholders and the built-ins {{window}} and {{step}}. Returned to admins only.",
+            "type": "string"
+          },
+          "relationship_type": {
+            "type": "string"
+          },
+          "resource_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "role": {
+            "type": "string"
+          },
+          "shape": {
+            "type": "string"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/BindingThresholds"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "title",
+          "integration_id",
+          "kinds",
+          "params",
+          "shape",
+          "unit",
+          "thresholds",
+          "freshness_seconds",
+          "role",
+          "created_at",
+          "updated_at",
+          "resource_version"
+        ],
+        "type": "object"
+      },
+      "BindingInput": {
+        "additionalProperties": false,
+        "properties": {
+          "freshness_seconds": {
+            "format": "int64",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "integration": {
+            "description": "Integration ID or name.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 63,
+            "type": "string"
+          },
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/BindingParam"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "query": {
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "relationship_type": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "chart",
+              "health",
+              "edge_rate",
+              "link",
+              ""
+            ],
+            "type": "string"
+          },
+          "shape": {
+            "enum": [
+              "scalar",
+              "timeseries",
+              "table",
+              "link",
+              ""
+            ],
+            "type": "string"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/BindingThresholds"
+          },
+          "title": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "unit": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BindingParam": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "from": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}$",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "Optional extra RE2 the value must match.",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "type": {
+            "enum": [
+              "label",
+              "string",
+              "int",
+              "duration",
+              "subject"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "type": "object"
+      },
+      "BindingThresholds": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "double",
+            "type": "number"
+          },
+          "direction": {
+            "description": "above (default): values above a threshold are bad.",
+            "enum": [
+              "above",
+              "below",
+              ""
+            ],
+            "type": "string"
+          },
+          "warning": {
+            "format": "double",
+            "type": "number"
+          }
+        },
         "type": "object"
       },
       "Bridge": {
@@ -1450,6 +1718,102 @@
         ],
         "type": "object"
       },
+      "EdgeRate": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "description": "Where the number comes from: pulse_tail, binding:\u003cname\u003e, or none.",
+            "type": "string"
+          },
+          "measured_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "rate": {
+            "format": "double",
+            "type": "number"
+          },
+          "relation_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "measured",
+              "inferred",
+              "stale",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "window": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "relation_id",
+          "type",
+          "status",
+          "window",
+          "basis"
+        ],
+        "type": "object"
+      },
+      "EdgeRatesInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "relation_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "window": {
+            "description": "Default 15m.",
+            "enum": [
+              "15m",
+              "1h",
+              "6h",
+              "24h",
+              "7d",
+              ""
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "relation_ids"
+        ],
+        "type": "object"
+      },
+      "EdgeRatesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/EdgeRate"
+            },
+            "type": "array"
+          },
+          "window": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "window",
+          "rates"
+        ],
+        "type": "object"
+      },
       "Entity": {
         "additionalProperties": false,
         "properties": {
@@ -1747,6 +2111,29 @@
           "facets",
           "conflicts",
           "findings"
+        ],
+        "type": "object"
+      },
+      "EntityTelemetryOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "entity_id": {
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetryResult"
+            },
+            "type": "array"
+          },
+          "window": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "window",
+          "results"
         ],
         "type": "object"
       },
@@ -2199,6 +2586,86 @@
             "type": "boolean"
           },
           "state": {}
+        },
+        "type": "object"
+      },
+      "Integration": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter": {
+            "type": "string"
+          },
+          "config": {},
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "has_secrets": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "last_test_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_test_ok": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "resource_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "adapter",
+          "config",
+          "has_secrets",
+          "enabled",
+          "created_at",
+          "updated_at",
+          "resource_version"
+        ],
+        "type": "object"
+      },
+      "IntegrationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "config": {},
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 63,
+            "type": "string"
+          },
+          "secrets": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Write-only credentials (keys from the adapter's secret_fields). Omit to keep, {} to clear.",
+            "type": "object"
+          }
         },
         "type": "object"
       },
@@ -2944,6 +3411,31 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "PreviewBindingInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "entity": {
+            "description": "Entity ID to bind parameters from (edge-rate bindings: the relation ID).",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "window": {
+            "enum": [
+              "15m",
+              "1h",
+              "6h",
+              "24h",
+              "7d",
+              ""
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity"
+        ],
         "type": "object"
       },
       "Problem": {
@@ -4514,6 +5006,207 @@
         ],
         "type": "object"
       },
+      "TelemetryData": {
+        "additionalProperties": false,
+        "properties": {
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetryLink"
+            },
+            "type": "array"
+          },
+          "note": {
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetrySeries"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "value": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "TelemetryHealth": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "warning",
+              "critical"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "TelemetryLink": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "url"
+        ],
+        "type": "object"
+      },
+      "TelemetryPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "t": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "v": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t",
+          "v"
+        ],
+        "type": "object"
+      },
+      "TelemetryResult": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter": {
+            "type": "string"
+          },
+          "binding": {
+            "type": "string"
+          },
+          "cached": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TelemetryData"
+          },
+          "error": {
+            "description": "Why the value is stale or unavailable (never upstream response bodies).",
+            "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/TelemetryHealth"
+          },
+          "integration": {
+            "type": "string"
+          },
+          "measured_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "shape": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "measured",
+              "inferred",
+              "stale",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "window": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "binding",
+          "title",
+          "role",
+          "shape",
+          "unit",
+          "integration",
+          "adapter",
+          "status",
+          "window",
+          "cached"
+        ],
+        "type": "object"
+      },
+      "TelemetrySeries": {
+        "additionalProperties": false,
+        "properties": {
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetryPoint"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "labels",
+          "points"
+        ],
+        "type": "object"
+      },
+      "TestOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "message"
+        ],
+        "type": "object"
+      },
       "Token": {
         "additionalProperties": false,
         "properties": {
@@ -5615,6 +6308,286 @@
         "summary": "Validate a setup, invite, reset or recovery link without consuming it",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/bindings": {
+      "get": {
+        "operationId": "list-bindings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Binding"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Telemetry bindings (query text is shown to installation roles only)",
+        "tags": [
+          "telemetry"
+        ]
+      },
+      "post": {
+        "description": "Users can run bindings against entities they can read; only admins author queries.",
+        "operationId": "create-binding",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindingInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binding"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a named binding (owner or admin)",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/bindings/{id}": {
+      "delete": {
+        "operationId": "delete-binding",
+        "parameters": [
+          {
+            "description": "Binding ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Binding ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a binding (owner or admin)",
+        "tags": [
+          "telemetry"
+        ]
+      },
+      "patch": {
+        "operationId": "update-binding",
+        "parameters": [
+          {
+            "description": "Binding ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Binding ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindingInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binding"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update a binding (owner or admin)",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/bindings/{id}/preview": {
+      "post": {
+        "operationId": "preview-binding",
+        "parameters": [
+          {
+            "description": "Binding ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Binding ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewBindingInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Run a binding against one entity or relation (owner or admin)",
+        "tags": [
+          "telemetry"
         ]
       }
     },
@@ -6941,6 +7914,86 @@
         ]
       }
     },
+    "/entities/{id}/telemetry": {
+      "get": {
+        "description": "Each result is labelled measured, inferred, stale or unavailable with its measurement time. Results are cached per binding freshness; upstream failures serve the last good value as stale.",
+        "operationId": "get-entity-telemetry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Default 1h.",
+            "explode": false,
+            "in": "query",
+            "name": "window",
+            "schema": {
+              "description": "Default 1h.",
+              "enum": [
+                "15m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                ""
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Run only this binding.",
+            "explode": false,
+            "in": "query",
+            "name": "binding",
+            "schema": {
+              "description": "Run only this binding.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityTelemetryOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Run the entity's telemetry bindings",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
     "/findings": {
       "get": {
         "operationId": "list-findings",
@@ -7620,6 +8673,332 @@
         "summary": "Shortest relationship path between two entities",
         "tags": [
           "graph"
+        ]
+      }
+    },
+    "/integrations": {
+      "get": {
+        "operationId": "list-integrations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Integration"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Telemetry integrations (owner, admin, auditor; credentials are never returned)",
+        "tags": [
+          "telemetry"
+        ]
+      },
+      "post": {
+        "operationId": "create-integration",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create an integration (owner or admin)",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/integrations/{id}": {
+      "delete": {
+        "operationId": "delete-integration",
+        "parameters": [
+          {
+            "description": "Integration ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Integration ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete an integration and its bindings (owner or admin)",
+        "tags": [
+          "telemetry"
+        ]
+      },
+      "get": {
+        "operationId": "get-integration",
+        "parameters": [
+          {
+            "description": "Integration ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Integration ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get an integration",
+        "tags": [
+          "telemetry"
+        ]
+      },
+      "patch": {
+        "operationId": "update-integration",
+        "parameters": [
+          {
+            "description": "Integration ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Integration ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update an integration (owner or admin)",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/integrations/{id}/test": {
+      "post": {
+        "operationId": "test-integration",
+        "parameters": [
+          {
+            "description": "Integration ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Integration ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Check connectivity of an integration (owner or admin)",
+        "tags": [
+          "telemetry"
         ]
       }
     },
@@ -11183,6 +12562,98 @@
         "summary": "Server version, API version and sign-in options (public)",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/telemetry/adapters": {
+      "get": {
+        "operationId": "list-telemetry-adapters",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdapterInfo"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Telemetry adapter types with config schemas and query languages",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/telemetry/edge-rates": {
+      "post": {
+        "description": "Relations whose endpoints you cannot read are omitted. Rates come from the Pulse tail (publish edges) or edge_rate bindings; anything else is unavailable.",
+        "operationId": "get-edge-rates",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EdgeRatesInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgeRatesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Measured activity of relationships for traffic overlays",
+        "tags": [
+          "telemetry"
         ]
       }
     },

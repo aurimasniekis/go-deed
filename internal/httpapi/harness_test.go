@@ -17,7 +17,9 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/httpx"
 	"github.com/aurimasniekis/go-deed/internal/ingest"
 	"github.com/aurimasniekis/go-deed/internal/oidc"
+	"github.com/aurimasniekis/go-deed/internal/safehttp"
 	"github.com/aurimasniekis/go-deed/internal/sources"
+	"github.com/aurimasniekis/go-deed/internal/telemetry"
 	"github.com/aurimasniekis/go-deed/internal/testenv"
 	"github.com/aurimasniekis/go-deed/internal/tfimport"
 )
@@ -49,6 +51,15 @@ func newHarness(t *testing.T) *harness {
 	reg.Register(tf)
 	runner := &sources.Runner{Store: env.Store, Catalog: env.Catalog, Ingest: ing, Audit: env.Audit, Registry: reg, Clock: env.Clock}
 	d.Extensions = append(d.Extensions, (&sources.API{Runner: runner, Ingest: ing}).Register, (&tfimport.PushAPI{Provider: tf, Ingest: ing, Runner: runner}).Register)
+	treg := telemetry.NewRegistry()
+	treg.Register(telemetry.Prometheus{})
+	guard, _ := safehttp.New(nil)
+	tsvc := &telemetry.Service{Store: &telemetry.Store{Store: env.Store, Keyring: env.Keyring, Audit: env.Audit, Registry: treg}, Catalog: env.Catalog,
+		Registry: treg, Guard: guard, Clock: env.Clock}
+	tsvc.Init()
+	tapi := &telemetry.API{Service: tsvc}
+	d.Extensions = append(d.Extensions, tapi.Register)
+	d.Raw = append(d.Raw, tapi.RegisterStream)
 	h.srv = httptest.NewServer(resolver.Middleware(httpx.RequestID(mux)))
 	d.Origin = h.srv.URL
 	httpapi.New(mux, d)
