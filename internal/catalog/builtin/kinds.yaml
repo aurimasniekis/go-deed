@@ -401,6 +401,7 @@ kinds:
     description: 'Running service: something that serves requests or processes events.'
     identity_keys:
       - - /spec/pulse_client_id
+      - - /spec/pulse_source
     versions:
       - version: v1
         schema:
@@ -421,6 +422,9 @@ kinds:
               type: string
             health_url:
               type: string
+            pulse_source:
+              type: string
+              description: CloudEvents source (ce-source) this service publishes as
           additionalProperties: true
   - name: application
     group: software

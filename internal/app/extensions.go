@@ -15,6 +15,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/ingest"
 	"github.com/aurimasniekis/go-deed/internal/live"
 	"github.com/aurimasniekis/go-deed/internal/ops"
+	"github.com/aurimasniekis/go-deed/internal/pulseint"
 	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/store"
 	"github.com/aurimasniekis/go-deed/internal/tfimport"
@@ -64,6 +65,37 @@ func (a *App) initExtensions(ctx context.Context) error {
 	a.every("findings", 2*time.Minute, a.Findings.Evaluate)
 	a.every("findings_prune", 24*time.Hour, func(ctx context.Context) error { return a.Findings.Prune(ctx, cfg.Retention.ClosedFindings.D()) })
 	a.every("snapshot_expiry", time.Minute, a.Ingest.ExpireSnapshots)
+	a.every("pulse_rollups_prune", time.Hour, func(ctx context.Context) error {
+		return pulseint.PruneRollups(ctx, a.Store, cfg.Retention.TelemetryMinute.D(), cfg.Retention.TelemetryHour.D())
+	})
+	if cfg.Pulse.Enabled {
+		tail := &pulseint.Tail{Store: a.Store, Catalog: a.Catalog, Ingest: a.Ingest, Clock: a.Clock, Metrics: a.Metrics, Log: a.Log.With("component", "pulse_tail")}
+		a.addLoop("pulse_tail", func(ctx context.Context) {
+			if c := a.connectPulse(ctx, "tail"); c != nil {
+				defer c.Close()
+				tail.Run(ctx, c)
+			}
+		})
+		if cfg.Pulse.Ingest {
+			cons := &pulseint.Consumer{Catalog: a.Catalog, Ingest: a.Ingest, Metrics: a.Metrics, Log: a.Log.With("component", "pulse_ingest")}
+			a.addLoop("pulse_ingest", func(ctx context.Context) {
+				for ctx.Err() == nil {
+					c := a.connectPulse(ctx, "ingest")
+					if c == nil {
+						return
+					}
+					if err := cons.Run(ctx, c, cfg.Pulse.IngestFilter, cfg.Pulse.IngestDurable); err != nil {
+						a.Log.Warn("pulse ingest consumer failed; retrying", "error.message", err.Error())
+						select {
+						case <-ctx.Done():
+						case <-time.After(30 * time.Second):
+						}
+					}
+					c.Close()
+				}
+			})
+		}
+	}
 	if cfg.Sources.SchedulerEnabled {
 		a.addLoop("scheduler", func(ctx context.Context) { a.Runner.Schedule(ctx, cfg.Sources.Concurrency) })
 	}
@@ -82,6 +114,8 @@ func (a *App) terraformKinds(kind string) []string {
 func registerProviders(r *sources.Registry) *tfimport.Provider {
 	tf := &tfimport.Provider{Catalog: tfimport.MustBuiltin()}
 	r.Register(tf)
+	r.Register(pulseint.Admin{})
+	r.Register(pulseint.TailProvider{})
 	return tf
 }
 
