@@ -262,7 +262,7 @@ func (svc *Service) CreateUser(ctx context.Context, actor audit.Actor, in Create
 			}
 		}
 		_, err := svc.audit.Append(ctx, tx, audit.Event{Actor: actor, Action: "user.created", Target: audit.Target{Type: "user", ID: id},
-			Details: map[string]any{"installation_role": in.InstallationRole, "with_password": phc != ""}})
+			Details: map[string]any{"installation_role": in.InstallationRole, "local_login": phc != ""}})
 		return err
 	})
 	if store.IsConstraint(err) {

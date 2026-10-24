@@ -468,3 +468,6 @@ func (s *JSONSink) Write(r Record) error {
 	_, err = s.w.Write(append(b, '\n'))
 	return err
 }
+
+// SystemActor returns the system actor (convenience for tests and jobs).
+func (w *Writer) SystemActor() Actor { return System }

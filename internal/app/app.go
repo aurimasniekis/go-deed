@@ -29,6 +29,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/ids"
 	"github.com/aurimasniekis/go-deed/internal/ingest"
 	"github.com/aurimasniekis/go-deed/internal/keyring"
+	"github.com/aurimasniekis/go-deed/internal/live"
 	"github.com/aurimasniekis/go-deed/internal/obs/metrics"
 	"github.com/aurimasniekis/go-deed/internal/oidc"
 	"github.com/aurimasniekis/go-deed/internal/safehttp"
@@ -55,6 +56,7 @@ type App struct {
 	Registry *sources.Registry
 	Runner   *sources.Runner
 	Graph    *graph.Engine
+	Live     *live.Hub
 	// TerraformKinds lists Terraform resource types mapped to a kind (support matrix).
 	TerraformKinds func(kind string) []string
 

@@ -11,12 +11,13 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/httpapi"
 	"github.com/aurimasniekis/go-deed/internal/httpx"
 	"github.com/aurimasniekis/go-deed/internal/ingest"
+	"github.com/aurimasniekis/go-deed/internal/live"
 	"github.com/aurimasniekis/go-deed/internal/sources"
 	"github.com/aurimasniekis/go-deed/internal/views"
 )
 
 // initExtensions wires ingest, sources, graph, live updates, telemetry, findings, alerts and backups.
-func (a *App) initExtensions(_ context.Context) error {
+func (a *App) initExtensions(ctx context.Context) error {
 	cfg := a.Cfg
 	a.Ingest = &ingest.Service{Store: a.Store, Catalog: a.Catalog, Audit: a.Audit, Clock: a.Clock, Metrics: a.Metrics, Log: a.Log.With("component", "ingest"),
 		Limits: ingest.Limits{MaxItems: cfg.Limits.IngestMaxItems, MaxSnapshotItems: 200_000, SnapshotTimeout: cfg.Sources.SnapshotTimeout.D(),
@@ -31,6 +32,12 @@ func (a *App) initExtensions(_ context.Context) error {
 	a.Graph = &graph.Engine{Store: a.Store, Catalog: a.Catalog, Clock: a.Clock, MaxDepth: cfg.Limits.GraphMaxDepth, MaxNodes: cfg.Limits.GraphMaxNodes,
 		ClusterAbove: cfg.Limits.GraphClusterAbove, DegreeCollapse: 50}
 	a.apiExt = append(a.apiExt, a.Graph.Register, (&views.Service{Store: a.Store}).Register)
+	a.Live = live.NewHub(a.Catalog, a.Metrics, a.Clock, 200)
+	if err := a.Live.Start(ctx); err != nil {
+		return err
+	}
+	a.Catalog.Notify = a.Live.Notify
+	a.rawExt = append(a.rawExt, a.Live.Register)
 	a.every("snapshot_expiry", time.Minute, a.Ingest.ExpireSnapshots)
 	if cfg.Sources.SchedulerEnabled {
 		a.addLoop("scheduler", func(ctx context.Context) { a.Runner.Schedule(ctx, cfg.Sources.Concurrency) })
