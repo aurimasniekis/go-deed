@@ -391,7 +391,7 @@ func nonNil(s []string) []string {
 
 // KindInput creates or updates a custom kind.
 type KindInput struct {
-	Name         string     `json:"name"`
+	Name         string     `json:"name,omitempty"`
 	Group        string     `json:"group,omitempty"`
 	Title        string     `json:"title"`
 	Plural       string     `json:"plural,omitempty"`
@@ -689,7 +689,7 @@ func (s *Service) kindChangedTx(ctx context.Context, tx *store.Tx, actor audit.A
 
 // RelTypeInput creates or updates a custom relationship type.
 type RelTypeInput struct {
-	Name             string          `json:"name"`
+	Name             string          `json:"name,omitempty"`
 	InverseName      string          `json:"inverse_name,omitempty"`
 	Title            string          `json:"title"`
 	Description      string          `json:"description,omitempty"`

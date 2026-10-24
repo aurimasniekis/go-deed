@@ -1,0 +1,14 @@
+# Development configuration. Never use mode: development in production.
+mode: development
+data_dir: /tmp/deed-dev/data
+public_url: http://127.0.0.1:8787
+http:
+  listen: 127.0.0.1:8787
+management:
+  listen: 127.0.0.1:9464
+log:
+  level: debug
+  format: text
+auth:
+  local:
+    enabled: true

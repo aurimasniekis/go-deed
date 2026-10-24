@@ -128,8 +128,8 @@ func projectTx(ctx context.Context, tx *store.Tx, idOrName string) (*Project, er
 
 // ProjectInput creates or updates a project.
 type ProjectInput struct {
-	Name           string `json:"name"`
-	DisplayName    string `json:"display_name"`
+	Name           string `json:"name,omitempty"`
+	DisplayName    string `json:"display_name,omitempty"`
 	Description    string `json:"description,omitempty"`
 	AllowHTTPLinks bool   `json:"allow_http_links,omitempty"`
 	Synthetic      bool   `json:"synthetic,omitempty"`

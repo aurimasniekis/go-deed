@@ -225,11 +225,11 @@ func (s *Service) Sources(ctx context.Context, projectIDs []string) ([]*Source, 
 
 // SourceInput creates or updates a source.
 type SourceInput struct {
-	ProjectID               string          `json:"project_id"`
-	Name                    string          `json:"name"`
-	DisplayName             string          `json:"display_name"`
-	Provider                string          `json:"provider"`
-	Layer                   Layer           `json:"layer"`
+	ProjectID               string          `json:"project_id,omitempty"`
+	Name                    string          `json:"name,omitempty"`
+	DisplayName             string          `json:"display_name,omitempty"`
+	Provider                string          `json:"provider,omitempty"`
+	Layer                   Layer           `json:"layer,omitempty"`
 	Enabled                 *bool           `json:"enabled,omitempty"`
 	Config                  json.RawMessage `json:"config,omitempty"`
 	Policy                  *Policy         `json:"policy,omitempty"`

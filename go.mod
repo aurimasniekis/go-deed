@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	github.com/aurimasniekis/go-pulse v0.0.0-20261024181610-b29306b38c3a
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/pressly/goose/v3 v3.29.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
