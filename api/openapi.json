@@ -2664,6 +2664,54 @@
         ],
         "type": "object"
       },
+      "Icon": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "monochrome": {
+            "description": "Only black/currentColor paint: the UI tints it for the theme.",
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ref": {
+            "description": "Icon reference for metadata.icon (custom:\u003cname\u003e).",
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "ref",
+          "url",
+          "sha256",
+          "monochrome",
+          "bytes",
+          "created_by",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "Identity": {
         "additionalProperties": false,
         "properties": {
@@ -4048,6 +4096,20 @@
             "type": "object"
           }
         },
+        "type": "object"
+      },
+      "PutInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "svg": {
+            "description": "SVG source (≤ 64 KiB). Scripts, styles, event handlers, foreignObject and external references are removed.",
+            "maxLength": 65536,
+            "type": "string"
+          }
+        },
+        "required": [
+          "svg"
+        ],
         "type": "object"
       },
       "ReauthInputBody": {
@@ -9133,6 +9195,149 @@
         "summary": "Shortest relationship path between two entities",
         "tags": [
           "graph"
+        ]
+      }
+    },
+    "/icons": {
+      "get": {
+        "operationId": "list-icons",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Icon"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Custom icons",
+        "tags": [
+          "icons"
+        ]
+      }
+    },
+    "/icons/{name}": {
+      "delete": {
+        "operationId": "delete-icon",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a custom icon (owner or admin)",
+        "tags": [
+          "icons"
+        ]
+      },
+      "put": {
+        "operationId": "put-icon",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Icon"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload or replace a custom icon (owner or admin)",
+        "tags": [
+          "icons"
         ]
       }
     },
