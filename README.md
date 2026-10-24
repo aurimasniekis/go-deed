@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/deed-wordmark-dark.svg">
+    <img src="docs/assets/deed-wordmark-light.svg" alt="Deed" height="64">
+  </picture>
+</p>
+
 # Deed
 
 **Declarative infrastructure catalog and live relationship map, powered by Go, Terraform, and React Flow.**
