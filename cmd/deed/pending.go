@@ -10,10 +10,4 @@ import (
 
 var errPending = errors.New("not available in this build yet")
 
-func backupCommands() []*command {
-	return []*command{{name: "run", summary: "take a backup now", run: pendingCmd}}
-}
-
-func runRestore(context.Context, []string, io.Writer, io.Writer) error  { return errPending }
 func runDemoSeed(context.Context, []string, io.Writer, io.Writer) error { return errPending }
-func pendingCmd(context.Context, []string, io.Writer, io.Writer) error  { return errPending }

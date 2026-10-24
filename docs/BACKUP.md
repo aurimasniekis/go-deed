@@ -1,0 +1,106 @@
+# Backups and restore (ADR-010)
+
+Deed writes encrypted backups of its SQLite database (and, by default, its KEK) to S3-compatible storage. Deed can
+**write** backups but cannot **read** them: they are encrypted with [age](https://age-encryption.org) to X25519
+recipients whose identities you keep offline.
+
+## What a backup contains
+`backups/<bkp_id>/` under `backup.s3.prefix`:
+
+| Object | Content |
+|---|---|
+| `deed.db.zst.age` | `VACUUM INTO` snapshot that passed `PRAGMA integrity_check`, zstd-compressed, age-encrypted |
+| `kek.age` | the KEK, age-encrypted to the same recipients (omitted with `backup.exclude_kek: true`) |
+| `manifest.json` | written **last** (the completeness marker): format, backup ID, creation time, app and schema version, installation ID, KEK ID, recipient fingerprints, row counts, and plaintext/ciphertext SHA-256 and sizes of every object — signed with Ed25519 |
+
+The manifest holds no secrets. It is signed with a key derived from the keyring (`backup-meta` purpose) because age
+recipients are public: without the signature, anyone able to write to the bucket could plant a forged
+"installation" encrypted to your recipients. Restores require the **verification key**
+(`deed-backup-ed25519:…`, from `deed backup verify-key` or `GET /api/v1/backups`).
+
+Uploads stream (multipart, 16 MiB parts) and request SSE-S3 (`backup.s3.sse`, default on) as defense in depth.
+Interrupted multipart uploads are aborted; backups without a manifest are deleted after 24 hours.
+
+## Setting up
+1. Generate an identity on a trusted machine and keep it offline (password manager, hardware token, printed copy):
+   ```sh
+   deed backup keygen -out deed-backup-identity.txt   # prints the recipient age1…
+   ```
+   Several recipients (e.g. two operators, or a new key during rotation) can be listed; any one identity decrypts.
+2. Configure:
+   ```yaml
+   backup:
+     enabled: true
+     interval: 6h
+     keep_daily: 7
+     keep_weekly: 4
+     keep_monthly: 6
+     recipients: ["age1…"]
+     s3:
+       endpoint: s3.example.com        # host[:port]
+       bucket: deed-backups
+       prefix: deed/
+       region: eu-central-1
+       access_key_id: …
+       secret_access_key_file: /run/credentials/deed/s3-secret
+   ```
+   Give the S3 credential **write-only plus list/get** on the prefix where possible, and enable object lock /
+   versioning on the bucket so a compromised server cannot erase history (pruning then fails loudly instead).
+3. Record the verification key next to the identity:
+   ```sh
+   curl -s -H "Authorization: Bearer $DEED_TOKEN" https://deed.example.com/api/v1/backups | jq -r .verify_key
+   ```
+   Rotating the `backup-meta` keyring purpose changes it; keep old keys for old backups.
+
+## Operating
+- Scheduled backups run when the last successful one is older than `backup.interval` (failures retry after 15
+  minutes). `POST /api/v1/backups` (owner/admin) or `deed backup run` (server stopped) take one now.
+- Retention is grandfather-father-son over this installation's **verified** backups: the newest backup, plus the
+  newest of each of the last `keep_daily` days, `keep_weekly` ISO weeks and `keep_monthly` months. Manifests this
+  installation did not sign are ignored (never counted, never deleted).
+- Metrics: `deed_backup_runs_total{result}`, `deed_backup_last_success_timestamp_seconds`,
+  `deed_backup_duration_seconds`, `deed_backup_size_bytes`. A `backup_stale` finding opens when no backup succeeded
+  for two intervals.
+- `deed backup list -verify-key …` shows stored backups; `deed backup verify -id latest -identity … -verify-key …`
+  downloads, decrypts and checks a backup (hashes, sizes, integrity check, row counts) **without** restoring — run
+  it regularly from the machine that holds the identity.
+
+## Restore runbook
+Restore is offline. You need: the age identity, the verification key, the S3 settings (a `deed.yaml`), and either
+the backup's escrowed KEK (default) or the original KEK.
+
+1. Stop Deed (`systemctl stop deed`). Restore refuses while the data-directory lock is held.
+2. Verify first:
+   ```sh
+   deed backup verify -config deed.yaml -identity id.txt -verify-key deed-backup-ed25519:… -id latest
+   ```
+3. Restore:
+   ```sh
+   deed restore -config deed.yaml -identity id.txt -verify-key deed-backup-ed25519:… -id latest \
+     -kek-out /etc/deed/kek -yes          # omit -kek-out to keep the configured KEK (it must match the backup's KEK ID)
+   ```
+   Restore downloads and checks every object (signature, ciphertext and plaintext SHA-256 and size), runs
+   `PRAGMA integrity_check` and compares row counts, refuses a backup whose schema is newer than the binary, keeps the
+   current database as `deed.db.pre-restore-<time>`, swaps the restored one in atomically, **revokes every session**
+   (and with `-revoke-tokens` every API/source token) and verifies the audit hash chain.
+4. Point `kek.file` at the restored KEK if you used `-kek-out`, then start Deed. The first start records
+   `backup.restored` in the audit log and opens a `backup_restored` finding.
+5. Afterwards: everything after the backup's creation time is gone. Re-run pull sources, ask push sources to send
+   full snapshots, and review API tokens created or revoked since the backup.
+
+Failure modes and what they mean:
+
+| Message | Cause |
+|---|---|
+| `cannot decrypt (wrong identity or damaged object)` | the identity does not match any recipient |
+| `… was modified or truncated in storage` | ciphertext hash or size differs from the manifest |
+| `manifest signature does not verify` | wrong verification key, or a planted manifest |
+| `schema version N but this binary supports up to M` | restore with a newer `deed` |
+| `holds a different KEK` | `-kek-out` points at an existing, different KEK file |
+| `restore needs the server stopped` | the data directory is locked by a running server |
+
+## Validation status
+Covered by `internal/backup` tests: round trip, wrong identity, foreign signature, corrupted object, S3 outage,
+interrupted upload, newer schema, lock held, KEK mismatch, GFS retention and planted manifests — in memory and
+against a real MinIO server (when the `minio` binary is installed). A full CLI backup/verify/restore against local
+MinIO was run during development. Backups to AWS S3, R2 or B2 are **not yet validated**.

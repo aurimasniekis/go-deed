@@ -59,6 +59,7 @@ const (
 	TypeVersionAvailable = "version_update_available"
 	TypeVersionEOL       = "version_end_of_life"
 	TypeBackupStale      = "backup_stale"
+	TypeRestored         = "backup_restored"
 	TypeDeadLetters      = "events_dead_lettered"
 	TypeBreakGlass       = "breakglass_used"
 	TypeAbsent           = "absent_from_source"

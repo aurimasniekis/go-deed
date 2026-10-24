@@ -22,6 +22,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/alerts"
 	"github.com/aurimasniekis/go-deed/internal/audit"
 	"github.com/aurimasniekis/go-deed/internal/authn"
+	"github.com/aurimasniekis/go-deed/internal/backup"
 	"github.com/aurimasniekis/go-deed/internal/buildinfo"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/clock"
@@ -66,6 +67,8 @@ type App struct {
 	OpsAPI   *ops.API
 	// Telemetry runs integrations and bindings.
 	Telemetry *telemetry.Service
+	// Backups writes encrypted backups.
+	Backups *backup.Service
 	// TerraformKinds lists Terraform resource types mapped to a kind (support matrix).
 	TerraformKinds func(kind string) []string
 

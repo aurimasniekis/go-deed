@@ -201,6 +201,207 @@
         ],
         "type": "object"
       },
+      "BackupManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "app_version": {
+            "type": "string"
+          },
+          "compression": {
+            "type": "string"
+          },
+          "counts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "encryption": {
+            "type": "string"
+          },
+          "format": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "installation_id": {
+            "type": "string"
+          },
+          "kek_id": {
+            "type": "string"
+          },
+          "kek_included": {
+            "type": "boolean"
+          },
+          "objects": {
+            "items": {
+              "$ref": "#/components/schemas/BackupObject"
+            },
+            "type": "array"
+          },
+          "recipient_fingerprints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "format",
+          "id",
+          "created",
+          "app_version",
+          "schema_version",
+          "installation_id",
+          "kek_id",
+          "kek_included",
+          "recipient_fingerprints",
+          "compression",
+          "encryption",
+          "counts",
+          "objects"
+        ],
+        "type": "object"
+      },
+      "BackupObject": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stored_sha256": {
+            "type": "string"
+          },
+          "stored_size": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "key",
+          "size",
+          "sha256",
+          "stored_size",
+          "stored_sha256"
+        ],
+        "type": "object"
+      },
+      "BackupRun": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "object_key": {
+            "type": "string"
+          },
+          "plain_sha256": {
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "running",
+              "ok",
+              "error"
+            ],
+            "type": "string"
+          },
+          "schema_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trigger",
+          "started_at",
+          "result",
+          "size_bytes",
+          "schema_version"
+        ],
+        "type": "object"
+      },
+      "BackupsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "remote": {
+            "items": {
+              "$ref": "#/components/schemas/StoredBackup"
+            },
+            "type": "array"
+          },
+          "remote_error": {
+            "type": "string"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/BackupRun"
+            },
+            "type": "array"
+          },
+          "scheduled": {
+            "type": "boolean"
+          },
+          "verify_key": {
+            "description": "Public key that verifies this installation's backup manifests; keep it with the age identity.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "scheduled",
+          "running",
+          "verify_key",
+          "runs"
+        ],
+        "type": "object"
+      },
       "Batch": {
         "additionalProperties": false,
         "properties": {
@@ -4370,6 +4571,18 @@
         ],
         "type": "object"
       },
+      "RunBackupOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accepted"
+        ],
+        "type": "object"
+      },
       "RunOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4849,6 +5062,42 @@
           "pending",
           "dead",
           "published_24h"
+        ],
+        "type": "object"
+      },
+      "StoredBackup": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "key_id": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/BackupManifest"
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "created",
+          "complete",
+          "bytes",
+          "verified"
         ],
         "type": "object"
       },
@@ -6308,6 +6557,107 @@
         "summary": "Validate a setup, invite, reset or recovery link without consuming it",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/backups": {
+      "get": {
+        "operationId": "list-backups",
+        "parameters": [
+          {
+            "description": "Also list the backups in storage (one LIST request plus a manifest read per backup).",
+            "explode": false,
+            "in": "query",
+            "name": "remote",
+            "schema": {
+              "description": "Also list the backups in storage (one LIST request plus a manifest read per backup).",
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Backup runs and stored backups (owner, admin, auditor)",
+        "tags": [
+          "backups"
+        ]
+      },
+      "post": {
+        "description": "The backup runs in the background; poll GET /backups for its result.",
+        "operationId": "run-backup",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBackupOutputBody"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start a backup now (owner or admin)",
+        "tags": [
+          "backups"
         ]
       }
     },

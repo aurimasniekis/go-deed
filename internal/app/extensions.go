@@ -7,6 +7,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/aurimasniekis/go-deed/internal/alerts"
+	"github.com/aurimasniekis/go-deed/internal/backup"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/clock"
 	"github.com/aurimasniekis/go-deed/internal/connectors"
@@ -67,6 +68,9 @@ func (a *App) initExtensions(ctx context.Context) error {
 	tAPI := &telemetry.API{Service: a.Telemetry, MaxStreams: cfg.Limits.TelemetryStreams}
 	a.apiExt = append(a.apiExt, tAPI.Register)
 	a.rawExt = append(a.rawExt, tAPI.RegisterStream)
+	if err := a.initBackups(ctx); err != nil {
+		return err
+	}
 	a.OpsAPI = &ops.API{Store: a.Store, Findings: a.Findings, Alerts: a.Alerts, Clock: a.Clock}
 	a.apiExt = append(a.apiExt, a.OpsAPI.Register)
 	a.every("findings", 2*time.Minute, a.Findings.Evaluate)
@@ -161,5 +165,6 @@ func APIExtensionsForSpec() []func(huma.API, *httpapi.Deps) {
 		(&views.Service{}).Register,
 		(&ops.API{}).Register,
 		(&telemetry.API{Service: &telemetry.Service{Registry: telemetryRegistry(nil, nil)}}).Register,
+		(&backup.API{Service: backup.New(backup.Options{})}).Register,
 	}
 }

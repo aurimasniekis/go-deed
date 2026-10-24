@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/pressly/goose/v3"
@@ -138,4 +139,27 @@ func snapTime(name string) string {
 		return name[i+1:]
 	}
 	return name
+}
+
+// LatestSchemaVersion returns the newest embedded migration version without opening a database.
+func LatestSchemaVersion() (int64, error) {
+	entries, err := fs.ReadDir(EmbeddedMigrations(), ".")
+	if err != nil {
+		return 0, err
+	}
+	var latest int64
+	for _, e := range entries {
+		name := e.Name()
+		i := 0
+		for i < len(name) && name[i] >= '0' && name[i] <= '9' {
+			i++
+		}
+		if i == 0 || !strings.HasSuffix(name, ".sql") {
+			continue
+		}
+		if v, err := strconv.ParseInt(name[:i], 10, 64); err == nil && v > latest {
+			latest = v
+		}
+	}
+	return latest, nil
 }
