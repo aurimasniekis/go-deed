@@ -17,4 +17,7 @@ regexes = [
   '''deed-dev-secret''',
   '''deedtest-secret''',
   '''deedsmoke-secret''',
+  '''deedci-secret''',
+  '''acme-api-[a-z0-9.-]+''',                # relation names in connector tests
+  '''ten_01jb9w2v3x4y5z6a7b8c9d0e[0-9a-z]{2}''', # NATS subject tokens in Pulse admin fixtures
 ]

@@ -255,8 +255,10 @@ func (c *Config) validatePulse(v *validator, prod bool) {
 	if strings.HasPrefix(p.URL, "nats://") && prod {
 		v.add("pulse.url must use tls:// in production mode")
 	}
-	if p.CredsFile == "" {
-		v.add("pulse.creds_file is required")
+	// Development mode may connect to a local, unauthenticated NATS (deploy/compose.dev.yaml); production needs the
+	// client credentials Pulse issued for Deed.
+	if p.CredsFile == "" && prod {
+		v.add("pulse.creds_file is required in production mode")
 	}
 	if !slugRE.MatchString(p.Source) {
 		v.add("pulse.source must be a lowercase slug")

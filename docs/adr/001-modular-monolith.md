@@ -21,6 +21,10 @@ projects (Porch, HallPass, Pulse) run one Go binary on SQLite and share proven s
   dynamic filters (inventory, graph, search). A tiny helper (`store.Q`) keeps scanning uniform. A `txscope`
   convention (no network I/O inside write transactions) is enforced by code review and the `storetest` duration
   guard (100 ms per write transaction in tests).
+- **Exceptions to the 100 ms budget:** a snapshot commit is one atomic transaction by design (ADR-003), so it holds
+  the writer for a time proportional to the snapshot (bounded by `MaxSnapshotItems`; measured in PERFORMANCE.md).
+  Incremental writes, batches and every request-path transaction stay within the budget. Start-up work (keyring load,
+  built-in seeding) and offline CLI commands are also exempt.
 - Normalized tables for entities, facets, relations, assertions and sources; validated JSON columns for properties
   (`spec`, `status`, facet fields). FTS5 for search.
 

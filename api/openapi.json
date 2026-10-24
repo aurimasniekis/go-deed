@@ -8649,6 +8649,39 @@
         ]
       }
     },
+    "/findings/evaluate": {
+      "post": {
+        "description": "Findings are otherwise evaluated every two minutes.",
+        "operationId": "evaluate-findings",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Re-evaluate findings and alerts now (owner or admin)",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
     "/findings/{id}": {
       "get": {
         "operationId": "get-finding",

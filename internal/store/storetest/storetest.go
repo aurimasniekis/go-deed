@@ -24,9 +24,12 @@ var MaxTxDuration = func() time.Duration {
 	return raceFactor * 100 * time.Millisecond
 }()
 
-// exempt lists transactions the guard ignores: one-off start-up work that runs before the server accepts requests,
-// and unnamed transactions, which only test fixtures and offline CLI commands use (serving code always calls TxNamed).
-var exempt = map[string]bool{"": true, "keyring.load": true, "catalog.seed_builtins": true, "installation.ensure": true}
+// exempt lists transactions the guard ignores (ADR-001 "Exceptions"): one-off start-up work before the server accepts
+// requests; unnamed transactions, used only by test fixtures and offline CLI commands (serving code always calls
+// TxNamed); the snapshot commit, which ADR-003 requires to be one atomic transaction and which is bounded by the
+// snapshot size instead (measured in docs/PERFORMANCE.md); and the offline demo seed.
+var exempt = map[string]bool{"": true, "keyring.load": true, "catalog.seed_builtins": true, "installation.ensure": true,
+	"ingest.snapshot_commit": true, "demo.entities": true, "demo.relations": true}
 
 // Option customizes Open.
 type Option func(*store.Options)

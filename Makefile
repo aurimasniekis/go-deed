@@ -57,7 +57,8 @@ vuln:
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
 secrets:
-	gitleaks git --redact --config .gitleaks.toml .
+	GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=color.ui GIT_CONFIG_VALUE_0=never GIT_CONFIG_KEY_1=color.diff GIT_CONFIG_VALUE_1=never \
+		gitleaks git --redact --config .gitleaks.toml .
 
 monitoring-check:
 	deploy/monitoring/check.sh

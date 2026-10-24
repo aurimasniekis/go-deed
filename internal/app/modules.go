@@ -80,7 +80,10 @@ func (a *App) connectPulse(ctx context.Context, conn string) *pulse.Client {
 	p := a.Cfg.Pulse
 	log := a.Log.With("component", "pulse", "conn", conn)
 	for {
-		opts := []pulse.Option{pulse.WithCredsFile(p.CredsFile), pulse.WithSource(p.Source), pulse.WithName("deed-" + conn)}
+		opts := []pulse.Option{pulse.WithSource(p.Source), pulse.WithName("deed-" + conn)}
+		if p.CredsFile != "" {
+			opts = append(opts, pulse.WithCredsFile(p.CredsFile))
+		}
 		if p.CAFile != "" {
 			opts = append(opts, pulse.WithCAFile(p.CAFile))
 		}

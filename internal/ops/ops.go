@@ -258,6 +258,19 @@ func (a *API) Register(api huma.API, d *httpapi.Deps) {
 			out, err := a.List(ctx, r, inst, in)
 			return &findingsOutput{Body: out}, d.Fail("list-findings", err)
 		})
+	huma.Register(api, huma.Operation{OperationID: "evaluate-findings", Method: http.MethodPost, Path: "/findings/evaluate", Tags: []string{"findings"},
+		Summary: "Re-evaluate findings and alerts now (owner or admin)", Description: "Findings are otherwise evaluated every two minutes.",
+		Security: sec, DefaultStatus: http.StatusNoContent},
+		func(ctx context.Context, _ *struct{}) (*struct{}, error) {
+			p, err := httpapi.RequireUser(ctx)
+			if err != nil {
+				return nil, d.Fail("evaluate-findings", err)
+			}
+			if !authz.CanAdminister(p) {
+				return nil, d.Fail("evaluate-findings", apperr.New(apperr.CodeForbidden, "installation owner or admin required"))
+			}
+			return nil, d.Fail("evaluate-findings", a.Findings.Evaluate(ctx))
+		})
 	huma.Register(api, huma.Operation{OperationID: "get-finding", Method: http.MethodGet, Path: "/findings/{id}", Tags: []string{"findings"},
 		Summary: "Get a finding", Security: sec},
 		func(ctx context.Context, in *FindingPath) (*findingOutput, error) {
