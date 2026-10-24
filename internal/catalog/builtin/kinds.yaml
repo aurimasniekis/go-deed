@@ -1,0 +1,1093 @@
+# Built-in kinds (ADR-002). Loaded at start-up into kind_definitions with builtin = 1. Edit and rebuild to change.
+kinds:
+  - name: server
+    group: infra
+    title: Server
+    plural: Servers
+    icon: tabler:server
+    description: Physical server or dedicated host.
+    identity_keys:
+      - - /spec/hostname
+      - - /spec/ipv4
+      - - /spec/serial
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            hostname:
+              type: string
+              maxLength: 253
+            ipv4:
+              type: string
+              format: ipv4
+            ipv6:
+              type: string
+              format: ipv6
+            provider:
+              type: string
+            model:
+              type: string
+            serial:
+              type: string
+            cpu_cores:
+              type: integer
+              minimum: 0
+            memory_mb:
+              type: integer
+              minimum: 0
+            os:
+              type: string
+            region:
+              type: string
+            datacenter:
+              type: string
+          additionalProperties: true
+  - name: hypervisor
+    group: infra
+    title: Hypervisor
+    plural: Hypervisors
+    icon: tabler:server-2
+    description: Virtualization host, e.g. ESXi or Proxmox.
+    identity_keys:
+      - - /spec/hostname
+      - - /spec/ipv4
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            hostname:
+              type: string
+              maxLength: 253
+            ipv4:
+              type: string
+              format: ipv4
+            ipv6:
+              type: string
+              format: ipv6
+            platform:
+              type: string
+              enum:
+                - esxi
+                - proxmox
+                - kvm
+                - hyper-v
+                - xen
+                - other
+            version:
+              type: string
+            cluster:
+              type: string
+          additionalProperties: true
+  - name: vm
+    group: infra
+    title: Virtual machine
+    plural: Virtual machines
+    icon: tabler:box
+    description: Virtual machine or VPS instance.
+    identity_keys:
+      - - /spec/hostname
+      - - /spec/ipv4
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            hostname:
+              type: string
+              maxLength: 253
+            ipv4:
+              type: string
+              format: ipv4
+            ipv6:
+              type: string
+              format: ipv6
+            provider:
+              type: string
+            instance_type:
+              type: string
+            image:
+              type: string
+            cpu_cores:
+              type: integer
+              minimum: 0
+            memory_mb:
+              type: integer
+              minimum: 0
+            disk_gb:
+              type: integer
+              minimum: 0
+            region:
+              type: string
+            os:
+              type: string
+            status:
+              type: string
+          additionalProperties: true
+  - name: container
+    group: infra
+    title: Container
+    plural: Containers
+    icon: simple-icons:docker
+    description: Container running on a Docker host or runtime.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            image:
+              type: string
+            image_tag:
+              type: string
+            image_digest:
+              type: string
+            state:
+              type: string
+            ports:
+              type: array
+              items:
+                type: string
+            compose_project:
+              type: string
+            compose_service:
+              type: string
+            restart_policy:
+              type: string
+          additionalProperties: true
+  - name: docker_host
+    group: infra
+    title: Docker host
+    plural: Docker hosts
+    icon: simple-icons:docker
+    description: Machine running a Docker engine.
+    identity_keys:
+      - - /spec/hostname
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            hostname:
+              type: string
+              maxLength: 253
+            ipv4:
+              type: string
+              format: ipv4
+            ipv6:
+              type: string
+              format: ipv6
+            docker_version:
+              type: string
+            containers_running:
+              type: integer
+              minimum: 0
+          additionalProperties: true
+  - name: storage
+    group: infra
+    title: Storage
+    plural: Storage
+    icon: tabler:database-export
+    description: Bucket, volume or file share.
+    identity_keys:
+      - - /spec/endpoint
+        - /spec/bucket
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - s3
+                - bucket
+                - nfs
+                - smb
+                - disk
+                - volume
+                - other
+            endpoint:
+              type: string
+            bucket:
+              type: string
+            capacity_gb:
+              type: number
+              minimum: 0
+            provider:
+              type: string
+          additionalProperties: true
+  - name: database
+    group: infra
+    title: Database
+    plural: Databases
+    icon: tabler:database
+    description: Database server or logical database.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            engine:
+              type: string
+            version:
+              type: string
+            host:
+              type: string
+            port:
+              type: integer
+              minimum: 0
+              maximum: 65535
+            database:
+              type: string
+          additionalProperties: true
+  - name: network
+    group: network
+    title: Network
+    plural: Networks
+    icon: tabler:network
+    description: IP network, VLAN or VPC.
+    identity_keys:
+      - - /spec/cidr
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            cidr:
+              type: string
+            vlan:
+              type: integer
+              minimum: 0
+              maximum: 4095
+            type:
+              type: string
+            gateway:
+              type: string
+          additionalProperties: true
+  - name: domain
+    group: network
+    title: Domain
+    plural: Domains
+    icon: tabler:world-www
+    description: Registered domain name.
+    identity_keys:
+      - - /spec/fqdn
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            fqdn:
+              type: string
+            registrar:
+              type: string
+            expires_at:
+              type: string
+              format: date-time
+            nameservers:
+              type: array
+              items:
+                type: string
+            auto_renew:
+              type: boolean
+          additionalProperties: true
+  - name: dns_zone
+    group: network
+    title: DNS zone
+    plural: DNS zones
+    icon: tabler:world
+    description: Authoritative DNS zone (e.g. a Cloudflare zone).
+    identity_keys:
+      - - /spec/zone
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            zone:
+              type: string
+            provider:
+              type: string
+            zone_id:
+              type: string
+            plan:
+              type: string
+          additionalProperties: true
+  - name: dns_record
+    group: network
+    title: DNS record
+    plural: DNS records
+    icon: tabler:arrow-guide
+    description: DNS resource record.
+    identity_keys:
+      - - /spec/fqdn
+        - /spec/type
+        - /spec/content
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            fqdn:
+              type: string
+            type:
+              type: string
+            content:
+              type: string
+            ttl:
+              type: integer
+              minimum: 0
+            proxied:
+              type: boolean
+            zone:
+              type: string
+            priority:
+              type: integer
+          additionalProperties: true
+  - name: certificate
+    group: network
+    title: Certificate
+    plural: Certificates
+    icon: tabler:certificate
+    description: X.509 certificate.
+    identity_keys:
+      - - /spec/fingerprint_sha256
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            common_name:
+              type: string
+            sans:
+              type: array
+              items:
+                type: string
+            issuer:
+              type: string
+            not_before:
+              type: string
+              format: date-time
+            not_after:
+              type: string
+              format: date-time
+            serial:
+              type: string
+            fingerprint_sha256:
+              type: string
+            key_algorithm:
+              type: string
+          additionalProperties: true
+  - name: service
+    group: software
+    title: Service
+    plural: Services
+    icon: tabler:components
+    description: 'Running service: something that serves requests or processes events.'
+    identity_keys:
+      - - /spec/pulse_client_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            url:
+              type: string
+            port:
+              type: integer
+              minimum: 0
+              maximum: 65535
+            protocol:
+              type: string
+            tier:
+              type: string
+            pulse_client_id:
+              type: string
+            health_url:
+              type: string
+          additionalProperties: true
+  - name: application
+    group: software
+    title: Application
+    plural: Applications
+    icon: tabler:apps
+    description: Logical application composed of services.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            language:
+              type: string
+            framework:
+              type: string
+            url:
+              type: string
+          additionalProperties: true
+  - name: repository
+    group: software
+    title: Repository
+    plural: Repositories
+    icon: tabler:git-branch
+    description: Source code repository.
+    identity_keys:
+      - - /spec/url
+      - - /spec/full_name
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            url:
+              type: string
+            provider:
+              type: string
+            full_name:
+              type: string
+            default_branch:
+              type: string
+            visibility:
+              type: string
+            archived:
+              type: boolean
+            language:
+              type: string
+          additionalProperties: true
+  - name: release
+    group: software
+    title: Release
+    plural: Releases
+    icon: tabler:tag
+    description: Published release of a repository.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            tag:
+              type: string
+            name:
+              type: string
+            published_at:
+              type: string
+              format: date-time
+            url:
+              type: string
+            prerelease:
+              type: boolean
+            draft:
+              type: boolean
+          additionalProperties: true
+  - name: deployment
+    group: software
+    title: Deployment
+    plural: Deployments
+    icon: tabler:rocket
+    description: Deployment of a release or ref to an environment.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            environment:
+              type: string
+            ref:
+              type: string
+            sha:
+              type: string
+            status:
+              type: string
+            url:
+              type: string
+            deployed_at:
+              type: string
+              format: date-time
+          additionalProperties: true
+  - name: pull_request
+    group: software
+    title: Pull request
+    plural: Pull requests
+    icon: tabler:git-pull-request
+    description: Pull request (open or recently closed).
+    identity_keys:
+      - - /spec/url
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            number:
+              type: integer
+              minimum: 0
+            title:
+              type: string
+            state:
+              type: string
+            url:
+              type: string
+            author:
+              type: string
+            merged:
+              type: boolean
+            draft:
+              type: boolean
+            updated_at:
+              type: string
+              format: date-time
+            repository:
+              type: string
+          additionalProperties: true
+  - name: issue
+    group: software
+    title: Issue
+    plural: Issues
+    icon: tabler:circle-dot
+    description: Issue (open or recently closed).
+    identity_keys:
+      - - /spec/url
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            number:
+              type: integer
+              minimum: 0
+            title:
+              type: string
+            state:
+              type: string
+            url:
+              type: string
+            labels:
+              type: array
+              items:
+                type: string
+            updated_at:
+              type: string
+              format: date-time
+            repository:
+              type: string
+          additionalProperties: true
+  - name: nats_system
+    group: events
+    title: NATS system
+    plural: NATS systems
+    icon: simple-icons:natsdotio
+    description: NATS server or cluster (e.g. the Pulse event bus).
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            url:
+              type: string
+            server_version:
+              type: string
+            cluster:
+              type: string
+            jetstream:
+              type: boolean
+          additionalProperties: true
+  - name: nats_stream
+    group: events
+    title: NATS stream
+    plural: NATS streams
+    icon: simple-icons:natsdotio
+    description: JetStream stream.
+    identity_keys:
+      - - /spec/stream
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            stream:
+              type: string
+            subjects:
+              type: array
+              items:
+                type: string
+            storage:
+              type: string
+            retention:
+              type: string
+            max_bytes:
+              type: integer
+            replicas:
+              type: integer
+              minimum: 0
+            messages:
+              type: integer
+              minimum: 0
+            bytes:
+              type: integer
+              minimum: 0
+          additionalProperties: true
+  - name: nats_consumer
+    group: events
+    title: NATS consumer
+    plural: NATS consumers
+    icon: simple-icons:natsdotio
+    description: Durable JetStream consumer.
+    identity_keys:
+      - - /spec/stream
+        - /spec/durable
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            durable:
+              type: string
+            stream:
+              type: string
+            filter_subjects:
+              type: array
+              items:
+                type: string
+            deliver_policy:
+              type: string
+            ack_policy:
+              type: string
+            pending:
+              type: integer
+              minimum: 0
+          additionalProperties: true
+  - name: nats_subject
+    group: events
+    title: NATS subject
+    plural: NATS subjects
+    icon: tabler:route
+    description: Subject or subject template (wildcards when pattern is true).
+    identity_keys:
+      - - /spec/subject
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            subject:
+              type: string
+              maxLength: 256
+            pattern:
+              type: boolean
+          additionalProperties: true
+  - name: event_contract
+    group: events
+    title: Event contract
+    plural: Event contracts
+    icon: tabler:file-code
+    description: CloudEvents type and its payload contract, independent of transport subjects.
+    identity_keys:
+      - - /spec/type
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            type:
+              type: string
+            version:
+              type: string
+            schema:
+              type: object
+            description:
+              type: string
+          additionalProperties: true
+  - name: grafana_dashboard
+    group: observability
+    title: Grafana dashboard
+    plural: Grafana dashboards
+    icon: simple-icons:grafana
+    description: Grafana dashboard (a link target; Grafana is not treated as a metrics store).
+    identity_keys:
+      - - /spec/uid
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            uid:
+              type: string
+            url:
+              type: string
+            folder:
+              type: string
+            title:
+              type: string
+            tags:
+              type: array
+              items:
+                type: string
+          additionalProperties: true
+  - name: ha_instance
+    group: home
+    title: Home Assistant instance
+    plural: Home Assistant instances
+    icon: simple-icons:homeassistant
+    description: Home Assistant installation.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            url:
+              type: string
+            version:
+              type: string
+            installation_type:
+              type: string
+          additionalProperties: true
+  - name: ha_integration
+    group: home
+    title: Home Assistant integration
+    plural: Home Assistant integrations
+    icon: simple-icons:homeassistant
+    description: Integration configured in Home Assistant.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            domain:
+              type: string
+            version:
+              type: string
+            entries:
+              type: integer
+              minimum: 0
+          additionalProperties: true
+  - name: porch_app
+    group: identity
+    title: Porch application
+    plural: Porch applications
+    icon: tabler:key
+    description: Application registered in Porch (OIDC client).
+    identity_keys:
+      - - /spec/app_id
+      - - /spec/client_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            app_id:
+              type: string
+            client_id:
+              type: string
+            tenant:
+              type: string
+            app_type:
+              type: string
+            redirect_uris:
+              type: array
+              items:
+                type: string
+          additionalProperties: true
+  - name: porch_service_account
+    group: identity
+    title: Porch service account
+    plural: Porch service accounts
+    icon: tabler:robot
+    description: Porch service account.
+    identity_keys:
+      - - /spec/service_account_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            service_account_id:
+              type: string
+            tenant:
+              type: string
+            status:
+              type: string
+          additionalProperties: true
+  - name: hallpass_resource
+    group: identity
+    title: HallPass resource
+    plural: HallPass resources
+    icon: tabler:lock-access
+    description: Generic HallPass access resource.
+    identity_keys:
+      - - /spec/hallpass_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            resource_type:
+              type: string
+            hallpass_id:
+              type: string
+          additionalProperties: true
+  - name: hallpass_agent
+    group: identity
+    title: HallPass agent
+    plural: HallPass agents
+    icon: tabler:robot
+    description: Agent identity managed by HallPass.
+    identity_keys:
+      - - /spec/agent_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            agent_id:
+              type: string
+            name:
+              type: string
+            status:
+              type: string
+            version:
+              type: string
+          additionalProperties: true
+  - name: hallpass_server
+    group: identity
+    title: HallPass server
+    plural: HallPass servers
+    icon: tabler:server-bolt
+    description: Destination server protected by HallPass.
+    identity_keys:
+      - - /spec/server_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            server_id:
+              type: string
+            hostname:
+              type: string
+            address:
+              type: string
+            port:
+              type: integer
+              minimum: 0
+              maximum: 65535
+          additionalProperties: true
+  - name: hallpass_role
+    group: identity
+    title: HallPass role
+    plural: HallPass roles
+    icon: tabler:id-badge
+    description: Login role on a HallPass server.
+    identity_keys:
+      - - /spec/role_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            role_id:
+              type: string
+            login:
+              type: string
+          additionalProperties: true
+  - name: hallpass_grant
+    group: identity
+    title: HallPass grant
+    plural: HallPass grants
+    icon: tabler:shield-check
+    description: Access grant in HallPass.
+    identity_keys:
+      - - /spec/grant_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            grant_id:
+              type: string
+            subject:
+              type: string
+            expires_at:
+              type: string
+              format: date-time
+          additionalProperties: true
+  - name: agent_session
+    group: identity
+    title: Agent session
+    plural: Agent sessions
+    icon: tabler:terminal-2
+    description: Access session of an agent through HallPass.
+    identity_keys:
+      - - /spec/session_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            session_id:
+              type: string
+            started_at:
+              type: string
+              format: date-time
+            ended_at:
+              type: string
+              format: date-time
+            status:
+              type: string
+          additionalProperties: true
+  - name: agent_box
+    group: identity
+    title: Agent box
+    plural: Agent boxes
+    icon: tabler:box-model
+    description: Machine running an agent (HallPass agent plus host).
+    identity_keys:
+      - - /spec/agent_id
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            hostname:
+              type: string
+            agent_id:
+              type: string
+            agent_version:
+              type: string
+          additionalProperties: true
+  - name: environment
+    group: org
+    title: Environment
+    plural: Environments
+    icon: tabler:stack-2
+    description: Deployment environment.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            tier:
+              type: string
+              enum:
+                - production
+                - staging
+                - development
+                - test
+                - lab
+                - other
+          additionalProperties: true
+  - name: location
+    group: org
+    title: Location
+    plural: Locations
+    icon: tabler:map-pin
+    description: Physical or logical location (site, rack, region).
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            address:
+              type: string
+            country:
+              type: string
+            latitude:
+              type: number
+              minimum: -90
+              maximum: 90
+            longitude:
+              type: number
+              minimum: -180
+              maximum: 180
+          additionalProperties: true
+  - name: group
+    group: org
+    title: Group
+    plural: Groups
+    icon: tabler:users-group
+    description: Owning team, person or organization.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - team
+                - person
+                - organization
+                - other
+            email:
+              type: string
+            chat:
+              type: string
+          additionalProperties: true
+  - name: bridge
+    group: org
+    title: Bridge
+    plural: Bridges
+    icon: tabler:arrows-exchange
+    description: Declared crossing point between two projects (ADR-004).
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            from_project:
+              type: string
+            to_project:
+              type: string
+            purpose:
+              type: string
+          additionalProperties: true

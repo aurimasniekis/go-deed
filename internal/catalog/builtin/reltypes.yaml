@@ -1,0 +1,224 @@
+# Built-in relationship types (ADR-002). impact: forward = 'from' depends on 'to'; reverse = 'to' depends on 'from'.
+relationship_types:
+  - name: runs_on
+    title: Runs on
+    inverse_name: runs
+    description: Workload runs on a host or runtime.
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#4c6ef5'
+  - name: hosted_on
+    title: Hosted on
+    inverse_name: hosts
+    description: Resource is hosted on a platform or machine.
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#5c7cfa'
+  - name: contains
+    title: Contains
+    inverse_name: contained_in
+    description: Parent contains child; a failing parent impacts its children.
+    impact: reverse
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#868e96'
+  - name: depends_on
+    title: Depends on
+    inverse_name: required_by
+    description: Generic dependency.
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#fa5252'
+  - name: connects_to
+    title: Connects to
+    inverse_name: accepts_connections_from
+    description: Network or API connection.
+    impact: forward
+    default_evidence: observed
+    from_kinds: []
+    to_kinds: []
+    color: '#15aabf'
+  - name: routes_to
+    title: Routes to
+    inverse_name: receives_from
+    description: Proxy, load balancer or tunnel routes traffic to the target.
+    impact: forward
+    default_evidence: observed
+    from_kinds: []
+    to_kinds: []
+    color: '#22b8cf'
+  - name: resolves_to
+    title: Resolves to
+    inverse_name: resolved_by
+    description: DNS name resolves to the target.
+    impact: forward
+    default_evidence: structural
+    from_kinds:
+      - dns_record
+      - domain
+    to_kinds: []
+    color: '#7950f2'
+  - name: publishes
+    title: Publishes
+    inverse_name: published_by
+    description: Service publishes events on a subject or contract.
+    impact: reverse
+    default_evidence: observed
+    from_kinds: []
+    to_kinds:
+      - nats_subject
+      - event_contract
+    color: '#40c057'
+  - name: subscribes_to
+    title: Subscribes to
+    inverse_name: subscribed_by
+    description: Service or consumer subscribes to a subject.
+    impact: forward
+    default_evidence: observed
+    from_kinds: []
+    to_kinds:
+      - nats_subject
+      - event_contract
+      - nats_stream
+    color: '#82c91e'
+  - name: authenticates_with
+    title: Authenticates with
+    inverse_name: authenticates
+    description: Identity provider used for authentication.
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#e64980'
+  - name: protected_by
+    title: Protected by
+    inverse_name: protects
+    description: Access is gated by the target (e.g. HallPass, a WAF).
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#d6336c'
+  - name: stored_in
+    title: Stored in
+    inverse_name: stores
+    description: Data is stored in the target.
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#fab005'
+  - name: monitored_by
+    title: Monitored by
+    inverse_name: monitors
+    description: Observability resource monitoring the source.
+    impact: none
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#fd7e14'
+  - name: deployed_from
+    title: Deployed from
+    inverse_name: deploys
+    description: Built and deployed from a repository or release.
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#be4bdb'
+  - name: owned_by
+    title: Owned by
+    inverse_name: owns
+    description: Ownership.
+    impact: none
+    default_evidence: structural
+    from_kinds: []
+    to_kinds:
+      - group
+    color: '#adb5bd'
+  - name: secured_by_certificate
+    title: Secured by certificate
+    inverse_name: secures
+    description: TLS endpoint uses the certificate.
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds:
+      - certificate
+    color: '#12b886'
+  - name: tracks
+    title: Tracks
+    inverse_name: tracked_by
+    description: Pull request or issue concerns the target.
+    impact: none
+    default_evidence: structural
+    from_kinds:
+      - pull_request
+      - issue
+    to_kinds: []
+    color: '#748ffc'
+  - name: references
+    title: References
+    inverse_name: referenced_by
+    description: Loose reference.
+    impact: none
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#ced4da'
+  - name: carried_on
+    title: Carried on
+    inverse_name: carries
+    description: Event contract travels on a subject.
+    impact: none
+    default_evidence: structural
+    from_kinds:
+      - event_contract
+    to_kinds:
+      - nats_subject
+    color: '#94d82d'
+  - name: has_access_to
+    title: Has access to
+    inverse_name: accessible_by
+    description: Principal holds access to the target (e.g. via a HallPass grant).
+    impact: none
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#f06595'
+  - name: member_of
+    title: Member of
+    inverse_name: has_member
+    description: Membership in a group, cluster or pool.
+    impact: none
+    default_evidence: structural
+    from_kinds: []
+    to_kinds: []
+    color: '#a5d8ff'
+  - name: located_in
+    title: Located in
+    inverse_name: location_of
+    description: Physical or logical placement.
+    impact: forward
+    default_evidence: structural
+    from_kinds: []
+    to_kinds:
+      - location
+    color: '#ffd43b'
+  - name: bridges
+    title: Bridges
+    inverse_name: bridged_by
+    description: Bridge entity connects projects.
+    impact: none
+    default_evidence: structural
+    from_kinds:
+      - bridge
+    to_kinds: []
+    color: '#343a40'
