@@ -24,6 +24,13 @@ and publishes. Nothing has been released yet.
 3. `git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
 4. Review the draft release (notes, SBOMs, Trivy output in the run log) and publish it.
 
+## Dry run (nothing published)
+Dispatch the workflow from a branch: `gh workflow run release.yaml --ref main`. It runs the release gate (race
+tests), builds the web UI, the static binaries, checksums and SBOMs, and builds and Trivy-scans the amd64 and arm64
+images without pushing; attestation, the draft release and image publication are skipped because the ref is not a
+`v*` tag. Last dry run: 2026-10-25, run 40158630244 at `2d0d0e1` — every build and scan job succeeded; the three
+publishing jobs were skipped. No release has been tagged yet.
+
 ## Verify what was published
 ```sh
 sha256sum --check SHA256SUMS
@@ -34,3 +41,8 @@ gh attestation verify oci://ghcr.io/aurimasniekis/go-deed:X.Y.Z --repo aurimasni
 ## Terraform provider
 The provider (`aurimasniekis/terraform-provider-deed`) is released separately with goreleaser and GPG signing; see
 its `docs/RELEASING.md`. Registry publication needs the signing key and namespace setup described there.
+Dry run (2026-10-25, provider `b2645ab`): `goreleaser release --snapshot --clean --skip=publish` with a throwaway
+GPG key in a temporary keyring built the nine platform archives, the `SHA256SUMS` file listing them and the
+`_manifest.json` (protocol 6.0), and a detached signature that `gpg --verify` accepts; Terraform installed the
+darwin/arm64 archive from a filesystem mirror and loaded all six resources and six data sources. The release key,
+repository secrets and Registry namespace are not set up, and nothing has been published.
