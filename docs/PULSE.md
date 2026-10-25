@@ -71,7 +71,7 @@ key that looks secret, and the project ID is added as `project_id` when the even
 | `evt.deed.catalog.project.{created,deleted}` | `deed.catalog.project_<action>.v1` | project lifecycle |
 | `evt.deed.catalog.source.deleted` | `deed.catalog.source_deleted.v1` | a source is deleted |
 | `evt.deed.catalog.kind.{created,updated,version_published,deleted}` | `deed.catalog.kind_<action>.v1` | custom kind changes |
-| `evt.deed.catalog.reltype.{created,updated,deleted}` | `deed.catalog.reltype_<action>.v1` | custom relationship type changes |
+| `evt.deed.catalog.reltype.{created,updated,deleted,color_updated,color_reset}` | `deed.catalog.reltype_<action>.v1` | custom relationship type changes; map colour changes of any type (`color_reset`: a built-in type back to its default) |
 | `evt.deed.ingest.snapshot.committed` | `deed.ingest.snapshot_committed.v1` | a source snapshot commits (counts of created/updated/removed/errors) |
 | `evt.deed.findings.finding.{opened,closed}` | `deed.findings.finding_<action>.v1` | the findings engine opens or closes a finding |
 | `evt.deed.alert.alert.{raised,resolved}` | `deed.alert.alert_<action>.v1` | alert notifications ([FINDINGS.md](FINDINGS.md)) |
