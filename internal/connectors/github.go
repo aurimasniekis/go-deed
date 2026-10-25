@@ -32,10 +32,10 @@ type GitHubConfig struct {
 	Deployments         *bool    `json:"deployments,omitempty"`
 	PullRequests        *bool    `json:"pull_requests,omitempty"`
 	Issues              *bool    `json:"issues,omitempty"`
-	ClosedRetentionDays int      `json:"closed_retention_days,omitempty"`
+	ClosedRetentionDays *int     `json:"closed_retention_days,omitempty"`
 	MaxRepos            int      `json:"max_repos,omitempty"`
 	MaxItemsPerRepo     int      `json:"max_items_per_repo,omitempty"`
-	MinRateRemaining    int      `json:"min_rate_remaining,omitempty"`
+	MinRateRemaining    *int     `json:"min_rate_remaining,omitempty"`
 	AllowCIDRs          []string `json:"allow_cidrs,omitempty"`
 	InsecureHTTP        bool     `json:"insecure_http,omitempty"`
 }
@@ -104,8 +104,10 @@ func parseGitHub(raw json.RawMessage) (*GitHubConfig, error) {
 	if c.Issues == nil {
 		c.Issues = &t
 	}
-	if c.ClosedRetentionDays == 0 {
-		c.ClosedRetentionDays = 14
+	// 0 is meaningful for these two (no closed items; spend the whole budget), so only an absent value gets the default.
+	if c.ClosedRetentionDays == nil {
+		d := 14
+		c.ClosedRetentionDays = &d
 	}
 	if c.MaxRepos == 0 {
 		c.MaxRepos = 200
@@ -113,8 +115,9 @@ func parseGitHub(raw json.RawMessage) (*GitHubConfig, error) {
 	if c.MaxItemsPerRepo == 0 {
 		c.MaxItemsPerRepo = 100
 	}
-	if c.MinRateRemaining == 0 {
-		c.MinRateRemaining = 100
+	if c.MinRateRemaining == nil {
+		m := 100
+		c.MinRateRemaining = &m
 	}
 	return c, nil
 }
@@ -341,7 +344,7 @@ type ghSync struct {
 }
 
 func (s *ghSync) budget() bool {
-	if s.gc.remaining >= 0 && s.gc.remaining < s.c.MinRateRemaining {
+	if s.gc.remaining >= 0 && s.gc.remaining < *s.c.MinRateRemaining {
 		if !s.short {
 			s.short = true
 			s.em.Partial("GitHub rate budget below min_rate_remaining")
@@ -369,7 +372,7 @@ func (GitHub) Sync(ctx context.Context, env sources.Env, em sources.Emitter) err
 		return err
 	}
 	now := env.Clock.Now()
-	s := &ghSync{ctx: ctx, c: c, gc: gc, em: em, now: now, cutoff: now.Add(-time.Duration(c.ClosedRetentionDays) * 24 * time.Hour)}
+	s := &ghSync{ctx: ctx, c: c, gc: gc, em: em, now: now, cutoff: now.Add(-time.Duration(*c.ClosedRetentionDays) * 24 * time.Hour)}
 	repos := map[int64]ghRepo{}
 	var order []int64
 	add := func(r ghRepo) {
@@ -578,7 +581,7 @@ func (s *ghSync) issues(r ghRepo, repoRef catalog.Ref, path string, pulls bool) 
 		return nil
 	}
 	var closed []ghIssue
-	if s.c.ClosedRetentionDays > 0 && s.budget() {
+	if *s.c.ClosedRetentionDays > 0 && s.budget() {
 		q := url.Values{"state": {"closed"}, "sort": {"updated"}, "direction": {"desc"}}
 		if !pulls {
 			q.Set("since", s.cutoff.UTC().Format(time.RFC3339))
@@ -619,7 +622,7 @@ func (s *ghSync) issues(r ghRepo, repoRef catalog.Ref, path string, pulls bool) 
 		}
 		var exp *time.Time
 		if it.ClosedAt != nil && it.State == "closed" {
-			e := it.ClosedAt.Add(time.Duration(s.c.ClosedRetentionDays) * 24 * time.Hour)
+			e := it.ClosedAt.Add(time.Duration(*s.c.ClosedRetentionDays) * 24 * time.Hour)
 			exp = &e
 		}
 		prefix := "issue-"

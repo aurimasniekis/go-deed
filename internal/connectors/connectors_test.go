@@ -508,3 +508,20 @@ func TestPorchTenantToken(t *testing.T) {
 		t.Fatalf("unreadable tenant: %+v %v", diags, err)
 	}
 }
+
+func TestGitHubExplicitZeroSettings(t *testing.T) {
+	c, err := parseGitHub(json.RawMessage(`{"repositories":["octo/app"],"min_rate_remaining":0,"closed_retention_days":0}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *c.MinRateRemaining != 0 || *c.ClosedRetentionDays != 0 {
+		t.Fatalf("explicit zeros replaced by defaults: min_rate_remaining %d, closed_retention_days %d", *c.MinRateRemaining, *c.ClosedRetentionDays)
+	}
+	c, err = parseGitHub(json.RawMessage(`{"repositories":["octo/app"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *c.MinRateRemaining != 100 || *c.ClosedRetentionDays != 14 {
+		t.Fatalf("defaults: %d, %d", *c.MinRateRemaining, *c.ClosedRetentionDays)
+	}
+}
