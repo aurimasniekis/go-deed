@@ -2,7 +2,7 @@
 mappings:
   - resource: vsphere_virtual_machine
     kind: vm
-    icon: tabler:server-2
+    icon: thesvg:vsphere
     name: '{{ default .name .attr.name | slug }}'
     fields:
       /spec/hostname: name
