@@ -72,11 +72,18 @@ keys or look like secrets are dropped. Grants and sessions are short-lived, so t
 removal per snapshot.
 
 ## porch
-**Credential:** a Porch automation token (`porch_at_…`) with read permissions on the tenants' applications and
-service accounts. Client secrets are never requested; secret hints are not stored.
+**Credential:** a Porch automation token (`porch_at_…`). Porch has no read-only permission for applications and
+service accounts, so the narrowest working credential is a **tenant** automation token with `app:manage` and
+`service_account:manage` (`POST /api/v1/tenants/{t}/automation-tokens`), used with `tenants: ["<that tenant>"]`; one
+source per tenant. An installation `auditor` token is not enough: it lists tenants, but Porch answers 404 for every
+read inside a tenant (Test then names the permission needed). An installation `admin` token reads every tenant but
+can also change everything; avoid it. Deed only ever sends GET requests. Client secrets are never requested; secret
+hints are not stored.
 
 **Config:** `{"url": "https://id.example.com", "tenants": ["home"]}`. With `tenants` empty, every tenant the token
-can list is imported (disabled tenants are skipped unless `include_disabled`).
+can list is imported (disabled tenants are skipped unless `include_disabled`); listing tenants needs an installation
+token. With `tenants` set, `GET /tenants/{slug}` is tried for the tenant's status; a tenant token without
+`tenant:manage` gets 404 there, and the tenant is then read as active.
 
 Reads `GET /api/v1/tenants` (cursor-paged) or `/tenants/{slug}`, `/tenants/{slug}/applications` and
 `/tenants/{slug}/service-accounts`. Applications become `porch_app` entities (OIDC client ID, client type, redirect
@@ -86,3 +93,8 @@ record or domain whose `spec.fqdn` equals:
 - a forward-auth application's protected host is `protected_by` that application;
 - the host of an OIDC redirect URI or the launch URL `authenticates_with` that application.
 Loopback redirect hosts are ignored. These links are inferred and carry the matched host as evidence.
+
+**Validated** against a real Porch built from source (development mode, loopback) by `scripts/validate/porch.sh`:
+a tenant token imports that tenant's enabled applications and service accounts with their `authenticates_with`
+edges and a `protected_by` link to a matching DNS record; an installation admin token follows `next_cursor` across
+107 tenants; an installation auditor token is refused with the permission it lacks.
