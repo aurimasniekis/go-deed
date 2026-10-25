@@ -16,6 +16,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "gen:api": "openapi-typescript ../api/openapi.json -o src/api/schema.gen.ts",
+    "icons": "node scripts/build-icons.mjs",
+    "icons:check": "node scripts/build-icons.mjs --check",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -53,6 +55,7 @@
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",
+    "@thesvg/icons": "3.3.13",
     "@types/d3-force": "3.0.10",
     "@types/node": "24.19.2",
     "@types/react": "19.3.0",

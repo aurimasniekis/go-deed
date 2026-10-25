@@ -44,6 +44,10 @@ test('kinds: create a custom kind with a schema dry run', async ({ page }) => {
   await ready(page)
   await page.getByTestId('kind-name').fill('feature_flag')
   await page.getByTestId('kind-title').fill('Feature flag')
+  // The icon picker searches bundled icons by title, including the lazily loaded theSVG pack.
+  await page.getByTestId('icon-picker').fill('route 53')
+  await page.getByRole('option', { name: 'thesvg:aws-amazon-route-53' }).click()
+  await expect(page.getByTestId('icon-picker')).toHaveValue('thesvg:aws-amazon-route-53')
   await page.getByTestId('schema-editor').fill(
     JSON.stringify({
       type: 'object',
@@ -60,6 +64,8 @@ test('kinds: create a custom kind with a schema dry run', async ({ page }) => {
   await page.getByTestId('create-kind').click()
   await expect(page).toHaveURL(/\/kinds\/feature_flag/)
   await expect(page.getByRole('heading', { name: 'Feature flag' })).toBeVisible()
+  // Bundled theSVG icons render from a data: URI (allowed by the CSP's img-src), never as inline markup.
+  await expect(page.locator('img[src^="data:image/svg+xml"]').first()).toBeVisible()
   await page.goto('/kinds')
   await expect(page.getByRole('link', { name: 'Feature flag' })).toBeVisible()
 })
