@@ -13,10 +13,11 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
 E2E_DIR=${E2E_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/deed-e2e.XXXXXX")}
 PROVIDER_DIR=${PROVIDER_DIR:-$root/../terraform-provider-deed}
-PORT=${DEED_E2E_PORT:-57871}
-MGMT=${DEED_E2E_MGMT:-57872}
-RPORT=${DEED_E2E_RESTORE_PORT:-57873}
-RMGMT=${DEED_E2E_RESTORE_MGMT:-57874}
+# Not DEED_* names: deed refuses unknown DEED_* variables in its environment.
+PORT=${E2E_PORT:-57871}
+MGMT=${E2E_MGMT:-57872}
+RPORT=${E2E_RESTORE_PORT:-57873}
+RMGMT=${E2E_RESTORE_MGMT:-57874}
 compose=(docker compose -f deploy/compose.dev.yaml)
 mkdir -p "$E2E_DIR"
 chmod 700 "$E2E_DIR"

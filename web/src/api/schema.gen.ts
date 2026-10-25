@@ -3282,11 +3282,17 @@ export interface components {
             updated_at: string;
         };
         RuleInput: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Default 3600 on create; 0 notifies on every transition; omitted on update keeps the current value.
+             */
             cooldown_seconds?: number;
             description?: string;
             enabled?: boolean;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Default 0 on create; omitted on update keeps the current value.
+             */
             for_seconds?: number;
             matcher: components["schemas"]["Matcher"];
             name?: string;
@@ -8078,6 +8084,8 @@ export interface operations {
                 /** @description Comma-separated statuses. */
                 status?: string;
                 project?: string;
+                /** @description Only this entity's check. */
+                entity?: string;
                 limit?: number;
             };
             header?: never;
