@@ -127,7 +127,7 @@ than Deed's or root, is refused (systemd credentials may be group-readable).
 - **Purpose rotation:** `deed keys rotate -purpose field` creates a new active version; the previous one becomes
   decrypt-only, so existing sealed values stay readable. Values are not re-encrypted, and there is no CLI to retire
   old versions. After rotating `token`, API tokens, source tokens and recovery codes still match (lookups try every
-  non-retired version), but browser sessions and unused setup links (bootstrap, recovery, invitations; 30 minutes)
+  non-retired version), but browser sessions and unused setup links (bootstrap, recovery, invite, reset)
   are looked up with the active key only, so everyone signs in again and outstanding links must be issued again.
   Rotating `backup-meta` changes the backup verification key (docs/BACKUP.md).
 - **KEK rotation:** stop Deed, then
