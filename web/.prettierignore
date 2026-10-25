@@ -1,0 +1,10 @@
+node_modules
+src/routeTree.gen.ts
+src/api/schema.gen.ts
+pnpm-lock.yaml
+test-results
+playwright-report
+blob-report
+e2e/screenshots
+e2e/.state
+public
