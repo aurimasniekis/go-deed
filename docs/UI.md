@@ -107,7 +107,8 @@ the ADR-011 budget.
   Workers. Layered layouts wrap very tall layers (a hub with hundreds of neighbours) into several columns so large
   neighbourhoods stay compact. Above 150 nodes layouts take cheaper paths: ELK uses polyline instead of orthogonal
   routing (the map draws its own edges), and the force layout folds degree-1 nodes onto rings around their neighbour,
-  simulates the remaining skeleton from a sector-radial warm start with fewer ticks and a coarser Barnes–Hut theta.
+  simulates the remaining skeleton from a sector-radial warm start with ticks scaled to its size (and a coarser
+  Barnes–Hut theta above 400 skeleton nodes).
   Layout runs only when topology changes, and finished layouts are cached in memory per (saved view, layout options,
   topology, pins), so going back to a graph seen before skips the worker. Dragged nodes are pinned and saved with the
   view.
