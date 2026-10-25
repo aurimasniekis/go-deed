@@ -115,12 +115,30 @@ func (a *API) List(ctx context.Context, readable []string, installation bool, in
 	add("type", in.Type)
 	add("severity", in.Severity)
 	add("class", in.Class)
+	// Visibility is part of the query: filtering after a LIMIT would hide visible findings behind invisible ones.
+	if !installation {
+		conds = append(conds, "project_id IS NOT NULL")
+	}
+	if readable != nil {
+		if len(readable) == 0 {
+			conds = append(conds, "project_id IS NULL")
+		} else {
+			conds = append(conds, "(project_id IS NULL OR project_id IN ("+strings.Repeat(",?", len(readable))[1:]+"))")
+			for _, r := range readable {
+				args = append(args, r)
+			}
+		}
+	}
+	if in.Project != "" {
+		conds = append(conds, "project_id = ?")
+		args = append(args, in.Project)
+	}
 	where := ""
 	if len(conds) > 0 {
 		where = " WHERE " + strings.Join(conds, " AND ")
 	}
 	rows, err := a.Store.R().QueryContext(ctx, `SELECT `+findingCols+` FROM findings`+where+`
-		ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, last_seen_at DESC LIMIT ?`, append(args, in.Limit*4)...)
+		ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, last_seen_at DESC LIMIT ?`, append(args, in.Limit)...)
 	if err != nil {
 		return nil, err
 	}
@@ -131,19 +149,7 @@ func (a *API) List(ctx context.Context, readable []string, installation bool, in
 		if err != nil {
 			return nil, err
 		}
-		if f.ProjectID == "" && !installation {
-			continue
-		}
-		if !visible(readable, f.ProjectID) {
-			continue
-		}
-		if in.Project != "" && f.ProjectID != in.Project {
-			continue
-		}
 		out = append(out, *f)
-		if len(out) >= in.Limit {
-			break
-		}
 	}
 	return out, rows.Err()
 }
