@@ -150,6 +150,23 @@ and a second sync is idempotent (120 unchanged). **Found and fixed:** an explici
 the 60-request anonymous budget) and `closed_retention_days: 0` were replaced by their defaults, so anonymous syncs
 always stopped as partial runs.
 
+### Grafana Mimir and OpenSearch — `scripts/validate/telemetry.sh` (14/14 PASS)
+Docker, images pinned by digest: `grafana/mimir:3.2.1` (monolithic, filesystem storage, multitenancy on) and
+`opensearchproject/opensearch:3.8.0` (single node, security plugin on: HTTPS with the demo CA, basic auth, a
+least-privilege reader with `read` on two index patterns). Run at go-deed `521219e`.
+- Mimir: samples remote-written for two tenants; Deed's scalar, health, `{{window}}`, timeseries (61 points) and table
+  bindings equal direct PromQL answers for the configured tenant; another tenant sees only its own data; an unknown
+  tenant is "no data"; a missing tenant is a 401 with an `X-Scope-OrgID` hint.
+- OpenSearch: scalar counts and date-histogram timeseries equal direct `_count`/`_search` answers, including an index
+  whose time field is `epoch_millis`; wrong password 401, foreign index 403, rejected query 400, unmatched index "no
+  data".
+- Stale: after rotating the reader's password and stopping Mimir, both bindings return the last good value as `stale`.
+  No upstream body, credential or tenant detail appears in Deed's errors, integration list or log.
+- **Found and fixed:** OpenSearch queries failed with 400 for time fields with a non-default date format; an
+  unmatched index pattern was reported as a measured 0 / empty series; a least-privilege reader failed the
+  connectivity test (403 on `GET /`) and raised an unreachable finding; a Mimir 401 without a tenant read as bad
+  credentials.
+
 ### endoflife.date — `TestLiveEndOfLife` (PASS)
 `DEED_TEST_EOL_URL=https://endoflife.date go test -run TestLiveEndOfLife ./internal/versions/` runs the version
 checker against the live API: PostgreSQL 12.1 → end of life (cycle 12, latest 12.22), MySQL 5.7.30 → end of life
@@ -167,6 +184,6 @@ checker against the live API: PostgreSQL 12.1 → end of life (cycle 12, latest 
   also a CI job).
 - Docker image build and `scripts/container-smoke.sh` (non-root, KEK permission refusal, healthcheck, Docker health,
   graceful SIGTERM): PASS locally at `5d026c3` and in CI.
-- Real-service validation **pending**: production deployments of Pulse, Porch and HallPass (only local runs above),
-  GitHub Enterprise Server and private repositories, Mimir, OpenSearch, Cloudflare in front of a VPS, S3 providers
+- Real-service validation **pending**: production deployments of Pulse, Porch, HallPass, Mimir and OpenSearch (only
+  local runs above), GitHub Enterprise Server and private repositories, Cloudflare in front of a VPS, S3 providers
   other than MinIO.
