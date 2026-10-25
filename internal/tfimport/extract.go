@@ -150,6 +150,8 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 		Mapped: map[string]int{}, Unsupported: map[string]int{}, Messages: []string{}}
 	var items []*extracted
 	byAddr := map[string]*extracted{}
+	// Dependencies name resources without an index; a counted or for_each resource is every one of its instances.
+	byBase := map[string][]*extracted{}
 	names := map[string]int{}
 	extPrefix := ""
 	if o.Workspace != "" {
@@ -276,7 +278,7 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 		spec, _ := x.eff["spec"].(map[string]any)
 		x.item = catalog.EntityItem{Kind: m.Kind, Name: name, ExternalID: extPrefix + res.Address, Metadata: md, Spec: spec}
 		items = append(items, x)
-		byAddr[stripIndex(res.Address)] = x
+		byBase[stripIndex(res.Address)] = append(byBase[stripIndex(res.Address)], x)
 		byAddr[res.Address] = x
 	}
 	var b ingest.Batch
@@ -357,9 +359,17 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 				}
 			}
 		}
+		var deps []*extracted
 		for _, dep := range x.res.Dependencies {
-			y, ok := byAddr[dep]
-			if !ok || y == x {
+			if y, ok := byAddr[dep]; ok {
+				deps = append(deps, y)
+			} else {
+				deps = append(deps, byBase[dep]...)
+			}
+		}
+		for _, y := range deps {
+			dep := y.res.Address
+			if y == x {
 				continue
 			}
 			typed := false

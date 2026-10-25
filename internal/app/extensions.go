@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -41,7 +42,7 @@ func (a *App) initExtensions(ctx context.Context) error {
 	a.Runner = &sources.Runner{Store: a.Store, Catalog: a.Catalog, Ingest: a.Ingest, Audit: a.Audit, Registry: a.Registry, Guard: a.Guard, Clock: a.Clock,
 		Metrics: a.Metrics, Log: a.Log.With("component", "sources"), MaxItems: 200_000, Timeout: 10 * time.Minute}
 	srcAPI := &sources.API{Runner: a.Runner, Ingest: a.Ingest, Rate: httpx.NewLimiter(a.Clock, cfg.Limits.IngestPerSourceRPM, max(cfg.Limits.IngestPerSourceRPM/6, 10))}
-	a.apiExt = append(a.apiExt, srcAPI.Register, (&tfimport.PushAPI{Provider: tf, Ingest: a.Ingest, Runner: a.Runner}).Register)
+	a.apiExt = append(a.apiExt, srcAPI.Register, (&tfimport.PushAPI{Provider: tf, Ingest: a.Ingest, Runner: a.Runner, Rate: srcAPI.Rate}).Register)
 	httpapi.KindSupport = func(kind string) catalog.Support { return a.Registry.Support(kind, a.terraformKinds) }
 	a.Graph = &graph.Engine{Store: a.Store, Catalog: a.Catalog, Clock: a.Clock, MaxDepth: cfg.Limits.GraphMaxDepth, MaxNodes: cfg.Limits.GraphMaxNodes,
 		ClusterAbove: cfg.Limits.GraphClusterAbove, DegreeCollapse: 50}
@@ -87,7 +88,7 @@ func (a *App) initExtensions(ctx context.Context) error {
 	if err := a.initBackups(ctx); err != nil {
 		return err
 	}
-	a.OpsAPI = &ops.API{Store: a.Store, Findings: a.Findings, Alerts: a.Alerts, Clock: a.Clock}
+	a.OpsAPI = &ops.API{Store: a.Store, Findings: a.Findings, Alerts: a.Alerts, Clock: a.Clock, Extra: a.dashboardExtra}
 	a.apiExt = append(a.apiExt, a.OpsAPI.Register)
 	a.every("findings", 2*time.Minute, a.Findings.Evaluate)
 	a.every("findings_prune", 24*time.Hour, func(ctx context.Context) error { return a.Findings.Prune(ctx, cfg.Retention.ClosedFindings.D()) })
@@ -185,4 +186,30 @@ func APIExtensionsForSpec() []func(huma.API, *httpapi.Deps) {
 		(&versions.API{}).Register,
 		(&icons.Service{}).Register,
 	}
+}
+
+// dashboardExtra adds installation-wide sections (backups, telemetry integrations) for installation roles.
+func (a *App) dashboardExtra(ctx context.Context, _ []string, installation bool) map[string]any {
+	out := map[string]any{}
+	if !installation {
+		return out
+	}
+	d := a.Store.R()
+	b := map[string]any{"configured": a.Backups != nil && a.Backups.Configured(), "scheduled": a.Cfg.Backup.Enabled}
+	var lastOK, lastRun sql.NullInt64
+	var lastResult sql.NullString
+	_ = d.QueryRowContext(ctx, `SELECT MAX(finished_at) FROM backup_runs WHERE result = 'ok'`).Scan(&lastOK)
+	_ = d.QueryRowContext(ctx, `SELECT started_at, result FROM backup_runs ORDER BY started_at DESC LIMIT 1`).Scan(&lastRun, &lastResult)
+	if lastOK.Valid {
+		b["last_success_at"] = clock.FromMicros(lastOK.Int64)
+	}
+	if lastRun.Valid {
+		b["last_run_at"], b["last_result"] = clock.FromMicros(lastRun.Int64), lastResult.String
+	}
+	out["backups"] = b
+	var total, up, down int
+	_ = d.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(last_test_ok = 1), 0), COALESCE(SUM(last_test_ok = 0), 0) FROM integrations WHERE enabled = 1`).
+		Scan(&total, &up, &down)
+	out["integrations"] = map[string]any{"enabled": total, "last_test_ok": up, "last_test_failed": down}
+	return out
 }

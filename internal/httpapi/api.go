@@ -53,7 +53,7 @@ type Deps struct {
 	LoginRate *httpx.Limiter
 	SetupTTL  time.Duration
 	LocalAuth bool
-	// Ready reports readiness for /system/status.
+	// Ready reports readiness (the management listener serves /readyz from the same check).
 	Ready func(context.Context) error
 	// Extension points registered by other packages (ingest, sources, graph, telemetry, findings, backups…).
 	Extensions []func(api huma.API, d *Deps)
@@ -325,7 +325,7 @@ func statusFor(c apperr.Code) int {
 		return http.StatusUnprocessableEntity
 	case apperr.CodeNotFound:
 		return http.StatusNotFound
-	case apperr.CodeAlreadyExists, apperr.CodeConflict:
+	case apperr.CodeAlreadyExists, apperr.CodeConflict, "stale_generation", "stale_revision", "mass_removal_refused":
 		return http.StatusConflict
 	case apperr.CodeForbidden, apperr.CodeReauth, apperr.CodeMFARequired:
 		return http.StatusForbidden

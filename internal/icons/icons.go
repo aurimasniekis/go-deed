@@ -211,7 +211,8 @@ func (s *Service) RegisterRaw(mux *http.ServeMux, d *httpapi.Deps) {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Disposition", `inline; filename="`+name+`.svg"`)
-		w.Header().Set("Cache-Control", "private, max-age=3600")
+		// Replacing an icon keeps its URL: browsers revalidate (cheap 304s by ETag) instead of caching blindly.
+		w.Header().Set("Cache-Control", "private, no-cache")
 		w.Header().Set("ETag", etag)
 		if r.Header.Get("If-None-Match") == etag {
 			w.WriteHeader(http.StatusNotModified)

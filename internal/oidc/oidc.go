@@ -396,11 +396,7 @@ func (s *Service) Callback(ctx context.Context, in CallbackInput) (res *Callback
 	if ui, err := op.UserInfo(cctx, oauth2.StaticTokenSource(tok)); err == nil && ui.Subject == idt.Subject {
 		var extra map[string]any
 		if ui.Claims(&extra) == nil {
-			for k, v := range extra {
-				if _, ok := raw[k]; !ok {
-					raw[k] = v
-				}
-			}
+			mergeMissing(raw, extra)
 		}
 	}
 	c := extractClaims(idt.Issuer, idt.Subject, raw, p.cfg)
@@ -547,9 +543,13 @@ func (s *Service) evaluate(ctx context.Context, cfg config.OIDCProvider, groups 
 		if instRank[m.InstallationRole] > instRank[g.installationRole] {
 			g.installationRole = m.InstallationRole
 		}
+		if m.InstallationRole != "" {
+			g.any = true
+		}
 		if m.ProjectRole != "" && s.Projects != nil {
 			pid, err := s.Projects(ctx, m.Project)
 			if err != nil {
+				// The installation role of this mapping still counts; only the project grant is skipped.
 				s.Log.Warn("oidc mapping names an unknown project", "provider", cfg.Slug, "project", m.Project)
 				continue
 			}
@@ -633,8 +633,11 @@ func (s *Service) login(ctx context.Context, p *provider, c *Claims, meta authn.
 			SourceIP: meta.IP, AuthMethod: authn.MethodOIDC, Details: map[string]any{"provider": p.cfg.Slug, "groups": len(c.Groups)}})
 		return err
 	})
-	if errors.Is(err, ErrNotProvisioned) || errors.Is(err, ErrRejected) {
-		s.deny(ctx, p, c, meta, string(apperr.CodeOf(err)))
+	switch {
+	case errors.Is(err, ErrNotProvisioned):
+		s.deny(ctx, p, c, meta, "not_provisioned")
+	case errors.Is(err, ErrRejected):
+		s.deny(ctx, p, c, meta, "rejected")
 	}
 	return token, err
 }
@@ -829,6 +832,23 @@ func (s *Service) deny(ctx context.Context, p *provider, c *Claims, meta authn.S
 			ReasonCode: reason, SourceIP: meta.IP, AuthMethod: authn.MethodOIDC, Details: details})
 		return err
 	})
+}
+
+// mergeMissing copies claims from src into dst where dst has none, recursing into nested objects (Porch nests tenant and
+// groups under one "porch" claim, and the ID token may carry only part of it).
+func mergeMissing(dst, src map[string]any) {
+	for k, v := range src {
+		cur, ok := dst[k]
+		if !ok {
+			dst[k] = v
+			continue
+		}
+		cm, ok1 := cur.(map[string]any)
+		sm, ok2 := v.(map[string]any)
+		if ok1 && ok2 {
+			mergeMissing(cm, sm)
+		}
+	}
 }
 
 func shortHash(s string) string {

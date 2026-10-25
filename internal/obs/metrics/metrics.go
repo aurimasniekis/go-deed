@@ -142,7 +142,7 @@ func New() *Metrics {
 	m.outboxOldest = prometheus.NewGauge(prometheus.GaugeOpts{Namespace: ns, Subsystem: "outbox", Name: "oldest_pending_age_seconds",
 		Help: "Age of the oldest unpublished outbox event."})
 	m.pulseConsume = c("pulse", "consumed_total", "Pulse ingest messages by result (ok, terminal, retry).", "result")
-	m.pulseTail = c("pulse", "tail_messages_total", "Messages observed by the read-only evt.> tail, by outcome (counted, sampled_out, invalid).", "outcome")
+	m.pulseTail = c("pulse", "tail_messages_total", "Messages observed by the read-only evt.> tail, by outcome (counted, overflow: beyond the per-window key budget).", "outcome")
 	m.pulseConn = g("pulse", "connected", "1 when the named Pulse connection is up.", "conn")
 
 	m.telemetryQueries = c("telemetry", "queries_total", "Telemetry adapter queries by adapter kind and result.", "adapter", "result")

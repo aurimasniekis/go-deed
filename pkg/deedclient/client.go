@@ -441,6 +441,7 @@ func (c *Client) Sync(ctx context.Context, all Batch, o CommitOptions) (*CommitR
 	if err != nil {
 		return nil, err
 	}
-	ok = true
+	// A dry run leaves the snapshot open; the deferred abort releases it for the next sync.
+	ok = !o.DryRun
 	return res, nil
 }

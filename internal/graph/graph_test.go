@@ -117,4 +117,18 @@ func TestOverview(t *testing.T) {
 	if len(res.Nodes) != 7 || len(res.Edges) == 0 {
 		t.Fatalf("overview %+v", res)
 	}
+	// Overview group keys expand into their members and the relationships among them.
+	var key string
+	for _, n := range res.Nodes {
+		if n.Cluster != nil && n.Cluster.Value == "dns_record" {
+			key = n.Cluster.Key
+		}
+	}
+	g, err := e.Expand(context.Background(), graph.Scope{}, key, 500)
+	if err != nil || len(g.Nodes) != 60 {
+		t.Fatalf("expand %q: %v %d nodes", key, err, len(g.Nodes))
+	}
+	if _, err := e.Expand(context.Background(), graph.Scope{}, "color|red", 10); err == nil {
+		t.Fatal("unknown group accepted")
+	}
 }

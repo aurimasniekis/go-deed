@@ -123,12 +123,7 @@ func checkLimits(v any, depth int, props *int) error {
 					if *props > MaxSchemaProperties {
 						return fmt.Errorf("more than %d properties", MaxSchemaProperties)
 					}
-					for pk := range m {
-						if strings.Contains(strings.ToLower(pk), "secret") || strings.Contains(strings.ToLower(pk), "password") {
-							// Secret-looking properties are allowed only as secretRef objects; validation enforces that on values.
-							continue
-						}
-					}
+					// Secret-looking property names are allowed; CheckSecretValues refuses plain values under them at write time.
 				}
 			}
 			if err := checkLimits(x, depth+1, props); err != nil {

@@ -32,7 +32,7 @@ type API struct {
 	Alerts   *alerts.Engine
 	Clock    clock.Clock
 	// Extra contributes dashboard sections from other modules (telemetry, backups).
-	Extra func(ctx context.Context, readable []string) map[string]any
+	Extra func(ctx context.Context, readable []string, installation bool) map[string]any
 }
 
 type findingsInput struct {
@@ -435,9 +435,38 @@ func (a *API) dashboard(ctx context.Context, d *httpapi.Deps, readable []string,
 	if err != nil {
 		return nil, err
 	}
+	// Counts come from the whole table (the list above only feeds the samples below).
+	vis, vargs := "1", []any{}
+	if readable != nil {
+		vis = "project_id IN (''" + strings.Repeat(",?", len(readable)) + ")"
+		for _, r := range readable {
+			vargs = append(vargs, r)
+		}
+	}
+	if inst {
+		vis = "(" + vis + " OR project_id IS NULL)"
+	} else {
+		vis = "(" + vis + " AND project_id IS NOT NULL)"
+	}
+	crows, err := a.Store.R().QueryContext(ctx, `SELECT severity, type, COUNT(*) FROM findings WHERE state = 'open' AND `+vis+` GROUP BY severity, type`, vargs...)
+	if err != nil {
+		return nil, err
+	}
+	for crows.Next() {
+		var sev, typ string
+		var n int
+		if err := crows.Scan(&sev, &typ, &n); err != nil {
+			crows.Close()
+			return nil, err
+		}
+		out.FindingCounts[sev] += n
+		out.FindingsByType[typ] += n
+	}
+	crows.Close()
+	if err := crows.Err(); err != nil {
+		return nil, err
+	}
 	for _, f := range all {
-		out.FindingCounts[f.Severity]++
-		out.FindingsByType[f.Type]++
 		switch f.Type {
 		case findings.TypeCertExpiring, findings.TypeCertExpired, findings.TypeDomainExpiring:
 			if len(out.Expiring) < 20 {
@@ -503,7 +532,7 @@ func (a *API) dashboard(ctx context.Context, d *httpapi.Deps, readable []string,
 		}
 	}
 	if a.Extra != nil {
-		out.Extra = a.Extra(ctx, readable)
+		out.Extra = a.Extra(ctx, readable, inst)
 	}
 	return out, nil
 }

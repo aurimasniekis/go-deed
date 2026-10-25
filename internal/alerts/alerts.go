@@ -469,8 +469,8 @@ type RuleInput struct {
 	Description     string  `json:"description,omitempty" maxLength:"2000"`
 	Enabled         *bool   `json:"enabled,omitempty"`
 	Matcher         Matcher `json:"matcher"`
-	ForSeconds      int     `json:"for_seconds,omitempty" minimum:"0" maximum:"86400"`
-	CooldownSeconds int     `json:"cooldown_seconds,omitempty" minimum:"0" maximum:"604800"`
+	ForSeconds      *int    `json:"for_seconds,omitempty" minimum:"0" maximum:"86400" doc:"Default 0 on create; omitted on update keeps the current value."`
+	CooldownSeconds *int    `json:"cooldown_seconds,omitempty" minimum:"0" maximum:"604800" doc:"Default 3600 on create; 0 notifies on every transition; omitted on update keeps the current value."`
 	Severity        string  `json:"severity,omitempty" enum:"critical,warning,info,"`
 }
 
@@ -481,15 +481,26 @@ func (e *Engine) SaveRule(ctx context.Context, actor audit.Actor, id string, in 
 	}
 	enabled := in.Enabled == nil || *in.Enabled
 	mj, _ := json.Marshal(in.Matcher)
-	cool := in.CooldownSeconds
-	if cool == 0 {
-		cool = 3600
+	// nil keeps the stored value on update (SQL COALESCE) and takes the default on create.
+	var forArg, coolArg any
+	if in.ForSeconds != nil {
+		forArg = *in.ForSeconds
+	}
+	if in.CooldownSeconds != nil {
+		coolArg = *in.CooldownSeconds
+	}
+	createFor, createCool := 0, 3600
+	if in.ForSeconds != nil {
+		createFor = *in.ForSeconds
+	}
+	if in.CooldownSeconds != nil {
+		createCool = *in.CooldownSeconds
 	}
 	err := e.Store.W().TxNamed(ctx, "alerts.rule_save", func(tx *store.Tx) error {
 		if id == "" {
 			id = ids.New(ids.AlertRule)
 			_, err := tx.Exec(ctx, `INSERT INTO alert_rules (id, name, description, enabled, matcher_json, for_seconds, cooldown_seconds, severity, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, in.Name, in.Description, enabled, string(mj), in.ForSeconds, cool, in.Severity, tx.NowMicros(), tx.NowMicros())
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, in.Name, in.Description, enabled, string(mj), createFor, createCool, in.Severity, tx.NowMicros(), tx.NowMicros())
 			if store.IsConstraint(err) {
 				return apperr.New(apperr.CodeAlreadyExists, "a rule named %q exists", in.Name)
 			}
@@ -497,8 +508,9 @@ func (e *Engine) SaveRule(ctx context.Context, actor audit.Actor, id string, in 
 				return err
 			}
 		} else {
-			n, err := tx.ExecN(ctx, `UPDATE alert_rules SET description = ?, enabled = ?, matcher_json = ?, for_seconds = ?, cooldown_seconds = ?, severity = ?,
-				updated_at = ?, version = version + 1 WHERE id = ? AND (? = 0 OR version = ?)`, in.Description, enabled, string(mj), in.ForSeconds, cool, in.Severity,
+			n, err := tx.ExecN(ctx, `UPDATE alert_rules SET description = ?, enabled = ?, matcher_json = ?, for_seconds = COALESCE(?, for_seconds),
+				cooldown_seconds = COALESCE(?, cooldown_seconds), severity = ?, updated_at = ?, version = version + 1 WHERE id = ? AND (? = 0 OR version = ?)`,
+				in.Description, enabled, string(mj), forArg, coolArg, in.Severity,
 				tx.NowMicros(), id, ifMatch, ifMatch)
 			if err != nil {
 				return err

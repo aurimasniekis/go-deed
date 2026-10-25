@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aurimasniekis/go-deed/internal/apperr"
@@ -184,6 +185,17 @@ func (s *Service) applyRelation(ctx context.Context, tx *store.Tx, src *Source, 
 		return nil, err
 	}
 	created := false
+	if relID == "" && rt.Cardinality == "one" {
+		// cardinality one: an entity has at most one live relationship of this type (e.g. one host it runs on).
+		var other string
+		err := tx.QueryRow(ctx, `SELECT to_id FROM relations WHERE type = ? AND from_id = ? AND live = 1 LIMIT 1`, rt.Name, fromID).Scan(&other)
+		if err == nil {
+			return nil, apperr.New(apperr.CodeConflict, "%s allows one target per entity and the entity already has one (%s); retract it first", rt.Name, other)
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+	}
 	if relID == "" {
 		relID = ids.New(ids.Relation)
 		created = true
@@ -301,18 +313,97 @@ func (s *Service) recordUnresolved(ctx context.Context, tx *store.Tx, src *Sourc
 	if fromID != "" {
 		from = sql.NullString{String: fromID, Valid: true}
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO unresolved_refs (id, source_id, project_id, type, from_ref, to_ref, from_entity, external_id, first_seen_at, last_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (source_id, type, from_ref, to_ref) DO UPDATE SET last_seen_at = excluded.last_seen_at,
-		from_entity = excluded.from_entity`, ids.New(ids.Relation), src.ID, src.ProjectID, it.Type, it.From.String(), it.To.String(), from, it.ExternalID,
-		tx.NowMicros(), tx.NowMicros())
+	missingRef := it.To
+	if fromID == "" {
+		missingRef = it.From
+	}
+	key, err := s.missingKeyTx(ctx, tx, src, missingRef)
 	if err != nil {
 		return nil, err
 	}
-	missing := it.To.String()
-	if fromID == "" {
-		missing = it.From.String()
+	_, err = tx.Exec(ctx, `INSERT INTO unresolved_refs (id, source_id, project_id, type, from_ref, to_ref, from_entity, external_id, first_seen_at, last_seen_at,
+		item_json, missing_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (source_id, type, from_ref, to_ref) DO UPDATE SET
+		last_seen_at = excluded.last_seen_at, from_entity = excluded.from_entity, item_json = excluded.item_json, missing_key = excluded.missing_key`,
+		ids.New(ids.Relation), src.ID, src.ProjectID, it.Type, it.From.String(), it.To.String(), from, it.ExternalID, tx.NowMicros(), tx.NowMicros(),
+		rawJSON(it), key)
+	if err != nil {
+		return nil, err
 	}
+	missing := missingRef.String()
 	return &RelationResult{Action: ActionUnresolved, Detail: "endpoint not found: " + missing}, nil
+}
+
+// missingKeyTx identifies an endpoint that does not exist yet: project/kind/name, ext:<source>/<external id> or the ID.
+func (s *Service) missingKeyTx(ctx context.Context, tx *store.Tx, src *Source, ref Ref) (string, error) {
+	switch {
+	case ref.ID != "":
+		return "", nil // a missing Deed ID never appears later
+	case ref.ExternalID != "":
+		return "ext:" + src.ID + "/" + ref.ExternalID, nil
+	case ref.Kind != "" && ref.Name != "":
+		project := src.ProjectID
+		if ref.Project != "" {
+			p, err := projectTx(ctx, tx, ref.Project)
+			if err != nil {
+				return "", nil //nolint:nilerr // an unknown project can still be created later, but not matched by key
+			}
+			project = p.ID
+		}
+		return project + "/" + ref.Kind + "/" + ref.Name, nil
+	}
+	return "", nil
+}
+
+// maxResolvePerEntity bounds how many pending relationships one new entity resolves inside its transaction.
+const maxResolvePerEntity = 200
+
+// resolvePendingTx retries unresolved relationships waiting for an entity that was just created.
+func (s *Service) resolvePendingTx(ctx context.Context, tx *store.Tx, entityID string, creator *Source, externalID string) error {
+	var project, kind, name string
+	if err := tx.QueryRow(ctx, `SELECT project_id, kind, name FROM entities WHERE id = ?`, entityID).Scan(&project, &kind, &name); err != nil {
+		return err
+	}
+	keys := []any{project + "/" + kind + "/" + name}
+	if externalID != "" {
+		keys = append(keys, "ext:"+creator.ID+"/"+externalID)
+	}
+	rows, err := tx.Query(ctx, `SELECT u.source_id, u.item_json FROM unresolved_refs u JOIN sources s ON s.id = u.source_id AND s.enabled = 1
+		WHERE u.missing_key IN (?`+strings.Repeat(", ?", len(keys)-1)+`) ORDER BY u.first_seen_at LIMIT ?`, append(keys, maxResolvePerEntity)...)
+	if err != nil {
+		return err
+	}
+	type pending struct {
+		source string
+		item   RelationItem
+	}
+	var todo []pending
+	for rows.Next() {
+		var p pending
+		var raw string
+		if err := rows.Scan(&p.source, &raw); err != nil {
+			rows.Close()
+			return err
+		}
+		if json.Unmarshal([]byte(raw), &p.item) == nil && p.item.Type != "" {
+			todo = append(todo, p)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, p := range todo {
+		src, err := scanSource(tx.QueryRow(ctx, `SELECT `+sourceCols+` FROM sources WHERE id = ?`, p.source))
+		if err != nil {
+			continue
+		}
+		it := p.item
+		if _, err := s.ApplyRelation(ctx, tx, src, &it, ApplyOpts{}); err != nil {
+			// The relationship stays unresolved (e.g. now refused by a bridge rule); its record explains why later.
+			continue
+		}
+	}
+	return nil
 }
 
 func (s *Service) retract(ctx context.Context, tx *store.Tx, src *Source, relID string, revision int64, o ApplyOpts) (*RelationResult, error) {

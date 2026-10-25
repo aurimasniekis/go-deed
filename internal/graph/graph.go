@@ -405,9 +405,12 @@ func (e *Engine) Neighborhood(ctx context.Context, scope Scope, q Query) (*Resul
 	return res, nil
 }
 
-// Expand loads the members of a fan cluster.
+// Expand loads the members of a fan cluster (fan|…) or of an overview group (<group_by>|<value>).
 func (e *Engine) Expand(ctx context.Context, scope Scope, key string, limit int) (*Result, error) {
 	parts := strings.Split(key, "|")
+	if len(parts) == 2 {
+		return e.expandGroup(ctx, scope, parts[0], parts[1], limit)
+	}
 	if len(parts) != 4 || parts[0] != "fan" {
 		return nil, apperr.New(apperr.CodeInvalid, "unknown cluster key")
 	}
@@ -463,6 +466,70 @@ func (e *Engine) Expand(ctx context.Context, scope Scope, key string, limit int)
 			}
 		}
 		res.Edges = append(res.Edges, ed)
+	}
+	res.ElapsedMS = time.Since(start).Milliseconds()
+	return res, nil
+}
+
+// expandGroup loads the entities of an overview group and the relationships among them.
+func (e *Engine) expandGroup(ctx context.Context, scope Scope, groupBy, value string, limit int) (*Result, error) {
+	if limit <= 0 || limit > e.MaxNodes {
+		limit = e.MaxNodes
+	}
+	start := time.Now()
+	f := catalog.EntityFilter{ProjectIDs: scope.Readable, Limit: min(limit, 500), Sort: "name"}
+	switch groupBy {
+	case "kind":
+		f.Kinds = []string{value}
+	case "environment":
+		f.Environment = []string{value}
+	case "owner":
+		f.Owner = value
+	case "project":
+		if scope.Readable != nil && !slices.Contains(scope.Readable, value) {
+			return nil, apperr.New(apperr.CodeNotFound, "group not found")
+		}
+		f.ProjectIDs = []string{value}
+	default:
+		return nil, apperr.New(apperr.CodeInvalid, "unknown cluster key")
+	}
+	res := &Result{Nodes: []Node{}, Edges: []Edge{}, Notes: []string{}}
+	var ids []string
+	for len(ids) < limit {
+		page, err := e.Catalog.ListEntities(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		for _, it := range page.Items {
+			ids = append(ids, it.Metadata.ID)
+		}
+		if page.NextCursor == "" || len(page.Items) == 0 {
+			break
+		}
+		f.Cursor = page.NextCursor
+	}
+	if len(ids) > limit {
+		ids, res.Truncated = ids[:limit], true
+	}
+	loaded, err := e.loadNodes(ctx, scope, ids)
+	if err != nil {
+		return nil, err
+	}
+	in := map[string]bool{}
+	for _, id := range ids {
+		if n, ok := loaded[id]; ok {
+			res.Nodes = append(res.Nodes, *n)
+			in[id] = true
+		}
+	}
+	raws, err := e.edgesOf(ctx, ids, "out", Query{})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range raws {
+		if in[r.From] && in[r.To] {
+			res.Edges = append(res.Edges, r.Edge)
+		}
 	}
 	res.ElapsedMS = time.Since(start).Milliseconds()
 	return res, nil

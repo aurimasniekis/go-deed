@@ -43,6 +43,7 @@ type API struct {
 type listInput struct {
 	Status  string `query:"status" maxLength:"64" doc:"Comma-separated statuses."`
 	Project string `query:"project" maxLength:"64"`
+	Entity  string `query:"entity" maxLength:"64" doc:"Only this entity's check."`
 	Limit   int    `query:"limit" minimum:"1" maximum:"1000" default:"200"`
 }
 
@@ -79,15 +80,23 @@ func (a *API) Register(api huma.API, d *httpapi.Deps) {
 			}
 			out := &listOutput{}
 			out.Body.Enabled, out.Body.EOL, out.Body.Items = a.Enabled, a.Checker != nil && a.Checker.EOLURL != "", []Check{}
-			if len(readable) == 0 || a.Checker == nil {
+			// readable == nil means every project (installation roles); an empty list means none.
+			if (readable != nil && len(readable) == 0) || a.Checker == nil {
 				return out, nil
 			}
 			q := `SELECT v.entity_id, e.project_id, e.kind, e.name, e.version_declared, e.version_observed, v.product, v.cycle, v.latest, v.latest_source,
 				v.eol_date, v.support_until, v.status, v.evidence_json, v.checked_at FROM version_checks v JOIN entities e ON e.id = v.entity_id
-				WHERE e.tombstoned_at IS NULL AND e.project_id IN (?` + strings.Repeat(", ?", len(readable)-1) + `)`
+				WHERE e.tombstoned_at IS NULL`
 			args := []any{}
-			for _, p := range readable {
-				args = append(args, p)
+			if readable != nil {
+				q += ` AND e.project_id IN (?` + strings.Repeat(", ?", len(readable)-1) + `)`
+				for _, p := range readable {
+					args = append(args, p)
+				}
+			}
+			if in.Entity != "" {
+				q += ` AND v.entity_id = ?`
+				args = append(args, in.Entity)
 			}
 			if in.Status != "" {
 				st := strings.Split(in.Status, ",")

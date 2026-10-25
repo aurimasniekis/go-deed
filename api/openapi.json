@@ -4658,6 +4658,7 @@
         "additionalProperties": false,
         "properties": {
           "cooldown_seconds": {
+            "description": "Default 3600 on create; 0 notifies on every transition; omitted on update keeps the current value.",
             "format": "int64",
             "maximum": 604800,
             "minimum": 0,
@@ -4671,6 +4672,7 @@
             "type": "boolean"
           },
           "for_seconds": {
+            "description": "Default 0 on create; omitted on update keeps the current value.",
             "format": "int64",
             "maximum": 86400,
             "minimum": 0,
@@ -13765,6 +13767,17 @@
             "in": "query",
             "name": "project",
             "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this entity's check.",
+            "explode": false,
+            "in": "query",
+            "name": "entity",
+            "schema": {
+              "description": "Only this entity's check.",
               "maxLength": 64,
               "type": "string"
             }

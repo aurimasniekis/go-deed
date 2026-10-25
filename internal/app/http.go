@@ -106,16 +106,21 @@ func (a *App) PublicHandler() http.Handler {
 	return httpx.RequestID(h)
 }
 
-// limitBody caps request bodies; ingest and Terraform state uploads have larger limits enforced by their handlers.
+// limitBody caps request bodies: Terraform state uploads by limits.state_max_bytes, other ingest requests by
+// limits.ingest_max_bytes, everything else by http.max_body_bytes.
 func (a *App) limitBody(next http.Handler) http.Handler {
 	small := httpx.LimitBody(a.Cfg.HTTP.MaxBodyBytes, next)
-	large := httpx.LimitBody(max(a.Cfg.Limits.StateMaxBytes, a.Cfg.Limits.IngestMaxBytes)+(1<<20), next)
+	ingest := httpx.LimitBody(a.Cfg.Limits.IngestMaxBytes, next)
+	state := httpx.LimitBody(a.Cfg.Limits.StateMaxBytes, next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if route(r.URL.Path) == "ingest" || strings.HasPrefix(r.URL.Path, "/api/v1/icons") {
-			large.ServeHTTP(w, r)
-			return
+		switch {
+		case route(r.URL.Path) == "ingest" && strings.HasSuffix(r.URL.Path, "/terraform/state"):
+			state.ServeHTTP(w, r)
+		case route(r.URL.Path) == "ingest":
+			ingest.ServeHTTP(w, r)
+		default:
+			small.ServeHTTP(w, r)
 		}
-		small.ServeHTTP(w, r)
 	})
 }
 

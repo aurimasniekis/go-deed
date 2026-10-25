@@ -578,12 +578,11 @@ func (e *Engine) reconcile(ctx context.Context, cur []Finding) error {
 			if keep[key] {
 				continue
 			}
-			if typ == TypeBreakGlass {
-				var ev map[string]any
-				_ = json.Unmarshal([]byte(evj), &ev)
-				if t, ok := parseTime(ev["expires_at"]); ok && tx.Now.Before(t) {
-					continue
-				}
+			// Findings raised by events (break-glass, restore) stay open until their expiry.
+			var ev map[string]any
+			_ = json.Unmarshal([]byte(evj), &ev)
+			if t, ok := parseTime(ev["expires_at"]); ok && tx.Now.Before(t) {
+				continue
 			}
 			toClose = append(toClose, closing{key, typ, project})
 		}

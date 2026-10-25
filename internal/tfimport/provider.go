@@ -21,6 +21,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/authz"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/httpapi"
+	"github.com/aurimasniekis/go-deed/internal/httpx"
 	"github.com/aurimasniekis/go-deed/internal/ingest"
 	"github.com/aurimasniekis/go-deed/internal/safehttp"
 	"github.com/aurimasniekis/go-deed/internal/sources"
@@ -101,8 +102,11 @@ func (p *Provider) Describe() sources.Descriptor {
 func parseConfig(raw json.RawMessage) (*Config, error) {
 	var c Config
 	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &c); err != nil {
-			return nil, apperr.New(apperr.CodeInvalid, "invalid terraform_state config")
+		// Strict like the built-in YAML mappings: a misspelled mapping key is an error, not a silently ignored field.
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&c); err != nil {
+			return nil, apperr.New(apperr.CodeInvalid, "invalid terraform_state config: %s", strings.TrimPrefix(err.Error(), "json: "))
 		}
 	}
 	if c.Backend == "" {
@@ -341,6 +345,8 @@ type PushAPI struct {
 	Provider *Provider
 	Ingest   *ingest.Service
 	Runner   *sources.Runner
+	// Rate is the per-source ingest limiter shared with the other ingest endpoints (nil = unlimited).
+	Rate *httpx.Limiter
 }
 
 type pushInput struct {
@@ -388,6 +394,10 @@ func (a *PushAPI) Register(api huma.API, d *httpapi.Deps) {
 			}
 			if !src.Enabled {
 				return nil, d.Fail("push-terraform-state", apperr.New(apperr.CodeForbidden, "source is disabled"))
+			}
+			if a.Rate != nil && !a.Rate.Allow(src.ID) {
+				return nil, d.Fail("push-terraform-state", httpapi.NewProblem(http.StatusTooManyRequests, apperr.CodeRateLimited,
+					"ingest rate limit for this source exceeded; retry after a few seconds"))
 			}
 			c, err := parseConfig(src.Config)
 			if err != nil {

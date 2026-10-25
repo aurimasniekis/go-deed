@@ -894,12 +894,18 @@ func (s *Service) Observations(ctx context.Context, src *catalog.Source, items [
 	if n := len(items); n == 0 || n > s.Limits.MaxItems {
 		return nil, apperr.New(apperr.CodeInvalid, "a request carries 1..%d observations", s.Limits.MaxItems)
 	}
+	v := &apperr.Validation{}
+	for i, it := range items {
+		if it.Spec != nil || it.Metadata != nil {
+			v.Add(fmt.Sprintf("observations[%d]", i), "observations carry only observed, health, observed_at and expires_at; declare spec and metadata as items")
+		}
+	}
+	if err := v.Err(); err != nil {
+		return nil, err
+	}
 	var out ItemsResult
 	err := s.Store.W().TxNamed(ctx, "ingest.observations", func(tx *store.Tx) error {
 		out = ItemsResult{Applied: true}
-		for i := range items {
-			items[i].Spec, items[i].Metadata = nil, nil
-		}
 		res, err := s.applyBatch(ctx, tx, src, Batch{Entities: items}, catalog.ApplyOpts{Actor: actor, NoCreate: true}, 0)
 		if err != nil {
 			return err

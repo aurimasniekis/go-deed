@@ -95,8 +95,8 @@ container-smoke: docker
 e2e: ## §18 end-to-end scenario against the dev stack (docs/VALIDATION.md)
 	scripts/e2e.sh
 
-bench:
-	$(GO) test -run '^$$' -bench . -benchmem ./internal/graph/ ./internal/catalog/
+bench: ## 10k entities / 50k relations latency report (docs/PERFORMANCE.md)
+	DEED_PERF=1 DEED_TEST_TX_MAX=10m $(GO) test -run TestPerformance -v -count=1 -timeout 30m ./internal/perf/
 
 release-build:
 	scripts/release-build.sh -o dist

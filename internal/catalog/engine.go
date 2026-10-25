@@ -403,6 +403,9 @@ func (s *Service) applyEntity(ctx context.Context, tx *store.Tx, src *Source, it
 	action := ActionUpdated
 	if created {
 		action = ActionCreated
+		if err := s.resolvePendingTx(ctx, tx, entityID, src, it.ExternalID); err != nil {
+			return nil, err
+		}
 	}
 	return &ApplyResult{EntityID: entityID, Action: action, FacetVersion: curVersion}, nil
 }

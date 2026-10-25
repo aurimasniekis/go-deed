@@ -24,7 +24,7 @@ import (
 //go:embed migrations/*.sql
 var migrationFS embed.FS
 
-// ErrSchemaTooNew means the database was migrated by a newer Porch; downgrades are refused.
+// ErrSchemaTooNew means the database was migrated by a newer Deed; downgrades are refused.
 var ErrSchemaTooNew = errors.New("database schema is newer than this binary")
 
 func newProvider(d *sql.DB, fsys fs.FS) (*goose.Provider, error) {

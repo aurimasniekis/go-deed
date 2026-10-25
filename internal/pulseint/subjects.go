@@ -28,8 +28,8 @@ func IsIDToken(t string) bool {
 		prefixRE.MatchString(t) || (longRE.MatchString(t) && strings.ContainsAny(t, "0123456789"))
 }
 
-// Template normalizes a concrete subject into a template: identifier-like tokens become "*", the first four
-// grammar tokens (evt.<domain>.<entity>.<action>) are kept, at most 16 tokens are considered.
+// Template normalizes a concrete subject into a template: identifier-like tokens (ULIDs, UUIDs, numbers, long
+// hex-ish tokens) after the first one become "*"; subjects longer than 16 tokens are cut and end in ">".
 func Template(subject string) string {
 	toks := strings.Split(subject, ".")
 	if len(toks) > 16 {
