@@ -50,8 +50,10 @@ for public repositories (60 requests/hour).
   churn; tighten `policy.max_removal_percent` for repository-only sources.
 
 ## hallpass
-**Credential:** a HallPass API token (`hallpass_at_…`) of a read-only role (auditor). Server addresses are returned
-only when the role may read them (`inventory.address.read`); without it, matching uses names only.
+**Credential:** a HallPass API token (`hallpass_at_…`) of a read-only role (auditor). A token carries one of its
+creator's own roles, so an administrator who mints it must also hold the auditor role. Server addresses are returned
+only when the role may read them (`inventory.address.read`; for auditors, HallPass's `rbac.auditor_address_read`);
+without it, the connector test warns `address_redacted` and catalog servers are not matched by address.
 
 **Config:** `{"url": "https://hallpass.example.com"}` plus optional `grants`, `sessions`, `agent_host_label`
 (default `host`), `match_servers`, `max_grants`, `max_sessions`, `include_disabled`.
@@ -64,12 +66,21 @@ Reads `GET /api/v1/system/status`, `/agents`, `/servers`, `/servers/{id}/roles`,
 - servers (`hallpass_server`, `protected_by` the instance) and their login roles (`hallpass_role`); a catalog
   server/VM/container whose `spec.ipv4` or `spec.hostname` equals the HallPass server address is `protected_by` it
   (inferred, with the matched value as evidence);
-- each active grant as `hallpass_grant` plus `agent has_access_to server` — both expire with the grant;
-- open sessions as `agent_session` that `connects_to` the server.
+- each active grant as `hallpass_grant` (expiring with the grant) plus `agent has_access_to server`; an agent often
+  holds several grants on one server (one per role), so that edge is emitted once, with every grant ID in its
+  `grant_ids` evidence, and expires with the latest of them;
+- open and closing access sessions as `agent_session` that `connects_to` the server. HallPass opens one access
+  session per grant when the grant activates and closes it once the grant has ended and its channels are closed, so
+  an open session means an active grant, not necessarily a live connection; the list carries no channel counts, so
+  none are imported.
 
-Deleted and disabled agents/servers/roles are skipped unless `include_disabled`. Labels that are invalid Deed label
-keys or look like secrets are dropped. Grants and sessions are short-lived, so the default policy allows up to 90%
-removal per snapshot.
+Deleted agents, servers and roles are never listed; disabled ones are skipped unless `include_disabled`. Labels that
+are invalid Deed label keys or look like secrets are dropped. Grants and sessions are short-lived, so the default
+policy allows up to 90% removal per snapshot; whatever HallPass no longer returns is tombstoned by the next sync.
+
+Validated against a real HallPass run locally (development mode, agents requesting grants over the gateway's SSH,
+an exec to a throwaway OpenSSH destination): `scripts/validate/hallpass.sh` (`HALLPASS_DIR` points at the HallPass
+checkout, default `../hallpass`).
 
 ## porch
 **Credential:** a Porch automation token (`porch_at_…`). Porch has no read-only permission for applications and

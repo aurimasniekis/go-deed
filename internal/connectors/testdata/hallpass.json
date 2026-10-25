@@ -1,43 +1,63 @@
 {
-  "_comment": "Synthetic fixtures shaped by HallPass api/openapi.yaml (paths under /api/v1). Keys are path?query.",
-  "/system/status": {"lockdown": false, "version": "1.4.0", "boot_id": "boot1", "pending_requests": 1, "active_grants": 2, "live_channels": 1,
+  "_comment": "Synthetic fixtures in the shape a real HallPass (a41b414, development mode) returns to an auditor token; IDs and names are made up. Keys are path?query under /api/v1. Deleted agents/servers only appear with include_deleted; they are kept here to prove they are skipped. Session list items carry no channel counts (only GET /access-sessions/{id} does).",
+  "/system/status": {"lockdown": false, "version": "1.4.0", "boot_id": "boot_01", "pending_requests": 1, "active_grants": 3, "live_channels": 1,
     "storage_ok": true, "policy_version": 7, "breakglass_alert": false, "breakglass_at": null},
   "/agents": {"items": [
     {"id": "agt_01", "name": "ci-runner", "description": "CI deploy agent", "enabled": true, "source_cidrs": ["10.0.0.0/24"], "groups": ["ci"],
-     "labels": {"host": "builder-1", "team": "platform", "api_token": "should-be-dropped"}, "version": 3, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-09-01T00:00:00Z"},
+     "labels": {"host": "builder-1", "team": "platform", "api_token": "should-be-dropped"}, "version": 3,
+     "created_at": "2026-01-01T00:00:00Z", "created_by": "operator:opr_01", "updated_at": "2026-09-01T00:00:00Z", "updated_by": "operator:opr_01"},
     {"id": "agt_02", "name": "claude-box", "description": "", "enabled": true, "source_cidrs": [], "groups": [], "labels": {}, "version": 1,
-     "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"},
+     "created_at": "2026-01-01T00:00:00Z", "created_by": "operator:opr_01", "updated_at": "2026-01-01T00:00:00Z", "updated_by": "operator:opr_01"},
     {"id": "agt_03", "name": "retired", "description": "", "enabled": false, "source_cidrs": [], "groups": [], "labels": {}, "version": 2,
-     "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z", "disabled_at": "2026-02-01T00:00:00Z"}
+     "created_at": "2026-01-01T00:00:00Z", "created_by": "operator:opr_01", "updated_at": "2026-02-01T00:00:00Z", "updated_by": "operator:opr_01",
+     "disabled_at": "2026-02-01T00:00:00Z"}
   ]},
   "/servers": {"items": [
-    {"id": "srv_01", "kind": "ssh", "alias": "web-1", "display_name": "Web 1", "description": "frontend", "environment": "production",
-     "address": "192.0.2.10", "port": 22, "address_redacted": false, "enabled": true, "groups": ["web"], "labels": {"tier": "frontend"},
-     "version": 2, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"},
-    {"id": "srv_02", "kind": "git", "alias": "git-host", "display_name": "", "address": "", "port": 0, "address_redacted": true, "enabled": true,
-     "groups": [], "labels": {}, "version": 1, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"},
-    {"id": "srv_03", "kind": "ssh", "alias": "gone", "display_name": "", "address": "", "port": 0, "address_redacted": true, "enabled": true,
-     "groups": [], "labels": {}, "version": 1, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z", "deleted_at": "2026-03-01T00:00:00Z"}
+    {"id": "srv_01", "kind": "ssh", "alias": "web-1", "display_name": "Web 1", "description": "frontend", "environment": "production", "enabled": true,
+     "metadata": {}, "groups": ["web"], "labels": {"tier": "frontend"}, "version": 2, "created_at": "2026-01-01T00:00:00Z",
+     "updated_at": "2026-01-01T00:00:00Z", "updated_by": "operator:opr_01", "active_host_identities": 1, "address": "192.0.2.10", "port": 22,
+     "host_ca_principals": [], "address_redacted": false},
+    {"id": "srv_02", "kind": "git", "alias": "git-host", "display_name": "git-host", "description": "", "environment": "", "enabled": true,
+     "metadata": {}, "groups": [], "labels": {}, "version": 1, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
+     "updated_by": "operator:opr_01", "active_host_identities": 1, "address": "", "port": 0, "host_ca_principals": [], "address_redacted": true},
+    {"id": "srv_03", "kind": "ssh", "alias": "gone", "display_name": "gone", "description": "", "environment": "", "enabled": true,
+     "metadata": {}, "groups": [], "labels": {}, "version": 1, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-03-01T00:00:00Z",
+     "updated_by": "operator:opr_01", "active_host_identities": 0, "address": "", "port": 0, "host_ca_principals": [], "address_redacted": true,
+     "deleted_at": "2026-03-01T00:00:00Z"}
   ]},
   "/servers/srv_01/roles": {"items": [
-    {"id": "rol_01", "server_id": "srv_01", "alias": "deploy", "display_name": "Deploy", "remote_user": "deploy", "capabilities": ["shell", "exec"],
-     "default_duration": 900, "max_duration": 3600, "recording_mode": "full", "enabled": true, "version": 1}
+    {"id": "rol_01", "server_id": "srv_01", "alias": "deploy", "display_name": "Deploy", "description": "", "remote_user": "deploy",
+     "capabilities": ["exec", "shell"], "max_concurrent": 10, "max_concurrent_per_agent": 2, "record_input": false, "recording_mode": "mandatory",
+     "env_allow": [], "approval_channels": ["slack", "telegram", "web"], "restriction_notes": "", "retention_class": "default", "labels": {},
+     "enabled": true, "version": 1, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z", "approvals_required": 1,
+     "default_duration": 900, "max_duration": 3600},
+    {"id": "rol_02", "server_id": "srv_01", "alias": "inspect", "display_name": "inspect", "description": "", "remote_user": "ro",
+     "capabilities": ["exec", "shell"], "max_concurrent": 10, "max_concurrent_per_agent": 2, "record_input": false, "recording_mode": "mandatory",
+     "env_allow": [], "approval_channels": ["web"], "restriction_notes": "", "retention_class": "default", "labels": {},
+     "enabled": true, "version": 1, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z", "approvals_required": 1,
+     "default_duration": 900, "max_duration": 3600}
   ]},
   "/servers/srv_02/roles": {"items": []},
   "/grants?limit=200&state=active": {"items": [
-    {"id": "gr_01", "request_id": "req_01", "agent_id": "agt_01", "server_id": "srv_01", "role_id": "rol_01", "remote_user": "deploy",
-     "capabilities": ["exec"], "starts_at": "2026-10-01T11:00:00Z", "expires_at": "2026-10-01T13:00:00Z", "state": "active"}
+    {"id": "gr_01", "request_id": "req_01", "decision_id": "dec_01", "agent_id": "agt_01", "server_id": "srv_01", "role_id": "rol_01",
+     "remote_user": "deploy", "capabilities": ["exec", "shell"], "policy_version": 7, "starts_at": "2026-10-01T11:00:00Z",
+     "expires_at": "2026-10-01T13:00:00Z", "state": "active"}
   ], "next_cursor": "c2"},
   "/grants?cursor=c2&limit=200&state=active": {"items": [
-    {"id": "gr_02", "request_id": "req_02", "agent_id": "agt_02", "server_id": "srv_02", "role_id": "rol_99", "remote_user": "git",
-     "capabilities": ["git_read"], "starts_at": "2026-10-01T11:30:00Z", "expires_at": "2026-10-01T12:30:00Z", "state": "active"},
-    {"id": "gr_03", "request_id": "req_03", "agent_id": "agt_03", "server_id": "srv_01", "role_id": "rol_01", "remote_user": "deploy",
-     "capabilities": ["exec"], "starts_at": "2026-10-01T11:30:00Z", "expires_at": "2026-10-01T12:30:00Z", "state": "active"}
+    {"id": "gr_02", "request_id": "req_02", "decision_id": "dec_02", "agent_id": "agt_02", "server_id": "srv_02", "role_id": "rol_99",
+     "remote_user": "git", "capabilities": ["git_read"], "policy_version": 7, "starts_at": "2026-10-01T11:30:00Z",
+     "expires_at": "2026-10-01T12:30:00Z", "state": "active"},
+    {"id": "gr_03", "request_id": "req_03", "decision_id": "dec_03", "agent_id": "agt_03", "server_id": "srv_01", "role_id": "rol_01",
+     "remote_user": "deploy", "capabilities": ["exec"], "policy_version": 7, "starts_at": "2026-10-01T11:30:00Z",
+     "expires_at": "2026-10-01T12:30:00Z", "state": "active"},
+    {"id": "gr_04", "request_id": "req_04", "decision_id": "dec_04", "agent_id": "agt_01", "server_id": "srv_01", "role_id": "rol_02",
+     "remote_user": "ro", "capabilities": ["exec", "shell"], "policy_version": 7, "starts_at": "2026-10-01T11:45:00Z",
+     "expires_at": "2026-10-01T12:15:00Z", "state": "active"}
   ], "next_cursor": null},
   "/access-sessions?limit=200&state=open": {"items": [
-    {"id": "ses_01", "grant_id": "gr_01", "state": "open", "opened_at": "2026-10-01T11:05:00Z", "closed_at": null, "agent_id": "agt_01",
-     "server_id": "srv_01", "role_id": "rol_01", "remote_user": "deploy", "grant_expires_at": "2026-10-01T13:00:00Z", "grant_state": "active",
-     "retention_class": "standard", "channels_total": 2, "channels_live": 1}
+    {"id": "ses_01", "grant_id": "gr_01", "state": "open", "opened_at": "2026-10-01T11:00:00Z", "closed_at": null, "retention_class": "default",
+     "delete_after": null, "agent_id": "agt_01", "server_id": "srv_01", "role_id": "rol_01", "remote_user": "deploy",
+     "grant_expires_at": "2026-10-01T13:00:00Z", "grant_state": "active"}
   ], "next_cursor": null},
   "/access-sessions?limit=200&state=closing": {"items": [], "next_cursor": null}
 }

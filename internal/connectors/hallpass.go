@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"sort"
 	"time"
 
@@ -63,9 +64,9 @@ func (HallPass) Describe() sources.Descriptor {
 		Kinds: []sources.KindSupport{{Kind: "service", Level: sources.SupportNative, Note: "the HallPass instance"},
 			{Kind: "hallpass_agent", Level: sources.SupportNative}, {Kind: "agent_box", Level: sources.SupportNative, Note: "agents with a host label"},
 			{Kind: "hallpass_server", Level: sources.SupportNative}, {Kind: "hallpass_role", Level: sources.SupportNative},
-			{Kind: "hallpass_grant", Level: sources.SupportNative, Note: "active grants"}, {Kind: "agent_session", Level: sources.SupportNative, Note: "open sessions"}},
+			{Kind: "hallpass_grant", Level: sources.SupportNative, Note: "active grants"}, {Kind: "agent_session", Level: sources.SupportNative, Note: "open access sessions (one per active grant)"}},
 		RelTypes: []string{"has_access_to", "protected_by", "contains", "runs_on", "references", "connects_to"}, DefaultSchedule: 300, Docs: "docs/CONNECTORS.md#hallpass",
-		Verified: "contract tests against fixtures shaped by HallPass api/openapi.yaml; real HallPass validation pending",
+		Verified: "validated against a real local HallPass (scripts/validate/hallpass.sh); contract tests against fixtures in its real response shape",
 		// Grants and sessions are short-lived: their turnover must not trip the mass-removal guard.
 		DefaultPolicy: &catalog.Policy{MaxRemovalPercent: 90}}
 }
@@ -168,16 +169,17 @@ type hpGrant struct {
 }
 
 type hpSession struct {
-	ID           string     `json:"id"`
-	GrantID      string     `json:"grant_id"`
-	State        string     `json:"state"`
-	OpenedAt     time.Time  `json:"opened_at"`
-	ClosedAt     *time.Time `json:"closed_at"`
-	AgentID      string     `json:"agent_id"`
-	ServerID     string     `json:"server_id"`
-	RoleID       string     `json:"role_id"`
-	RemoteUser   string     `json:"remote_user"`
-	ChannelsLive int        `json:"channels_live"`
+	ID         string     `json:"id"`
+	GrantID    string     `json:"grant_id"`
+	State      string     `json:"state"`
+	OpenedAt   time.Time  `json:"opened_at"`
+	ClosedAt   *time.Time `json:"closed_at"`
+	AgentID    string     `json:"agent_id"`
+	ServerID   string     `json:"server_id"`
+	RoleID     string     `json:"role_id"`
+	RemoteUser string     `json:"remote_user"`
+	// ChannelsLive is only returned by GET /access-sessions/{id}, not by the list the connector reads.
+	ChannelsLive *int `json:"channels_live"`
 }
 
 type hpStatus struct {
@@ -395,6 +397,15 @@ func (HallPass) Sync(ctx context.Context, env sources.Env, em sources.Emitter) e
 			em.Diag(sources.Diagnostic{Level: "warning", Code: "max_grants", Message: "active grant cap reached; raise max_grants", Count: c.MaxGrants})
 		}
 		sort.Slice(grants, func(i, j int) bool { return grants[i].ID < grants[j].ID })
+		// An agent often holds several active grants on one server (one per role): the agent→server edge is emitted
+		// once, lasting until the latest of them expires.
+		type access struct {
+			from, to    catalog.Ref
+			exp         time.Time
+			ids, logins []string
+		}
+		var accessOrder []string
+		accesses := map[string]*access{}
 		for _, g := range grants {
 			ar, aok := agentRef[g.AgentID]
 			sr, sok := serverRef[g.ServerID]
@@ -409,9 +420,19 @@ func (HallPass) Sync(ctx context.Context, env sources.Env, em sources.Emitter) e
 					"remote_user": g.RemoteUser, "capabilities": strs(g.Capabilities), "state": g.State}}); err != nil {
 				return err
 			}
-			ev := map[string]any{"basis": "hallpass_grant", "grant_id": g.ID, "remote_user": g.RemoteUser, "expires_at": exp.UTC().Format(time.RFC3339)}
-			if err := rel("has_access_to", ar, sr, ev, &exp, false); err != nil {
-				return err
+			key := g.AgentID + "\x00" + g.ServerID
+			acc := accesses[key]
+			if acc == nil {
+				acc = &access{from: ar, to: sr}
+				accesses[key] = acc
+				accessOrder = append(accessOrder, key)
+			}
+			if exp.After(acc.exp) {
+				acc.exp = exp
+			}
+			acc.ids = append(acc.ids, g.ID)
+			if !slices.Contains(acc.logins, g.RemoteUser) {
+				acc.logins = append(acc.logins, g.RemoteUser)
 			}
 			if err := rel("references", gref, ar, map[string]any{"basis": "grant_agent"}, &exp, false); err != nil {
 				return err
@@ -421,6 +442,14 @@ func (HallPass) Sync(ctx context.Context, env sources.Env, em sources.Emitter) e
 				to = rr
 			}
 			if err := rel("has_access_to", gref, to, map[string]any{"basis": "grant_role"}, &exp, false); err != nil {
+				return err
+			}
+		}
+		for _, key := range accessOrder {
+			acc := accesses[key]
+			exp := acc.exp
+			ev := map[string]any{"basis": "hallpass_grant", "grant_ids": acc.ids, "remote_users": acc.logins, "expires_at": exp.UTC().Format(time.RFC3339)}
+			if err := rel("has_access_to", acc.from, acc.to, ev, &exp, false); err != nil {
 				return err
 			}
 		}
@@ -448,10 +477,14 @@ func (HallPass) Sync(ctx context.Context, env sources.Env, em sources.Emitter) e
 			}
 			sref := catalog.Ref{ExternalID: "session:" + s.ID}
 			opened := s.OpenedAt
+			var observed map[string]any
+			if s.ChannelsLive != nil {
+				observed = map[string]any{"channels_live": *s.ChannelsLive}
+			}
 			if err := em.Entity(catalog.EntityItem{Kind: "agent_session", Name: slug("session-" + s.ID), ExternalID: sref.ExternalID,
 				Metadata: map[string]any{"displayName": "session " + s.RemoteUser + " since " + opened.UTC().Format(time.RFC3339), "icon": "tabler:terminal-2"},
 				Spec:     map[string]any{"session_id": s.ID, "started_at": ts(&opened), "status": s.State, "remote_user": s.RemoteUser, "grant_id": s.GrantID},
-				Observed: map[string]any{"channels_live": s.ChannelsLive}}); err != nil {
+				Observed: observed}); err != nil {
 				return err
 			}
 			if err := rel("references", sref, ar, map[string]any{"basis": "session_agent"}, nil, false); err != nil {

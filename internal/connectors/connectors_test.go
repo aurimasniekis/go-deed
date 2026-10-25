@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -370,6 +371,61 @@ func TestHallPassSync(t *testing.T) {
 	}
 	if hp.hits["/grants?cursor=c2&limit=200&state=active"] != 1 {
 		t.Errorf("grant pagination not followed: %v", hp.hits)
+	}
+}
+
+// recorder is an Emitter that keeps what a provider emits.
+type recorder struct {
+	ents    []catalog.EntityItem
+	rels    []catalog.RelationItem
+	partial string
+}
+
+func (r *recorder) Entity(it catalog.EntityItem) error     { r.ents = append(r.ents, it); return nil }
+func (r *recorder) Relation(it catalog.RelationItem) error { r.rels = append(r.rels, it); return nil }
+func (r *recorder) Diag(sources.Diagnostic)                {}
+func (r *recorder) Partial(reason string)                  { r.partial = reason }
+
+// A real HallPass gives an agent one grant per role, so an agent often holds several active grants on one server; and
+// its session list carries no channel counts. Found validating against a live HallPass (scripts/validate/hallpass.sh).
+func TestHallPassGrantsPerServerAndSessionShape(t *testing.T) {
+	hp := serveFixture(t, "hallpass", "/api/v1", "hallpass_at_test", nil)
+	guard, _ := safehttp.New(nil)
+	cfg, _ := json.Marshal(map[string]any{"url": hp.URL, "allow_cidrs": []string{"127.0.0.1/32"}, "insecure_http": true})
+	rec := &recorder{}
+	env := sources.Env{Config: cfg, Secrets: map[string]string{"token": "hallpass_at_test"}, HTTP: guard.Client}
+	if err := (HallPass{}).Sync(context.Background(), env, rec); err != nil || rec.partial != "" {
+		t.Fatalf("sync: %v (partial %q)", err, rec.partial)
+	}
+	seen := map[string]int{}
+	for _, r := range rec.rels {
+		seen[r.ExternalID]++
+		if seen[r.ExternalID] > 1 {
+			t.Errorf("relation %s emitted %d times", r.ExternalID, seen[r.ExternalID])
+		}
+	}
+	var access *catalog.RelationItem
+	for i, r := range rec.rels {
+		if r.Type == "has_access_to" && r.From.ExternalID == "agent:agt_01" && r.To.ExternalID == "server:srv_01" {
+			access = &rec.rels[i]
+		}
+	}
+	if access == nil {
+		t.Fatal("missing has_access_to ci-runner -> web-1")
+	}
+	// gr_01 (deploy) runs until 13:00, gr_04 (inspect) until 12:15: the edge lasts as long as either grant.
+	if want := time.Date(2026, 10, 1, 13, 0, 0, 0, time.UTC); access.ExpiresAt == nil || !access.ExpiresAt.Equal(want) {
+		t.Errorf("has_access_to expires_at = %v, want %v", access.ExpiresAt, want)
+	}
+	if ids, _ := access.Evidence["grant_ids"].([]string); !slices.Equal(ids, []string{"gr_01", "gr_04"}) {
+		t.Errorf("evidence = %v", access.Evidence)
+	}
+	for _, e := range rec.ents {
+		if e.Kind == "agent_session" {
+			if _, ok := e.Observed["channels_live"]; ok {
+				t.Errorf("session observed %v: the list response has no channel counts", e.Observed)
+			}
+		}
 	}
 }
 
