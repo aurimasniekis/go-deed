@@ -73,11 +73,11 @@ Evidence highlights (from `results.json`):
   session is refused (401); `backup.restored` recorded on first start.
 
 What is simulated here:
-- **Pulse:** the traffic is Pulse-compatible (go-pulse client, `EVENTS` stream created like pulsed does, CloudEvents
-  headers) against plain NATS JetStream; a real pulsed deployment (accounts, grants, admin API) was not used.
-  The Pulse admin adapter is validated only against fixtures shaped by pulsed's admin OpenAPI.
+- **Pulse:** in this run the traffic is Pulse-compatible (go-pulse client, `EVENTS` stream created like pulsed does,
+  CloudEvents headers) against plain NATS JetStream; all three Pulse channels are validated separately against a
+  real local pulsed (below).
 - **GitHub, HallPass, Porch connectors:** contract fixtures in this run; HallPass and Porch are validated separately
-  against real local instances (below). GitHub has no live validation.
+  against real local instances and GitHub against the live API (below).
 - **OIDC:** not part of this run; validated separately against a real local Porch (below) and by `internal/oidc`
   tests against an in-process test OP.
 - **OpenSearch, Mimir:** fixture tests only.
@@ -87,7 +87,8 @@ What is simulated here:
 ## Real services run locally — `scripts/validate/`
 Each script builds the real service from its source checkout (a sibling directory by default) and Deed from this
 tree, runs both as development-mode processes on random loopback ports with generated credentials in a private
-temporary directory, and tears everything down. Run 2026-10-25 against go-deed `3789a15`.
+temporary directory, and tears everything down. Porch and HallPass ran 2026-10-25 against go-deed `3789a15`;
+Pulse and GitHub against `2088e21`.
 
 ### Porch — `scripts/validate/porch.sh` (16/16 PASS)
 Porch `99409626cc58` (main), development mode with its bundled test login provider.
@@ -121,6 +122,33 @@ is available.
   them.
 - Not exercised: interactive PTY sessions and recordings, git-kind servers, human approvals, lockdown states.
 
+### Pulse — `scripts/validate/pulse.sh` (10/10 PASS)
+go-pulse `3b2712f065ea` (main): `pulsed init` (operator/JWT mode, internal CA), nats-server v2.15.1 with the generated
+configuration over TLS, `pulsed serve`; five Pulse clients with grants created through the admin API (deed, porch,
+notifier, billing-agent, rogue-agent); Deed connected with its creds file and the Pulse CA.
+- **Admin adapter** (`pulse_admin`, viewer PAT): declared publish/subscribe edges from grants, both durable consumers
+  with their owners' `subscribes_to` edges, the stream, contracts and per-subject activity, all from the real admin
+  API; the viewer PAT cannot write (403).
+- **Tail** (`pulse_tail`): an observed porch → `evt.porch.tenancy.tenant.updated.*` publish edge with its rate.
+- **Ingest consumer:** an agent's `deed.ingest.items.v1` envelope lands in its push source; another client's
+  envelopes, including one claiming the agent's `ce-source`, are refused and write nothing.
+- **Outbox:** Deed's events arrive through pulsed with `Nats-Msg-Id` = outbox ID, `ce-source: deed`, `deed.*.v1`
+  types and RFC 3339 `ce-time`; republishing an ID is deduplicated by the stream.
+- **Found and fixed:** pulsed authenticates the publish subject but not `ce-source`, which any client may set; the
+  ingest consumer trusted `ce-source`, so one client could write into another client's push source. The subject
+  token at the ingest filter's wildcard must now equal the push source's `pulse_source`. The admin fixtures were
+  rewritten to the real response shapes.
+- Not exercised: ACME certificates for NATS, the public listener behind Cloudflare, client rotation or revocation
+  while Deed is connected.
+
+### GitHub — `scripts/validate/github.sh` (5/5 PASS)
+Live `api.github.com`, anonymous, read-only, repositories `aurimasniekis/go-deed` and `pressly/goose`: the source
+test and a sync (120 entities: 2 repositories, 5 releases, 2 deployments, 38 pull requests, 14 issues; 59
+`contains`/`deployed_from`/`references` relations) match exactly what the API returns to the same anonymous client,
+and a second sync is idempotent (120 unchanged). **Found and fixed:** an explicit `min_rate_remaining: 0` (needed for
+the 60-request anonymous budget) and `closed_retention_days: 0` were replaced by their defaults, so anonymous syncs
+always stopped as partial runs.
+
 ## Other validation
 - `go test -race ./...` (CI, against NATS and MinIO containers) — see the CI badge / Actions history.
 - `internal/backup` against a local MinIO binary: wrong key, corrupt object, foreign signature, S3 outage and an
@@ -133,4 +161,5 @@ is available.
 - Docker image build and `scripts/container-smoke.sh` (non-root, KEK permission refusal, healthcheck, Docker health,
   graceful SIGTERM): PASS locally at `5d026c3` and in CI.
 - Real-service validation **pending**: production deployments of Pulse, Porch and HallPass (only local runs above),
-  GitHub API, Mimir, OpenSearch, Cloudflare in front of a VPS, S3 providers other than MinIO.
+  GitHub Enterprise Server and private repositories, Mimir, OpenSearch, Cloudflare in front of a VPS, S3 providers
+  other than MinIO.
