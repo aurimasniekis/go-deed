@@ -277,17 +277,19 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
               Math.max(y1, p.y + n.height),
             ]
           }
-          if (width > 0 && height > 0 && x1 > x0)
-            void rf.setViewport(
-              getViewportForBounds(
-                { x: x0, y: y0, width: x1 - x0, height: y1 - y0 },
-                width,
-                height,
-                minZoom,
-                1.25,
-                fitPadding(),
-              ),
+          if (width > 0 && height > 0 && x1 > x0) {
+            const vp = getViewportForBounds(
+              { x: x0, y: y0, width: x1 - x0, height: y1 - y0 },
+              width,
+              height,
+              minZoom,
+              1.25,
+              fitPadding(),
             )
+            void rf.setViewport(vp)
+            // Urgent, in the same batch as the layout (the store subscription only schedules a transition).
+            setZoomedOut(vp.zoom < LOD.enter)
+          }
         }
         setLayout({ ...r, sig: signature })
       })
