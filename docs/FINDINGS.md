@@ -48,7 +48,10 @@ is:
 The certificate and domain thresholds (30 and 7 days), the list of kinds that need an owner and the 24-hour window
 for expected connections are built-in defaults, not configuration keys. Version findings need the version checker
 (`versions.enabled`, default on, every `versions.interval`, default 12 h); end-of-life data is fetched only with
-`versions.eol: true`.
+`versions.eol: true`, from https://endoflife.date (or a compatible API). `TestRun` covers the checker against a
+local fixture server; `DEED_TEST_EOL_URL=https://endoflife.date go test -run TestLiveEndOfLife ./internal/versions/`
+checks it against the live API (last run 2026-10-25: PostgreSQL 12 and MySQL 5.7 end of life, PostgreSQL 17 with an
+update available).
 
 ## Evaluation
 The findings engine recomputes every finding every two minutes and reconciles the result with the stored set:

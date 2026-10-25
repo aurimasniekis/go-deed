@@ -150,6 +150,11 @@ and a second sync is idempotent (120 unchanged). **Found and fixed:** an explici
 the 60-request anonymous budget) and `closed_retention_days: 0` were replaced by their defaults, so anonymous syncs
 always stopped as partial runs.
 
+### endoflife.date — `TestLiveEndOfLife` (PASS)
+`DEED_TEST_EOL_URL=https://endoflife.date go test -run TestLiveEndOfLife ./internal/versions/` runs the version
+checker against the live API: PostgreSQL 12.1 → end of life (cycle 12, latest 12.22), MySQL 5.7.30 → end of life
+(latest 5.7.44), PostgreSQL 17.0 → update available (latest 17.11), an unknown product → unknown.
+
 ## Other validation
 - `go test -race ./...` (CI, against NATS and MinIO containers) — see the CI badge / Actions history.
 - `internal/backup` against a local MinIO binary: wrong key, corrupt object, foreign signature, S3 outage and an

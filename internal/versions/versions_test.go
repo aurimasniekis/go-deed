@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/aurimasniekis/go-deed/internal/catalog"
@@ -126,5 +127,55 @@ func TestRun(t *testing.T) {
 	}
 	if s, _, _ := status(pg12); s != StatusUnknown {
 		t.Fatalf("catalog-only pg12 = %s", s)
+	}
+}
+
+// TestLiveEndOfLife runs the checker against the real endoflife.date API (or another compatible URL):
+// DEED_TEST_EOL_URL=https://endoflife.date go test -run TestLiveEndOfLife ./internal/versions/
+func TestLiveEndOfLife(t *testing.T) {
+	base := os.Getenv("DEED_TEST_EOL_URL")
+	if base == "" {
+		t.Skip("set DEED_TEST_EOL_URL=https://endoflife.date to query the live API")
+	}
+	env := testenv.New(t)
+	guard, _ := safehttp.New(nil)
+	p := env.Project(t, "home")
+	api := env.Source(t, p.ID, "api", "")
+	ent := func(name, v, product string) string {
+		res, err := env.Apply(t, api, catalog.EntityItem{Kind: "database", Name: name,
+			Metadata: map[string]any{"version": map[string]any{"declared": v, "product": product}}}, catalog.ApplyOpts{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.EntityID
+	}
+	// Cycles whose end of life lies before the test clock (2026-10-01), one still supported, and an unknown product.
+	pg12, pg17, mysql57 := ent("pg12", "12.1", "postgresql"), ent("pg17", "17.0", "postgresql"), ent("mysql57", "5.7.30", "mysql")
+	unknown := ent("odd", "1.0", "no-such-product-deed-validation")
+	c := &Checker{Store: env.Store, Guard: guard, Clock: env.Clock, EOLURL: base}
+	if _, err := c.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	row := func(id string) (status, cycle, latest, source string) {
+		if err := env.Store.R().QueryRow(`SELECT status, cycle, latest, latest_source FROM version_checks WHERE entity_id = ?`, id).
+			Scan(&status, &cycle, &latest, &source); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	for id, name := range map[string]string{pg12: "postgresql 12", mysql57: "mysql 5.7"} {
+		if s, cyc, latest, src := row(id); s != StatusEOL || cyc == "" || latest == "" || src != "eol_api" {
+			t.Errorf("%s: status %s cycle %q latest %q source %q, want eol from the API", name, s, cyc, latest, src)
+		}
+	}
+	if s, cyc, latest, _ := row(pg17); (s != StatusUpdateAvailable && s != StatusCurrent) || cyc != "17" || latest == "" {
+		t.Errorf("postgresql 17: status %s cycle %q latest %q", s, cyc, latest)
+	}
+	if s, _, _, _ := row(unknown); s != StatusUnknown {
+		t.Errorf("unknown product: %s", s)
+	}
+	for name, id := range map[string]string{"postgresql 12": pg12, "postgresql 17": pg17, "mysql 5.7": mysql57} {
+		s, cyc, latest, _ := row(id)
+		t.Logf("%s: %s (cycle %s, latest %s)", name, s, cyc, latest)
 	}
 }
