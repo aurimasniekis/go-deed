@@ -105,8 +105,18 @@ the ADR-011 budget.
   move the selection to the nearest neighbour in that direction, so the map is fully keyboard-operable.
 - Layouts: ELK layered (direction configurable), force (d3-force) and radial around the focus, all computed in Web
   Workers. Layered layouts wrap very tall layers (a hub with hundreds of neighbours) into several columns so large
-  neighbourhoods stay compact. Layout runs only when topology changes; dragged nodes are pinned and saved with the
+  neighbourhoods stay compact. Above 150 nodes layouts take cheaper paths: ELK uses polyline instead of orthogonal
+  routing (the map draws its own edges), and the force layout folds degree-1 nodes onto rings around their neighbour,
+  simulates the remaining skeleton from a sector-radial warm start with ticks scaled to its size (and a coarser
+  Barnes–Hut theta above 400 skeleton nodes).
+  Layout runs only when topology changes, and finished layouts are cached in memory per (saved view, layout options,
+  topology, pins), so going back to a graph seen before skips the worker. Dragged nodes are pinned and saved with the
   view.
+- **Level of detail**: a map of 200 or more nodes zoomed out below 40 % (back above 45 %) draws each entity as a plain
+  block in its kind colour (thick outlines for focus, failed and warning health, a stack for clusters) and all
+  relationships as straight lines batched into one SVG layer — no card text, arrowheads, labels, animation or edge hit
+  areas. Accessible names, selection, the keyboard model, the inspector and the Table view work as before; the legend
+  and the status bar say that the drawing is simplified and what it leaves out.
 - **Edge encoding** (ADR-011c): colour by relationship type (or health/freshness); solid = declared, dashed = inferred
   (hover shows the evidence), dotted = stale, thick double = bridge, faded = unknown. Width is log-scaled measured
   rate, only for fresh measurements.
@@ -152,26 +162,57 @@ Budgets (ADR-011): ≤ 2,000 nodes and 4,000 edges rendered at once; time to fir
 typical neighbourhoods; 60 fps pan/zoom with ≤ 500 nodes.
 
 `web/e2e/perf.spec.ts` measures, against the production build served by `deed`: fetch → layout → first rendered frame
-(`performance.mark('deed-map-rendered')`) and `requestAnimationFrame` intervals while panning. Run it with
-`DEED_E2E_LARGE=2000 make web-e2e` (or `pnpm exec playwright test perf.spec.ts`); results land in
+(`performance.mark('deed-map-rendered')`, five runs for the seeded neighbourhood) and `requestAnimationFrame` intervals
+while panning (a 3 s circular drag that starts on empty canvas) and zooming (wheel notches ~13× in and back out around
+the fitted view, twice, ~12 s). With `DEED_E2E_LARGE=2000` it also covers the synthetic "scale" project: a ~500-node
+neighbourhood (`dmz-net`, depth 2) and the 2,000-node one (`core-net`, depth 2, the render cap), each in all three
+layouts, plus an in-app revisit (to the overview and back with `history.back()`) that is served from the layout cache.
+Run it with `DEED_E2E_LARGE=2000 make web-e2e` (or `pnpm exec playwright test perf.spec.ts`); results land in
 `web/e2e/.state/perf.json`.
 
 Measured 2026-10-25 on an Apple M1 Max (10 cores, 64 GiB, macOS), Chromium headless via Playwright at 1440×900,
-production build served by `deed` from the same machine:
+production build served by `deed` from the same machine. Ranges are three runs each (the seeded first-frame range is
+fifteen); the "before" columns are the previous build measured with the same spec on the same machine in the same
+session.
 
-| Scenario                                                  | Nodes / edges | Layout  | Fetch → first frame        | Pan frame time p50 / p95 (fps) |
-| --------------------------------------------------------- | ------------- | ------- | -------------------------- | ------------------------------ |
-| Seeded neighbourhood (`api-gateway`, depth 2–3, ×5)       | 26 / 31       | layered | 197–244 ms (layout 127 ms) | 16.7 / 16.7 ms (60)            |
-| Large neighbourhood (`core-net`, depth 2, `--large 2000`) | 2,000 / 1,999 | layered | 1,719 ms (layout 1,019 ms) | 16.7 / 83 ms (31)              |
-| same                                                      | 2,000 / 1,999 | force   | 1,974 ms (layout 1,244 ms) | 67 / 100 ms (16)               |
-| same                                                      | 2,000 / 1,999 | radial  | 1,052 ms (layout 5 ms)     | 16.7 / 16.8 ms (59)            |
+| Scenario                          | Nodes / edges | Layout  | Fetch → first frame (layout)                           | Pan p50 / p95 (fps)                             | Zoom p95 (fps), longest frame                          | Revisit                        |
+| --------------------------------- | ------------- | ------- | ------------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------ | ------------------------------ |
+| Seeded (`api-gateway`, depth 2–3) | 26 / 31       | layered | 176–278 ms (110–117 ms); before 199–241 (133–138)      | 16.7 / 16.8 ms (60)                             | 16.8 ms (60)                                           | —                              |
+| Medium (`dmz-net`, depth 2)       | 502 / 510     | layered | 330–341 ms (233–241); before 509–515 (305–307)         | 16.7 / 16.8 (60); before 16.7 / 16.8 (60)       | 16.8 (58), 133 ms; before 16.8 (59), 167 ms            | 70–72 ms; before 323–338       |
+| same                              | 502 / 510     | force   | 119–144 ms (16–18); before 637–649 (397–404)           | 16.7 / 16.8 (60); before 16.7 / 16.8 (60)       | 16.8 (59), 100–117 ms; before 16.8 (59), 150–167 ms    | 72–73 ms; before 550–556       |
+| same                              | 502 / 510     | radial  | 127–142 ms (2); before 346–380 (2)                     | 16.7 / 16.8 (60); before 16.7 / 16.8 (60)       | 16.8 (59), 83–100 ms; before 16.8 (60), 17 ms          | —                              |
+| Large (`core-net`, depth 2)       | 2,000 / 2,008 | layered | 591–601 ms (346–363); before 1,898–1,907 (1,233–1,239) | 16.7 / 16.8 (60); before 33 / 83 (28–29)        | 16.8 (54–55), 500–517 ms; before 50 (43), 667–733 ms   | 220–230 ms; before 1,644–1,669 |
+| same                              | 2,000 / 2,008 | force   | 303–309 ms (53–57); before 1,985–2,047 (1,267–1,278)   | 16.7 / 16.8 (59–60); before 67 / 84–100 (18–19) | 16.8 (56), 383–400 ms; before 83 (28–29), 750–800 ms   | 226–244 ms; before 1,904–1,952 |
+| same                              | 2,000 / 2,008 | radial  | 208–270 ms (5); before 707–1,149 (5–6)                 | 16.7 / 16.8 (60); before 16.7 / 16.8–33 (57–59) | 16.8 (55–56), 333–350 ms; before 16.8 (57), 567–767 ms | —                              |
 
-The server answers the 2,000-node neighbourhood query in ~45 ms; the remaining time is layout (in a worker) and the
-first React Flow render. Typical neighbourhoods are well inside the 500 ms budget. At the 2,000-node cap the map stays
-usable but misses both budgets for layered and force layouts: the first frame takes 1–2 s and panning a fully visible
-2,000-node drawing drops to 16–31 fps (viewport culling only helps once zoomed in). Known follow-ups: a
-level-of-detail node renderer at low zoom (dots instead of cards), and caching layouts per saved view so a revisit
-skips the worker.
+Before this round (first measurement, same machine, pan only, the drag starting at the canvas centre): 2,000 nodes
+layered 1,719 ms to first frame (layout 1,019 ms), pan p95 83 ms (31 fps); force 1,974 ms (layout 1,244 ms), 100 ms
+(16 fps); radial 1,052 ms, 59 fps. The ~500-node case had not been measured.
+
+What changed: the level-of-detail drawing (see the map interaction model above; every fitted large and medium view
+above is drawn as blocks), cards built from plain elements instead of Mantine layout components, ELK polyline routing
+and leaf-folding force layouts above 150 nodes, the ELK worker started while the data loads, and the layout cache.
+Panning was slow because React Flow re-runs a store selector per mounted node and edge on every viewport change; at a
+fitted 2,000-node view no edge components are mounted any more.
+
+Budgets, plainly:
+
+- **≤ 2,000 nodes / 4,000 edges rendered at once — met** (enforced by the server cap and `enforceBudget`).
+- **First neighbourhood < 500 ms p95 for typical neighbourhoods — met**: the seeded 26-node neighbourhood takes
+  176–278 ms. The ~500-node neighbourhood is also inside 500 ms in every layout (119–341 ms). The 2,000-node one is
+  inside it for force and radial (≤ 309 ms) but **not for layered (591–601 ms)**, where ELK alone takes ~350 ms in a
+  freshly started worker.
+- **60 fps pan/zoom with ≤ 500 nodes — met for panning** (p95 16.8 ms, 60 fps, all layouts) **and for steady
+  zooming** (p95 16.8 ms), **with one caveat**: crossing the level-of-detail threshold (zooming in past 45 % or out
+  past 40 %) swaps the drawing and costs one long frame of 83–133 ms at ~500 nodes, so the zoom run averages 58–59 fps.
+  At 2,000 nodes (beyond the 500-node budget) panning a fitted view is now 59–60 fps; the threshold crossing costs
+  333–517 ms once per crossing (it mounts the cards and edges in view; the layered drawing has ~1,200 long edges in
+  view at that zoom), so the zoom run averages 54–56 fps.
+
+Known gaps: the ADR's "10k/50k dataset" first-neighbourhood figure has not been measured in the browser; the radial
+layout of 2,000 nodes is larger than the minimum zoom (5 %) can fit, so its fitted view shows only part of the
+drawing; and the threshold-crossing frame above is the remaining cost to remove (e.g. by mounting cards and edges over
+several frames).
 
 ## Testing
 

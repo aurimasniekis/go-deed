@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { wrapLayers } from './layoutTypes'
+import { foldLeaves, LayoutCache, leafRings, sectorLayout, wrapLayers } from './layoutTypes'
 
 const size = { width: 100, height: 40 }
 
@@ -30,5 +30,75 @@ describe('wrapLayers', () => {
     const sizes = new Map(Object.keys(positions).map((id) => [id, size]))
     const out = wrapLayers(positions, sizes, 'DOWN', 3)
     expect(new Set(Object.values(out).map((p) => p.y)).size).toBe(2)
+  })
+})
+
+const node = (id: string, group?: string) => ({ id, width: 224, height: 66, ...(group ? { group } : {}) })
+const link = (source: string, target: string) => ({ id: `${source}>${target}`, source, target })
+
+describe('foldLeaves', () => {
+  it('folds degree-1 nodes onto their neighbour', () => {
+    const nodes = [node('hub'), node('h1'), node('h2'), node('c1'), node('c2'), node('c3')]
+    const edges = [link('h1', 'hub'), link('h2', 'hub'), link('c1', 'h1'), link('c2', 'h1'), link('c3', 'h2')]
+    const out = foldLeaves({ nodes, edges, focus: ['hub'], pinned: {} })
+    expect(Object.fromEntries(out)).toEqual({ h1: ['c1', 'c2'], h2: ['c3'] })
+  })
+
+  it('keeps focus, pinned, cross-group leaves and two-node components in the simulation', () => {
+    const nodes = [node('h'), node('x'), node('f'), node('p'), node('g', 'other'), node('a'), node('b')]
+    const edges = [link('h', 'x'), link('f', 'h'), link('p', 'h'), link('g', 'h'), link('a', 'b')]
+    const out = foldLeaves({ nodes, edges, focus: ['f'], pinned: { p: { x: 0, y: 0 } } })
+    expect(Object.fromEntries(out)).toEqual({ h: ['x'] })
+  })
+})
+
+describe('leafRings', () => {
+  const box = { width: 224, height: 66 }
+  const overlap = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.abs(a.x - b.x) < box.width && Math.abs(a.y - b.y) < box.height
+
+  it.each([
+    [1, 0, 0],
+    [12, 0.6, 0],
+    [49, 0.6, 2.1],
+    [120, 0, 1],
+  ])('places %i boxes without overlaps (gap %f, base %f)', (count, gap, base) => {
+    const { offsets, radius } = leafRings(count, box, base, gap)
+    expect(offsets).toHaveLength(count)
+    const all = [{ x: 0, y: 0 }, ...offsets]
+    all.forEach((a, i) => all.slice(i + 1).forEach((b, j) => expect(overlap(a, b), `${i}/${i + j + 1}`).toBe(false)))
+    for (const o of offsets) expect(Math.hypot(o.x, o.y)).toBeLessThan(radius)
+  })
+
+  it('leaves the gap around the base angle free', () => {
+    const { offsets } = leafRings(30, box, 0, 0.6)
+    for (const o of offsets) expect(Math.abs(Math.atan2(o.y, o.x))).toBeGreaterThanOrEqual(0.3 - 1e-9)
+  })
+})
+
+describe('sectorLayout', () => {
+  it('puts the focus in the centre, each depth on its ring and unreached nodes outside', () => {
+    const nodes = [node('a'), node('b'), node('c'), node('d'), node('lone')]
+    const edges = [link('a', 'b'), link('a', 'c'), link('c', 'd')]
+    const pos = sectorLayout({ nodes, edges, focus: ['a'] }, 100)
+    const dist = (id: string) => Math.hypot(pos[id]?.x ?? NaN, pos[id]?.y ?? NaN)
+    expect(pos.a).toEqual({ x: 0, y: 0 })
+    expect(dist('b')).toBeCloseTo(100)
+    expect(dist('d')).toBeCloseTo(200)
+    expect(dist('lone')).toBeGreaterThanOrEqual(300)
+  })
+})
+
+describe('LayoutCache', () => {
+  it('evicts the least recently used entry', () => {
+    const c = new LayoutCache<number>(2)
+    c.set('a', 1)
+    c.set('b', 2)
+    expect(c.get('a')).toBe(1)
+    c.set('c', 3)
+    expect(c.get('b')).toBeUndefined()
+    expect(c.get('a')).toBe(1)
+    expect(c.get('c')).toBe(3)
+    expect(c.size).toBe(2)
   })
 })

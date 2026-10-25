@@ -282,13 +282,17 @@ export function enforceBudget(
 export function topologySignature(model: GraphModel, extra = ''): string {
   const n = [...model.nodes.values()].map((x) => `${x.id}@${x.group ?? ''}`).sort()
   const e = [...model.edges.values()].map((x) => `${x.from}>${x.to}`).sort()
+  return `${model.nodes.size}:${model.edges.size}:${hashString(`${extra}|${n.join(',')}|${e.join(',')}`)}`
+}
+
+/** FNV-1a hash of a string, base 36 (cache keys, not security). */
+export function hashString(s: string): string {
   let h = 2166136261
-  const s = `${extra}|${n.join(',')}|${e.join(',')}`
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i)
     h = Math.imul(h, 16777619)
   }
-  return `${model.nodes.size}:${model.edges.size}:${(h >>> 0).toString(36)}`
+  return (h >>> 0).toString(36)
 }
 
 /** Neighbours of a node in the visible graph (both directions). */

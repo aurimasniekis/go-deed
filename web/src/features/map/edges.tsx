@@ -6,11 +6,13 @@ import {
   getStraightPath,
   Position,
   useInternalNode,
+  ViewportPortal,
   type Edge,
   type EdgeProps,
   type InternalNode,
+  type Node,
 } from '@xyflow/react'
-import { memo, type CSSProperties } from 'react'
+import { memo, useMemo, type CSSProperties } from 'react'
 import type { EdgeVisual, Routing } from './edgeStyle'
 import type { MapEdge } from './types'
 
@@ -133,3 +135,76 @@ export const DeedEdge = memo(function DeedEdge(props: EdgeProps<DeedFlowEdge>) {
 })
 
 export const edgeTypes = { deed: DeedEdge }
+
+interface LodStroke {
+  color: string
+  width: number
+  dash?: string
+  opacity: number
+  double: boolean
+  d: string[]
+}
+
+/**
+ * Level-of-detail edges (see LOD in nodes.tsx): every relationship as a straight centre-to-centre line, batched into one
+ * path per colour, stroke and opacity inside a single SVG in the viewport — no per-edge components, markers, labels,
+ * animation or hit areas, so panning costs no React work. Colour and evidence stroke stay as in the full drawing (the
+ * legend still applies); strokes keep their screen width at any zoom. Drawn under the nodes.
+ */
+export const LodEdges = memo(function LodEdges({ edges, nodes }: { edges: DeedFlowEdge[]; nodes: Node[] }) {
+  const strokes = useMemo(() => {
+    const centre = new Map<string, string>()
+    for (const n of nodes) {
+      if (n.type === 'group') continue
+      centre.set(
+        n.id,
+        `${Math.round(n.position.x + (n.width ?? 0) / 2)} ${Math.round(n.position.y + (n.height ?? 0) / 2)}`,
+      )
+    }
+    const out = new Map<string, LodStroke>()
+    for (const e of edges) {
+      const v = e.data?.visual
+      const a = centre.get(e.source)
+      const b = centre.get(e.target)
+      if (!v || !a || !b) continue
+      const opacity = e.data?.dimmed ? 0.15 : v.opacity
+      const width = e.selected ? v.width + 1.5 : v.width
+      const double = v.stroke === 'double'
+      const key = `${v.color}|${String(width)}|${v.dash ?? ''}|${String(opacity)}|${String(double)}`
+      let s = out.get(key)
+      if (!s) {
+        s = { color: v.color, width, opacity, double, d: [], ...(v.dash ? { dash: v.dash } : {}) }
+        out.set(key, s)
+      }
+      s.d.push(`M${a}L${b}`)
+    }
+    return [...out.entries()].map(([key, s]) => ({ key, ...s, path: s.d.join('') }))
+  }, [edges, nodes])
+  return (
+    <ViewportPortal>
+      <svg className="deed-lod-edges" aria-hidden data-testid="map-lod-edges">
+        {strokes.map((s) => (
+          <g key={s.key} opacity={s.opacity}>
+            <path
+              d={s.path}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={s.width}
+              strokeDasharray={s.dash}
+              vectorEffect="non-scaling-stroke"
+            />
+            {s.double && (
+              <path
+                d={s.path}
+                fill="none"
+                stroke="var(--deed-canvas)"
+                strokeWidth={1.6}
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+          </g>
+        ))}
+      </svg>
+    </ViewportPortal>
+  )
+})

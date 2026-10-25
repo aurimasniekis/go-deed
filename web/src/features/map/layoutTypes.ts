@@ -185,3 +185,181 @@ export function wrapLayers(
   }
   return out
 }
+
+/**
+ * Layouts of more nodes than this take the cheaper paths: ELK polyline instead of orthogonal routing (layout.ts), and
+ * leaf folding, warm start and scaled ticks for force layouts (layout.worker.ts). Typical neighbourhoods stay below it
+ * and are laid out exactly as before.
+ */
+export const LARGE_LAYOUT = 150
+
+/** Space kept between folded leaf cards on a ring (x, y). */
+const LEAF_GAP = { x: 24, y: 16 }
+
+/**
+ * Leaf folding for large force layouts: a node with exactly one neighbour (a container on its host, a host's lone
+ * volume) is taken out of the simulation and later placed on rings around that neighbour, which then simulates as one
+ * larger disc. The parent must keep another neighbour (two-node components stay simulated), share the leaf's visual
+ * group, and the leaf must not be pinned or a focus node. Returns parent → leaves in input order. Pure, so it is
+ * unit-tested.
+ */
+export function foldLeaves(req: Pick<LayoutRequest, 'nodes' | 'edges' | 'focus' | 'pinned'>): Map<string, string[]> {
+  const nodes = new Map(req.nodes.map((n) => [n.id, n]))
+  const nbs = new Map<string, Set<string>>()
+  for (const e of req.edges) {
+    if (e.source === e.target || !nodes.has(e.source) || !nodes.has(e.target)) continue
+    for (const [a, b] of [
+      [e.source, e.target],
+      [e.target, e.source],
+    ] as const) {
+      const s = nbs.get(a) ?? new Set<string>()
+      s.add(b)
+      nbs.set(a, s)
+    }
+  }
+  const keep = new Set(req.focus)
+  const out = new Map<string, string[]>()
+  for (const n of req.nodes) {
+    const own = nbs.get(n.id)
+    if (own?.size !== 1 || keep.has(n.id) || req.pinned[n.id]) continue
+    const parent = [...own][0] ?? ''
+    if ((nbs.get(parent)?.size ?? 0) < 2 || nodes.get(parent)?.group !== n.group) continue
+    out.set(parent, [...(out.get(parent) ?? []), n.id])
+  }
+  return out
+}
+
+/**
+ * Centre offsets for `count` boxes of `box` size on concentric rings around a parent box of the same size, starting at
+ * angle `base` and leaving a `gap` (radians, centred on `base`) free for the parent's other edges. Each next box is the
+ * first one clear of the previous (axis-aligned, with LEAF_GAP), rings are far enough apart that boxes on different
+ * rings never overlap, and the last box on a full ring also clears the first. Returns the offsets and the disc radius.
+ */
+export function leafRings(
+  count: number,
+  box: { width: number; height: number },
+  base = 0,
+  gap = 0,
+): { offsets: { x: number; y: number }[]; radius: number } {
+  const w = box.width + LEAF_GAP.x
+  const h = box.height + LEAF_GAP.y
+  const ring = Math.hypot(w, h)
+  const offsets: { x: number; y: number }[] = []
+  let r = 0
+  while (offsets.length < count) {
+    r += ring
+    const at = (t: number) => ({ x: Math.cos(base + t) * r, y: Math.sin(base + t) * r })
+    const clear = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      Math.abs(a.x - b.x) >= w || Math.abs(a.y - b.y) >= h
+    const step = Math.min(0.02, 20 / r)
+    const start = gap / 2
+    const end = 2 * Math.PI - gap / 2
+    const first = at(start)
+    let t = start
+    let prev: { x: number; y: number } | null = null
+    while (t <= end && offsets.length < count) {
+      const p = at(t)
+      if (prev && gap === 0 && !clear(p, first)) break
+      offsets.push(p)
+      prev = p
+      let u = t + step
+      while (u <= end && !clear(p, at(u))) u += step
+      t = u
+    }
+  }
+  return { offsets, radius: r + ring / 2 }
+}
+
+/**
+ * Warm start for force layouts: a breadth-first tree from the focus (or the first node) where every subtree gets an
+ * angular sector proportional to its size and each depth its own ring, so connected nodes start close together and the
+ * simulation needs far fewer ticks to untangle. Nodes the tree does not reach start on an outer spiral. Centres, not
+ * top-left corners. Pure, so it is unit-tested.
+ */
+export function sectorLayout(
+  req: Pick<LayoutRequest, 'nodes' | 'edges' | 'focus'>,
+  ringGap = 400,
+): Record<string, { x: number; y: number }> {
+  const adj = new Map<string, string[]>(req.nodes.map((n) => [n.id, []]))
+  for (const e of req.edges) {
+    adj.get(e.source)?.push(e.target)
+    adj.get(e.target)?.push(e.source)
+  }
+  const root = req.focus.find((f) => adj.has(f)) ?? req.nodes[0]?.id
+  const pos: Record<string, { x: number; y: number }> = {}
+  if (root === undefined) return pos
+  const depth = new Map([[root, 0]])
+  const children = new Map<string, string[]>()
+  const order = [root]
+  // Breadth-first: `order` grows while it is iterated.
+  for (const cur of order) {
+    for (const nb of adj.get(cur) ?? []) {
+      if (depth.has(nb)) continue
+      depth.set(nb, (depth.get(cur) ?? 0) + 1)
+      children.set(cur, [...(children.get(cur) ?? []), nb])
+      order.push(nb)
+    }
+  }
+  const size = new Map<string, number>()
+  for (let i = order.length - 1; i >= 0; i--) {
+    const id = order[i] ?? ''
+    size.set(id, 1 + (children.get(id) ?? []).reduce((s, c) => s + (size.get(c) ?? 1), 0))
+  }
+  const sector = new Map([[root, [0, 2 * Math.PI] as const]])
+  pos[root] = { x: 0, y: 0 }
+  let maxDepth = 0
+  for (const id of order) {
+    const [a0, a1] = sector.get(id) ?? [0, 2 * Math.PI]
+    const kids = children.get(id) ?? []
+    const total = Math.max(1, (size.get(id) ?? 1) - 1)
+    let a = a0
+    for (const c of kids) {
+      const span = ((a1 - a0) * (size.get(c) ?? 1)) / total
+      sector.set(c, [a, a + span])
+      const d = depth.get(c) ?? 1
+      maxDepth = Math.max(maxDepth, d)
+      pos[c] = { x: Math.cos(a + span / 2) * d * ringGap, y: Math.sin(a + span / 2) * d * ringGap }
+      a += span
+    }
+  }
+  let k = 0
+  for (const n of req.nodes) {
+    if (pos[n.id]) continue
+    const a = k * 2.39996
+    const r = (maxDepth + 1) * ringGap + 40 * Math.sqrt(k++)
+    pos[n.id] = { x: Math.cos(a) * r, y: Math.sin(a) * r }
+  }
+  return pos
+}
+
+/**
+ * In-memory layout cache, least recently used first out: a revisit of the same graph (same view, layout options,
+ * topology and pins) reuses the positions instead of running the layout again.
+ */
+export class LayoutCache<T> {
+  private readonly entries = new Map<string, T>()
+
+  constructor(private readonly capacity = 24) {}
+
+  get(key: string): T | undefined {
+    const v = this.entries.get(key)
+    if (v === undefined) return undefined
+    this.entries.delete(key)
+    this.entries.set(key, v)
+    return v
+  }
+
+  set(key: string, value: T) {
+    this.entries.delete(key)
+    this.entries.set(key, value)
+    while (this.entries.size > this.capacity) {
+      const oldest = this.entries.keys().next().value
+      if (oldest === undefined) break
+      this.entries.delete(oldest)
+    }
+  }
+
+  get size() {
+    return this.entries.size
+  }
+}

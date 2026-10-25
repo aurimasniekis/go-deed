@@ -22,6 +22,8 @@ export interface EdgeStyleOptions {
   /** Traffic overlay switched on. */
   traffic: boolean
   reducedMotion: boolean
+  /** Level-of-detail drawing (zoomed out): straight lines without arrowheads, labels or animation. Legend only. */
+  lod?: boolean
 }
 
 /** A traffic measurement for one relationship (subset of the API's EdgeRate). */
@@ -273,6 +275,17 @@ export function buildLegend(
     }
   }
   const order: StrokeKind[] = ['solid', 'observed', 'dashed', 'dotted', 'double', 'faded']
+  const strokeList = order.filter((s) => strokes.has(s)).map((kind) => ({ kind, ...STROKE_LABEL[kind] }))
+  const colorList = [...colors.values()].sort((a, b) => a.label.localeCompare(b.label))
+  if (opts.lod) {
+    // The simplified drawing keeps colours, strokes and rate widths, and drops everything else: say so.
+    const notes = [
+      'Zoomed out: relationships are straight lines without arrowheads, labels or animation; zoom in to see them.',
+    ]
+    if (measuredStatic || traffic) notes.push('Wider lines carry a measured rate.')
+    if (bundled) notes.push('Thicker lines bundle several relationships.')
+    return { colors: colorList, strokes: strokeList, animations: [], notes }
+  }
   const animations: Legend['animations'] = []
   const win = [...windows].filter(Boolean).join(', ')
   if (traffic) {
@@ -297,10 +310,5 @@ export function buildLegend(
   if (bundled) notes.push('Thicker lines bundle several relationships (count in the tooltip).')
   if (opts.reducedMotion && (opts.directionHint || opts.traffic))
     notes.push('Animations are off because your system asks for reduced motion.')
-  return {
-    colors: [...colors.values()].sort((a, b) => a.label.localeCompare(b.label)),
-    strokes: order.filter((s) => strokes.has(s)).map((kind) => ({ kind, ...STROKE_LABEL[kind] })),
-    animations,
-    notes,
-  }
+  return { colors: colorList, strokes: strokeList, animations, notes }
 }

@@ -1,6 +1,14 @@
 import ELK, { type ElkExtendedEdge, type ElkNode } from 'elkjs/lib/elk-api'
 import elkWorkerUrl from 'elkjs/lib/elk-worker.min.js?worker&url'
-import { GROUP_PADDING, groupBounds, wrapLayers, type LayoutRequest, type LayoutResult } from './layoutTypes'
+import {
+  GROUP_PADDING,
+  groupBounds,
+  LARGE_LAYOUT,
+  LayoutCache,
+  wrapLayers,
+  type LayoutRequest,
+  type LayoutResult,
+} from './layoutTypes'
 
 /**
  * Layout off the main thread. Layered layouts use ELK (elkjs) in ELK's own Web Worker (elk-worker.min.js, a separate
@@ -63,6 +71,10 @@ async function layered(req: LayoutRequest): Promise<LayoutResult> {
       'elk.layered.nodePlacement.strategy': big ? 'SIMPLE' : 'BRANDES_KOEPF',
       'elk.layered.thoroughness': big ? '1' : '7',
       'elk.separateConnectedComponents': 'true',
+      // The map draws its own edges, so ELK's routes are discarded; orthogonal routing (the default) was ~80 % of the
+      // time for 2,000 nodes. Polyline routing is 3–5× cheaper and leaves positions alike apart from the gaps between
+      // layers, which no longer grow with the number of routed edges. Small graphs keep the default.
+      ...(req.nodes.length > LARGE_LAYOUT ? { 'elk.edgeRouting': 'POLYLINE' } : {}),
     },
     children: [...top, ...[...groupNodes.values()].filter((g) => (g.children?.length ?? 0) > 0)],
     edges,
@@ -99,6 +111,24 @@ async function layered(req: LayoutRequest): Promise<LayoutResult> {
     groups: hasPins ? groupBounds(req, merged) : groups,
     ms: performance.now() - t0,
   }
+}
+
+/**
+ * Finished layouts by key (MapPage: saved view, layout options and topology signature, pinned positions), kept for the
+ * page's lifetime so going back to a graph seen before skips the worker entirely.
+ */
+export const layoutCache = new LayoutCache<LayoutResult>(24)
+
+/**
+ * Starts the layout workers ahead of the first layout (the map calls it on mount, while its data loads): loading and
+ * compiling ELK's worker script, which is most of a cold layered layout's time on small graphs, then overlaps the fetch.
+ */
+export function warmLayout() {
+  if (elk) return
+  void getElk()
+    .layout({ id: 'warm', children: [{ id: 'a', width: 1, height: 1 }], edges: [] })
+    .catch(() => undefined)
+  getWorker()
 }
 
 export function runLayout(req: Omit<LayoutRequest, 'id'>): Promise<LayoutResult> {

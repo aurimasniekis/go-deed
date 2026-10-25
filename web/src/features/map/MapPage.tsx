@@ -39,13 +39,16 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
+  getViewportForBounds,
   useNodesState,
   useReactFlow,
+  useStoreApi,
+  useUpdateNodeInternals,
   type Edge,
   type Node,
   type FitViewOptions,
 } from '@xyflow/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isInstallationAdmin, useMe } from '@/api/auth'
 import { api, unwrap, type View } from '@/api/client'
 import { keys, useKinds, useProjects, useRelTypes } from '@/api/queries'
@@ -56,9 +59,9 @@ import { useProjectFilter, useTitle } from '@/lib/appStore'
 import { humanize, plural } from '@/lib/format'
 import { compact, decodeList, encodeList, validateMapSearch, type MapSearch } from '@/lib/urlState'
 import { buildLegend, edgeVisual } from './edgeStyle'
-import { edgeTypes, type DeedFlowEdge } from './edges'
+import { edgeTypes, LodEdges, type DeedFlowEdge } from './edges'
 import { EdgeInspector, NodeInspector, type InspectorActions } from './Inspector'
-import { runLayout } from './layout'
+import { layoutCache, runLayout, warmLayout } from './layout'
 import type { LayoutResult } from './layoutTypes'
 import { MapLegend } from './Legend'
 import {
@@ -75,12 +78,13 @@ import {
   applyFilters,
   clusterModel,
   enforceBudget,
+  hashString,
   neighbours,
   nextInDirection,
   topologySignature,
   type MapFilters,
 } from './model'
-import { NODE_SIZE, nodeTypes, type EntityNodeData, type GroupNodeData } from './nodes'
+import { LOD, NODE_SIZE, nodeTypes, type EntityNodeData, type GroupNodeData } from './nodes'
 import { OptionsDrawer } from './OptionsDrawer'
 import { PathFinder } from './PathFinder'
 import type { MapNode } from './types'
@@ -95,6 +99,8 @@ declare global {
       nodes: number
       edges: number
       layoutMs: number
+      /** The layout came from the in-memory cache (a revisit), not the worker. */
+      layoutCached: boolean
       fetchToRenderMs: number
       signature: string
       renders: number
@@ -119,6 +125,8 @@ interface Patch {
   freshness: string
   findings: number
 }
+
+const NO_EDGES: Edge[] = []
 
 /** Fit padding that keeps nodes clear of the legend panel (bottom-left) when it is open. */
 function fitPadding(): NonNullable<FitViewOptions['padding']> {
@@ -145,9 +153,23 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const pathOpen = useSelector(mapStore, (s) => s.pathOpen)
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
   const [patches, setPatches] = useState<Map<string, Patch>>(new Map())
-  const [layout, setLayout] = useState<(LayoutResult & { sig: string }) | null>(null)
+  const [layout, setLayout] = useState<(LayoutResult & { sig: string; cached?: boolean }) | null>(null)
   const [layoutError, setLayoutError] = useState<{ sig: string; message: string } | null>(null)
   const renders = useRef(0)
+  useEffect(warmLayout, [])
+  // Zoomed out past the level-of-detail threshold (with hysteresis: enter below LOD.enter, leave above LOD.leave).
+  // Subscribing to the store directly re-renders the map only when the threshold is crossed, not on every zoom step.
+  const flowStore = useStoreApi()
+  const [zoomedOut, setZoomedOut] = useState(false)
+  useEffect(
+    () =>
+      flowStore.subscribe((s) => {
+        const z = s.transform[2]
+        // A transition: swapping drawings must not block the wheel or drag event that crossed the threshold.
+        startTransition(() => setZoomedOut((prev) => (prev ? z < LOD.leave : z < LOD.enter)))
+      }),
+    [flowStore],
+  )
   // Staleness (7-day window) is evaluated against a clock that ticks every minute, not on every render.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -216,21 +238,58 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     }))
     const edges = [...view.model.edges.values()].map((e) => ({ id: e.id, source: e.from, target: e.to }))
     const pinned = Object.fromEntries(Object.entries(mapStore.state.pinned).filter(([id]) => view.model.nodes.has(id)))
-    runLayout({
-      algorithm,
-      direction: rankdir,
-      nodes,
-      edges,
-      groups: view.groups.map((g) => ({ id: g.key, label: g.label })),
-      focus: [...view.model.nodes.values()].filter((n) => n.root).map((n) => n.id),
-      pinned,
-    })
+    // Revisits (back/forward, re-applied views) reuse the positions computed before.
+    const cacheKey = `${search.view ?? ''}|${signature}|${hashString(JSON.stringify(pinned))}`
+    const hit = layoutCache.get(cacheKey)
+    const pending = hit
+      ? Promise.resolve({ ...hit, cached: true })
+      : runLayout({
+          algorithm,
+          direction: rankdir,
+          nodes,
+          edges,
+          groups: view.groups.map((g) => ({ id: g.key, label: g.label })),
+          focus: [...view.model.nodes.values()].filter((n) => n.root).map((n) => n.id),
+          pinned,
+        }).then((r) => {
+          layoutCache.set(cacheKey, r)
+          return r
+        })
+    pending
       .then((r) => {
         if (cancelled) return
         try {
           performance.mark('deed-map-layout')
         } catch {
           // diagnostics only
+        }
+        // Large graphs: jump to the fitted viewport before the first render, so a drawing that will be shown zoomed
+        // out mounts as level-of-detail blocks straight away instead of as cards first (the animated fit follows).
+        if (nodes.length >= LOD.minNodes) {
+          const { width, height, minZoom } = flowStore.getState()
+          let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
+          for (const n of nodes) {
+            const p = r.positions[n.id] ?? { x: 0, y: 0 }
+            ;[x0, y0, x1, y1] = [
+              Math.min(x0, p.x),
+              Math.min(y0, p.y),
+              Math.max(x1, p.x + n.width),
+              Math.max(y1, p.y + n.height),
+            ]
+          }
+          if (width > 0 && height > 0 && x1 > x0) {
+            const vp = getViewportForBounds(
+              { x: x0, y: y0, width: x1 - x0, height: y1 - y0 },
+              width,
+              height,
+              minZoom,
+              1.25,
+              fitPadding(),
+            )
+            void rf.setViewport(vp)
+            // Urgent, in the same batch as the layout (the store subscription only schedules a transition).
+            setZoomedOut(vp.zoom < LOD.enter)
+          }
         }
         setLayout({ ...r, sig: signature })
       })
@@ -278,6 +337,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   // Traffic overlay: measured edge rates patch edge data only (never part of the topology signature).
   const edgeIds = useMemo(() => [...view.model.edges.keys()], [view.model])
   const traffic = useEdgeRates(edgeIds, style.traffic)
+
+  const lod = zoomedOut && view.model.nodes.size >= LOD.minNodes
 
   const built = useMemo(() => {
     if (layout?.sig !== signature) return { nodes: [] as Node[], edges: [] as Edge[] }
@@ -327,6 +388,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           sourcePos: hp.source,
           targetPos: hp.target,
           dimmed: !!neighbourSet && !neighbourSet.has(n.id),
+          lod: false,
         },
         ariaLabel: `${n.cluster ? 'Cluster' : (k?.title ?? n.kind)} ${n.displayName ?? n.name}, health ${n.health}, freshness ${n.freshness}`,
       }
@@ -388,10 +450,40 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     now,
   ])
 
+  // Level of detail only swaps how nodes draw (crossing the threshold must not rebuild every node and edge).
+  const shownNodes = useMemo(
+    () =>
+      lod
+        ? built.nodes.map((n) =>
+            n.type === 'group'
+              ? n
+              : // Dragging a block in the zoomed-out overview is never useful, and skips the drag set-up per node.
+                { ...n, draggable: false, data: { ...(n.data as EntityNodeData), lod: true } },
+          )
+        : built.nodes,
+    [built.nodes, lod],
+  )
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   useEffect(() => {
-    setNodes(built.nodes)
-  }, [built.nodes, setNodes])
+    setNodes(shownNodes)
+  }, [shownNodes, setNodes])
+
+  // Blocks have no handles, so nodes that stay mounted when cards come back are re-measured, all in one batch, once
+  // the cards are on screen (newly mounted nodes are measured by React Flow itself).
+  const updateNodeInternals = useUpdateNodeInternals()
+  const remeasure = useRef(false)
+  useEffect(() => {
+    if (lod) remeasure.current = true
+  }, [lod])
+  useEffect(() => {
+    const first = nodes.find((n) => n.type !== 'group')
+    if (!remeasure.current || !first || (first.data as EntityNodeData).lod) return
+    remeasure.current = false
+    const mounted = [...document.querySelectorAll('.deed-map .react-flow__node[data-id]')].map(
+      (el) => el.getAttribute('data-id') ?? '',
+    )
+    updateNodeInternals(mounted)
+  }, [nodes, updateNodeInternals])
 
   // Fit the view when the topology changes; record render timings for the budget measurements.
   const lastFit = useRef('')
@@ -413,7 +505,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         window.__deedMap = {
           nodes: view.model.nodes.size,
           edges: view.model.edges.size,
-          layoutMs: Math.round(layout.ms),
+          layoutMs: layout.cached ? 0 : Math.round(layout.ms),
+          layoutCached: !!layout.cached,
           fetchToRenderMs: Math.round(fetchToRender),
           signature: layout.sig,
           renders: renders.current,
@@ -569,6 +662,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           directionHint: style.directionHint,
           traffic: style.traffic,
           reducedMotion: reduced,
+          lod,
         },
         typeColor,
         typeTitle,
@@ -576,7 +670,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         now,
         traffic.rates,
       ),
-    [view.model, style, reduced, typeColor, typeTitle, traffic.rates, now],
+    [view.model, style, reduced, lod, typeColor, typeTitle, traffic.rates, now],
   )
 
   // Breadcrumb names for the exploration trail.
@@ -859,7 +953,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           >
             <ReactFlow
               nodes={nodes}
-              edges={built.edges}
+              edges={lod ? NO_EDGES : built.edges}
               onNodesChange={onNodesChange}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
@@ -900,6 +994,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
               }}
             >
               <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
+              {lod && <LodEdges edges={built.edges as DeedFlowEdge[]} nodes={nodes} />}
               <Controls showInteractive={false} showFitView={false} position="bottom-right" aria-label="Zoom controls">
                 <Tooltip label="Fit view (f)">
                   <button
@@ -940,7 +1035,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
               </Panel>
               <Panel position="bottom-left">
                 {legendOpen ? (
-                  <MapLegend legend={legend} onClose={() => setPanel('legendOpen', false)} showNodes />
+                  <MapLegend legend={legend} onClose={() => setPanel('legendOpen', false)} showNodes lod={lod} />
                 ) : (
                   <Button size="xs" variant="default" onClick={() => setPanel('legendOpen', true)}>
                     Show legend (l)
@@ -997,12 +1092,19 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       >
         <Text size="xs" c="dimmed" data-testid="map-stats">
           {view.model.nodes.size} nodes · {view.model.edges.size} edges
-          {layout ? ` · layout ${Math.round(layout.ms)} ms (${algorithm})` : ''}
+          {layout
+            ? ` · layout ${layout.cached ? `cached (${Math.round(layout.ms)} ms when computed)` : `${Math.round(layout.ms)} ms`} (${algorithm})`
+            : ''}
           {data.model.elapsedMs ? ` · query ${data.model.elapsedMs} ms` : ''}
           {style.traffic
             ? ` · traffic: ${traffic.measured} measured edge${traffic.measured === 1 ? '' : 's'}${traffic.stream === 'live' ? ' (live)' : ''}`
             : ''}
         </Text>
+        {lod && (
+          <Text size="xs" c="dimmed" data-testid="map-lod-note">
+            Simplified drawing while zoomed out — zoom in for names, arrowheads and labels
+          </Text>
+        )}
         <Text size="xs" c="dimmed">
           ←↑→↓ neighbours · Enter expand · Esc clear · f fit · l legend · / search
         </Text>
