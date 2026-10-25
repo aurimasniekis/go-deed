@@ -422,3 +422,33 @@ func TestPorchSync(t *testing.T) {
 		t.Error("disabled tenant read")
 	}
 }
+
+// A real Porch answers 404 to GET /tenants/{t} for a tenant token holding only app:manage and service_account:manage
+// (the narrowest credential that can read applications), so a configured tenant must still be read; a tenant the
+// token cannot read at all is reported with the permissions it needs.
+func TestPorchTenantToken(t *testing.T) {
+	env := testenv.New(t)
+	ctx := context.Background()
+	pc := serveFixture(t, "porch", "/api/v1", "porch_at_tenant", nil)
+	p := env.Project(t, "identity")
+	src := newSource(t, env, p.ID, PorchType, map[string]any{"url": pc.URL, "tenants": []string{"home"}}, "porch_at_tenant")
+	r := runner(env)
+	if run := syncOK(t, r, src); run.Result != "ok" {
+		t.Fatalf("run %s: %+v", run.Result, run.Diagnostics)
+	}
+	if pc.hits["/tenants/home"] != 1 || pc.hits["/tenants?limit=100"] != 0 {
+		t.Fatalf("hits: %v", pc.hits)
+	}
+	ents := entities(t, env)
+	for _, want := range []string{"porch_app/home-grafana", "porch_app/home-nas", "porch_service_account/home-deed"} {
+		if ents[want] == nil {
+			t.Errorf("missing %s (have %v)", want, keys(ents))
+		}
+	}
+	src2 := newSource(t, env, env.Project(t, "other").ID, PorchType, map[string]any{"url": pc.URL, "tenants": []string{"home", "gone"}}, "porch_at_tenant")
+	diags, err := r.Test(ctx, src2)
+	if err != nil || len(diags) != 1 || diags[0].Level != "error" || !strings.Contains(diags[0].Message, "tenant gone") ||
+		!strings.Contains(diags[0].Message, "app:manage") {
+		t.Fatalf("unreadable tenant: %+v %v", diags, err)
+	}
+}

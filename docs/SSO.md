@@ -40,8 +40,22 @@ the issuer resolves to a private address, list its range in `outbound.allow_cidr
 `outbound.ca_file`.
 
 ## Porch example
-Create a confidential OIDC application in Porch with the redirect URI above and enable group disclosure (Porch emits
-`porch.groups` only when the `groups` scope is requested and disclosure is on).
+Create a confidential OIDC application in Porch with the redirect URI above, enable group disclosure and add `groups`
+to the client's `allowed_scopes`. Porch emits `porch.groups` only when the `groups` scope is requested, allowed for
+the client and disclosure is on. Its default `allowed_scopes` (`openid profile email offline_access`) omit `groups`,
+and Porch silently drops requested scopes the client is not allowed: every group-mapped login then fails as "not
+provisioned", and Deed logs `oidc provider did not grant every requested scope` with `missing_scopes=[groups]`.
+
+```http
+POST /api/v1/tenants/home/applications
+{"slug": "deed", "name": "Deed", "kind": "oidc", "access_mode": "all_members",
+ "client": {"client_type": "confidential", "redirect_uris": ["https://deed.example.com/auth/oidc/porch/callback"],
+            "grant_types": ["authorization_code"], "allowed_scopes": ["openid", "profile", "email", "groups"]},
+ "disclosure": {"email": true, "groups": true, "roles": false, "entitlements": false}}
+```
+
+`porch.groups` holds the slugs of the user's groups in the tenant named by `porch.tenant.slug`. For a member of a
+tenant the application is shared with, that is the sharing tenant, not the owner: `required_tenant` refuses them.
 
 ```yaml
 public_url: https://deed.example.com
@@ -148,5 +162,9 @@ Successful logins record `auth.login` with the provider and group count. Denials
 `deed_auth_logins_total{method="oidc",outcome}` counts `success`, `failure` and `error` (provider unavailable).
 
 ## Validation status
-There are no automated tests of the OIDC flow in this checkout (`internal/oidc` has no `_test.go` files), and SSO
-against a real Porch instance is **pending**.
+`internal/oidc` tests the flow against an in-process provider (JIT and role sync, tampered state, binding, PKCE, iss
+and nonce, provisioning policies). `scripts/validate/porch.sh` validates it end to end against a real Porch built
+from source (development mode, loopback, Porch's fake Google for its own sign-in): JIT provisioning with group →
+installation and project roles from the nested `porch.groups` claim, refusal of an unmapped user and of a user from
+another tenant (`required_tenant`), `(iss, sub)` matching on the next login, role lowering when a Porch group
+membership is removed, and refusal of a callback with a wrong or missing `iss`.

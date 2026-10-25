@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/aurimasniekis/go-deed/internal/apperr"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/sources"
 )
@@ -43,20 +44,21 @@ const porchSchema = `{
 }`
 
 // Porch is the porch provider: applications (OIDC clients and forward-auth apps) and service accounts per tenant,
-// read with a read-only porch_at_ automation token.
+// read with a porch_at_ automation token (Porch has no read-only permission for them; Deed only sends GETs).
 type Porch struct{}
 
 // Describe implements sources.Provider.
 func (Porch) Describe() sources.Descriptor {
 	return sources.Descriptor{Type: PorchType, Title: "Porch", Description: "Reads applications and service accounts of Porch tenants with " +
-		"a read-only porch_at_ token. Applications authenticate_with the Porch instance; hosts protected by forward-auth apps and hosts in " +
+		"a porch_at_ automation token (a tenant token with app:manage and service_account:manage, used with tenants; Porch has no " +
+		"read-only permission for them). Applications authenticate_with the Porch instance; hosts protected by forward-auth apps and hosts in " +
 		"OIDC redirect URIs are linked to matching DNS records or domains (inferred, with evidence). Client secrets are never requested.",
 		DefaultLayer: catalog.LayerImported, ConfigSchema: json.RawMessage(porchSchema), SecretFields: []string{"token"},
 		Capabilities: sources.Capabilities{Pull: true, Snapshot: true},
 		Kinds: []sources.KindSupport{{Kind: "service", Level: sources.SupportNative, Note: "the Porch instance"}, {Kind: "porch_app", Level: sources.SupportNative},
 			{Kind: "porch_service_account", Level: sources.SupportNative}},
 		RelTypes: []string{"authenticates_with", "protected_by"}, DefaultSchedule: 900, Docs: "docs/CONNECTORS.md#porch",
-		Verified: "contract tests against fixtures shaped by Porch api/openapi.json; real Porch validation pending"}
+		Verified: "validated against a real Porch run from source (scripts/validate/porch.sh); contract tests against fixtures matching its responses"}
 }
 
 func parsePorch(raw json.RawMessage) (*PorchConfig, error) {
@@ -143,10 +145,13 @@ func porchTenants(ctx context.Context, pc *apiClient, c *PorchConfig) ([]porchTe
 		for _, slug := range c.Tenants {
 			var t porchTenant
 			if _, err := pc.get(ctx, "/tenants/"+url.PathEscape(slug), nil, &t); err != nil {
-				if errors.Is(err, errNotFound) {
-					return nil, fmt.Errorf("tenant %s: %w", slug, err)
+				if !errors.Is(err, errNotFound) {
+					return nil, err
 				}
-				return nil, err
+				// GET /tenants/{t} needs tenant:manage, which a tenant token limited to app:manage and
+				// service_account:manage lacks (Porch answers 404 for both missing and unreadable tenants). The
+				// applications request decides whether the tenant can be read.
+				t = porchTenant{Slug: slug, Status: "active"}
 			}
 			out = append(out, t)
 		}
@@ -180,7 +185,7 @@ func (Porch) Test(ctx context.Context, env sources.Env) []sources.Diagnostic {
 		}
 		var list []porchApp
 		if _, err := pc.get(ctx, "/tenants/"+url.PathEscape(t.Slug)+"/applications", nil, &list); err != nil {
-			return []sources.Diagnostic{{Level: "error", Code: "applications", Message: t.Slug + ": " + message(err)}}
+			return []sources.Diagnostic{{Level: "error", Code: "applications", Message: message(porchTenantErr(t.Slug, "applications", err))}}
 		}
 		apps += len(list)
 	}
@@ -221,7 +226,7 @@ func (Porch) Sync(ctx context.Context, env sources.Env, em sources.Emitter) erro
 		}
 		var apps []porchApp
 		if _, err := pc.get(ctx, "/tenants/"+url.PathEscape(t.Slug)+"/applications", nil, &apps); err != nil {
-			return fmt.Errorf("tenant %s applications: %w", t.Slug, err)
+			return porchTenantErr(t.Slug, "applications", err)
 		}
 		for _, a := range apps {
 			if !a.Enabled && !c.IncludeDisabled {
@@ -296,7 +301,7 @@ func (Porch) Sync(ctx context.Context, env sources.Env, em sources.Emitter) erro
 		var sas []porchServiceAccount
 		if _, err := pc.get(ctx, "/tenants/"+url.PathEscape(t.Slug)+"/service-accounts", nil, &sas); err != nil {
 			em.Partial("Porch service accounts unavailable")
-			em.Diag(sources.Diagnostic{Level: "warning", Code: "service_accounts", Message: t.Slug + ": " + message(err)})
+			em.Diag(sources.Diagnostic{Level: "warning", Code: "service_accounts", Message: message(porchTenantErr(t.Slug, "service-accounts", err))})
 			continue
 		}
 		for _, s := range sas {
@@ -324,6 +329,26 @@ func (Porch) Sync(ctx context.Context, env sources.Env, em sources.Emitter) erro
 		}
 	}
 	return nil
+}
+
+// porchTenantErr explains a failed tenant-scoped read. Porch answers 404 both for a missing tenant and for one the
+// token cannot read: installation auditor tokens list tenants but read nothing inside them, and tenant tokens need
+// app:manage (applications) and service_account:manage (service accounts) in their own tenant.
+func porchTenantErr(slug, what string, err error) error {
+	if !errors.Is(err, errNotFound) {
+		var ae *apperr.Error
+		if errors.As(err, &ae) {
+			return apperr.New(ae.Code, "tenant %s %s: %s", slug, what, ae.Message)
+		}
+		return fmt.Errorf("tenant %s %s: %w", slug, what, err)
+	}
+	perm := "app:manage"
+	if what == "service-accounts" {
+		perm = "service_account:manage"
+	}
+	return apperr.New(apperr.CodeNotFound, "tenant %s: Porch answered 404 for %s: the tenant does not exist or the token cannot read it "+
+		"(use a tenant automation token with %s, or an installation admin token; installation auditor tokens cannot read tenant resources)",
+		slug, what, perm)
 }
 
 func normHost(h string) string {
