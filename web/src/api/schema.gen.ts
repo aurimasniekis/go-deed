@@ -587,6 +587,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/findings/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-evaluate findings and alerts now (owner or admin)
+         * @description Findings are otherwise evaluated every two minutes.
+         */
+        post: operations["evaluate-findings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/findings/{id}": {
         parameters: {
             query?: never;
@@ -707,6 +727,41 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/icons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Custom icons */
+        get: operations["list-icons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/icons/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upload or replace a custom icon (owner or admin) */
+        put: operations["put-icon"];
+        post?: never;
+        /** Delete a custom icon (owner or admin) */
+        delete: operations["delete-icon"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1736,6 +1791,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Version status of entities in readable projects */
+        get: operations["list-version-checks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/versions/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-check versions now (owner or admin) */
+        post: operations["run-version-check"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/views": {
         parameters: {
             query?: never;
@@ -2043,6 +2132,32 @@ export interface components {
             summary: {
                 [key: string]: unknown;
             };
+        };
+        Check: {
+            /** Format: date-time */
+            checked_at: string;
+            cycle?: string;
+            declared?: string;
+            entity_id: string;
+            eol_date?: string;
+            evidence: {
+                [key: string]: unknown;
+            };
+            kind: string;
+            latest?: string;
+            /** @enum {string} */
+            latest_source?: "catalog_release" | "eol_api" | "";
+            name: string;
+            observed?: string;
+            product?: string;
+            project_id: string;
+            /** @enum {string} */
+            status: "current" | "update_available" | "eol" | "unknown" | "not_applicable";
+            support_until?: string;
+        };
+        CheckOutputBody: {
+            /** Format: int64 */
+            checked: number;
         };
         Cluster: {
             /** Format: int64 */
@@ -2582,6 +2697,21 @@ export interface components {
             reason?: string;
             state: string;
         };
+        Icon: {
+            /** Format: int64 */
+            bytes: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            id: string;
+            /** @description Only black/currentColor paint: the UI tints it for the theme. */
+            monochrome: boolean;
+            name: string;
+            /** @description Icon reference for metadata.icon (custom:<name>). */
+            ref: string;
+            sha256: string;
+            url: string;
+        };
         Identity: {
             /** Format: date-time */
             created_at: string;
@@ -2792,6 +2922,11 @@ export interface components {
             purpose: string;
             role?: string;
         };
+        ListOutputBody: {
+            enabled: boolean;
+            eol_source: boolean;
+            items: components["schemas"]["Check"][];
+        };
         LoginInputBody: {
             email: string;
             password: string;
@@ -2978,6 +3113,10 @@ export interface components {
             attributes?: {
                 [key: string]: unknown;
             };
+        };
+        PutInputBody: {
+            /** @description SVG source (≤ 64 KiB). Scripts, styles, event handlers, foreignObject and external references are removed. */
+            svg: string;
         };
         ReauthInputBody: {
             code?: string;
@@ -4936,6 +5075,33 @@ export interface operations {
             };
         };
     };
+    "evaluate-findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     "get-finding": {
         parameters: {
             query?: never;
@@ -5161,6 +5327,99 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Result"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "list-icons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Icon"][];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "put-icon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Icon"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "delete-icon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
@@ -7800,6 +8059,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LinkBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "list-version-checks": {
+        parameters: {
+            query?: {
+                /** @description Comma-separated statuses. */
+                status?: string;
+                project?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "run-version-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckOutputBody"];
                 };
             };
             /** @description Error */

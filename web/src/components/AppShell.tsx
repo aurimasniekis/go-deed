@@ -41,6 +41,8 @@ import {
   IconFolders,
   IconArrowsExchange,
   IconArchive,
+  IconPhoto,
+  IconVersions,
   IconActivityHeartbeat,
   IconListDetails,
 } from '@tabler/icons-react'
@@ -51,6 +53,7 @@ import { canReadAllAudit, isInstallationAdmin, meKey, useMe } from '@/api/auth'
 import { api } from '@/api/client'
 import { setCsrfToken, setUnauthorizedHandler, loginUrl } from '@/api/session'
 import { useLiveConnection } from '@/api/useLive'
+import { useCustomIconsLoader } from '@/api/icons'
 import { ReauthModal } from '@/features/auth/ReauthModal'
 import { setShortcutsOpen, useLoadUserPrefs } from '@/lib/appStore'
 import { BrandMark } from './Brand'
@@ -221,6 +224,7 @@ export function AppShellLayout() {
   const admin = isInstallationAdmin(me)
   useLoadUserPrefs(me?.user_id)
   useLiveConnection(!!me && !me.mfa_pending && !me.must_enroll)
+  useCustomIconsLoader(!!me && !me.mfa_pending && !me.must_enroll)
   useGoShortcuts()
 
   useEffect(
@@ -247,11 +251,13 @@ export function AppShellLayout() {
   const operate: NavItem[] = [
     { to: '/findings', label: 'Findings', icon: <IconAlertTriangle size={17} stroke={1.6} /> },
     { to: '/alerts', label: 'Alerts', icon: <IconBell size={17} stroke={1.6} /> },
+    { to: '/versions', label: 'Versions', icon: <IconVersions size={17} stroke={1.6} /> },
     { to: '/sources', label: 'Sources', icon: <IconPlugConnected size={17} stroke={1.6} /> },
   ]
   const model: NavItem[] = [
     { to: '/kinds', label: 'Kinds', icon: <IconCategory size={17} stroke={1.6} /> },
     { to: '/relationship-types', label: 'Relationship types', icon: <IconBinaryTree2 size={17} stroke={1.6} /> },
+    { to: '/settings/icons', label: 'Icons', icon: <IconPhoto size={17} stroke={1.6} /> },
   ]
   const settings: NavItem[] = [
     { to: '/settings/projects', label: 'Projects', icon: <IconFolders size={17} stroke={1.6} /> },

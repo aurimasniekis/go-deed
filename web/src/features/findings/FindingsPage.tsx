@@ -12,10 +12,10 @@ import {
   Tooltip,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconCheck } from '@tabler/icons-react'
+import { IconCheck, IconRefresh } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { anyProjectAtLeast } from '@/api/auth'
-import { api, errorMessage, unwrap, type Finding } from '@/api/client'
+import { anyProjectAtLeast, isInstallationAdmin, useMe } from '@/api/auth'
+import { api, check, errorMessage, unwrap, type Finding } from '@/api/client'
 import { keys, useProjects } from '@/api/queries'
 import { Page } from '@/components/AppShell'
 import { PageHeader, TimeAgo } from '@/components/common'
@@ -83,6 +83,19 @@ export function FindingsPage({
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['findings'] }),
     onError: (e) => notifications.show({ color: 'red', title: 'Could not acknowledge', message: errorMessage(e) }),
   })
+  const admin = isInstallationAdmin(useMe().data)
+  const evaluate = useMutation({
+    mutationFn: async () => {
+      check(await api.POST('/findings/evaluate'))
+    },
+    onSuccess: () => {
+      notifications.show({ color: 'green', message: 'Findings and alerts re-evaluated' })
+      void qc.invalidateQueries({ queryKey: ['findings'] })
+      void qc.invalidateQueries({ queryKey: ['alerts'] })
+    },
+    onError: (e) =>
+      notifications.show({ color: 'red', title: 'Could not evaluate findings', message: errorMessage(e) }),
+  })
   const patch = (p: Partial<FindingsSearch>) => setSearch(compact({ ...search, ...p }))
   const canAck = anyProjectAtLeast(projects.data, 'editor')
   const rows = (findings.data ?? []).filter(
@@ -95,7 +108,20 @@ export function FindingsPage({
     <Page wide>
       <PageHeader
         title="Findings"
-        description="Problems Deed derives from evidence: expiring certificates, drift, conflicts, stale sources, unresolved relationships and more. Findings close by themselves when the evidence clears."
+        description="Problems Deed derives from evidence: expiring certificates, drift, conflicts, stale sources, unresolved relationships and more. Findings are evaluated every two minutes and close by themselves when the evidence clears."
+        actions={
+          admin && (
+            <Button
+              variant="default"
+              leftSection={<IconRefresh size={14} />}
+              loading={evaluate.isPending}
+              onClick={() => evaluate.mutate()}
+              data-testid="evaluate-findings"
+            >
+              Evaluate now
+            </Button>
+          )
+        }
       />
       <Group gap="xs" mb="sm" align="flex-end" wrap="wrap">
         <SegmentedControl

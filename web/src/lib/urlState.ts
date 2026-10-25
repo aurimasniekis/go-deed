@@ -248,3 +248,15 @@ export function validateFindingsSearch(s: Record<string, unknown>): FindingsSear
     state: decodeEnum(s.state, ['open', 'closed', 'all'] as const),
   })
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Versions
+
+export interface VersionsSearch {
+  status?: string
+  q?: string
+}
+
+export function validateVersionsSearch(s: Record<string, unknown>): VersionsSearch {
+  return compact({ status: encodeList(decodeList(s.status)), q: decodeString(s.q, 200) })
+}

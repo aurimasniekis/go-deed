@@ -19,6 +19,7 @@ import { Route as AppInventoryRouteImport } from './routes/_app/inventory'
 import { Route as AppMapRouteImport } from './routes/_app/map'
 import { Route as AppRelationsRouteImport } from './routes/_app/relations'
 import { Route as AppRelationshipTypesRouteImport } from './routes/_app/relationship-types'
+import { Route as AppVersionsRouteImport } from './routes/_app/versions'
 import { Route as AppEntitiesIdRouteImport } from './routes/_app/entities.$id'
 import { Route as AppKindsIndexRouteImport } from './routes/_app/kinds.index'
 import { Route as AppKindsNameRouteImport } from './routes/_app/kinds.$name'
@@ -29,6 +30,7 @@ import { Route as AppSettingsAccountRouteImport } from './routes/_app/settings/a
 import { Route as AppSettingsAuditRouteImport } from './routes/_app/settings/audit'
 import { Route as AppSettingsBackupsRouteImport } from './routes/_app/settings/backups'
 import { Route as AppSettingsBridgesRouteImport } from './routes/_app/settings/bridges'
+import { Route as AppSettingsIconsRouteImport } from './routes/_app/settings/icons'
 import { Route as AppSettingsTelemetryRouteImport } from './routes/_app/settings/telemetry'
 import { Route as AppSettingsUsersRouteImport } from './routes/_app/settings/users'
 import { Route as AppSourcesIndexRouteImport } from './routes/_app/sources.index'
@@ -86,6 +88,11 @@ const AppRelationshipTypesRoute = AppRelationshipTypesRouteImport.update({
   path: '/relationship-types',
   getParentRoute: () => AppRoute,
 } as any)
+const AppVersionsRoute = AppVersionsRouteImport.update({
+  id: '/versions',
+  path: '/versions',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEntitiesIdRoute = AppEntitiesIdRouteImport.update({
   id: '/entities/$id',
   path: '/entities/$id',
@@ -136,6 +143,11 @@ const AppSettingsBridgesRoute = AppSettingsBridgesRouteImport.update({
   path: '/settings/bridges',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsIconsRoute = AppSettingsIconsRouteImport.update({
+  id: '/settings/icons',
+  path: '/settings/icons',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsTelemetryRoute = AppSettingsTelemetryRouteImport.update({
   id: '/settings/telemetry',
   path: '/settings/telemetry',
@@ -184,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/map': typeof AppMapRoute
   '/relations': typeof AppRelationsRoute
   '/relationship-types': typeof AppRelationshipTypesRoute
+  '/versions': typeof AppVersionsRoute
   '/entities/$id': typeof AppEntitiesIdRoute
   '/kinds/$name': typeof AppKindsNameRoute
   '/kinds/new': typeof AppKindsNewRoute
@@ -192,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/settings/audit': typeof AppSettingsAuditRoute
   '/settings/backups': typeof AppSettingsBackupsRoute
   '/settings/bridges': typeof AppSettingsBridgesRoute
+  '/settings/icons': typeof AppSettingsIconsRoute
   '/settings/telemetry': typeof AppSettingsTelemetryRoute
   '/settings/users': typeof AppSettingsUsersRoute
   '/sources/$id': typeof AppSourcesIdRoute
@@ -211,6 +225,7 @@ export interface FileRoutesByTo {
   '/map': typeof AppMapRoute
   '/relations': typeof AppRelationsRoute
   '/relationship-types': typeof AppRelationshipTypesRoute
+  '/versions': typeof AppVersionsRoute
   '/': typeof AppIndexRoute
   '/entities/$id': typeof AppEntitiesIdRoute
   '/kinds/$name': typeof AppKindsNameRoute
@@ -220,6 +235,7 @@ export interface FileRoutesByTo {
   '/settings/audit': typeof AppSettingsAuditRoute
   '/settings/backups': typeof AppSettingsBackupsRoute
   '/settings/bridges': typeof AppSettingsBridgesRoute
+  '/settings/icons': typeof AppSettingsIconsRoute
   '/settings/telemetry': typeof AppSettingsTelemetryRoute
   '/settings/users': typeof AppSettingsUsersRoute
   '/sources/$id': typeof AppSourcesIdRoute
@@ -241,6 +257,7 @@ export interface FileRoutesById {
   '/_app/map': typeof AppMapRoute
   '/_app/relations': typeof AppRelationsRoute
   '/_app/relationship-types': typeof AppRelationshipTypesRoute
+  '/_app/versions': typeof AppVersionsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/entities/$id': typeof AppEntitiesIdRoute
   '/_app/kinds/$name': typeof AppKindsNameRoute
@@ -250,6 +267,7 @@ export interface FileRoutesById {
   '/_app/settings/audit': typeof AppSettingsAuditRoute
   '/_app/settings/backups': typeof AppSettingsBackupsRoute
   '/_app/settings/bridges': typeof AppSettingsBridgesRoute
+  '/_app/settings/icons': typeof AppSettingsIconsRoute
   '/_app/settings/telemetry': typeof AppSettingsTelemetryRoute
   '/_app/settings/users': typeof AppSettingsUsersRoute
   '/_app/sources/$id': typeof AppSourcesIdRoute
@@ -272,6 +290,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/relations'
     | '/relationship-types'
+    | '/versions'
     | '/entities/$id'
     | '/kinds/$name'
     | '/kinds/new'
@@ -280,6 +299,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/settings/backups'
     | '/settings/bridges'
+    | '/settings/icons'
     | '/settings/telemetry'
     | '/settings/users'
     | '/sources/$id'
@@ -299,6 +319,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/relations'
     | '/relationship-types'
+    | '/versions'
     | '/'
     | '/entities/$id'
     | '/kinds/$name'
@@ -308,6 +329,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/settings/backups'
     | '/settings/bridges'
+    | '/settings/icons'
     | '/settings/telemetry'
     | '/settings/users'
     | '/sources/$id'
@@ -328,6 +350,7 @@ export interface FileRouteTypes {
     | '/_app/map'
     | '/_app/relations'
     | '/_app/relationship-types'
+    | '/_app/versions'
     | '/_app/'
     | '/_app/entities/$id'
     | '/_app/kinds/$name'
@@ -337,6 +360,7 @@ export interface FileRouteTypes {
     | '/_app/settings/audit'
     | '/_app/settings/backups'
     | '/_app/settings/bridges'
+    | '/_app/settings/icons'
     | '/_app/settings/telemetry'
     | '/_app/settings/users'
     | '/_app/sources/$id'
@@ -426,6 +450,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRelationshipTypesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/versions': {
+      id: '/_app/versions'
+      path: '/versions'
+      fullPath: '/versions'
+      preLoaderRoute: typeof AppVersionsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/entities/$id': {
       id: '/_app/entities/$id'
       path: '/entities/$id'
@@ -496,6 +527,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsBridgesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/icons': {
+      id: '/_app/settings/icons'
+      path: '/settings/icons'
+      fullPath: '/settings/icons'
+      preLoaderRoute: typeof AppSettingsIconsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/telemetry': {
       id: '/_app/settings/telemetry'
       path: '/settings/telemetry'
@@ -555,6 +593,7 @@ interface AppRouteChildren {
   AppMapRoute: typeof AppMapRoute
   AppRelationsRoute: typeof AppRelationsRoute
   AppRelationshipTypesRoute: typeof AppRelationshipTypesRoute
+  AppVersionsRoute: typeof AppVersionsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppEntitiesIdRoute: typeof AppEntitiesIdRoute
   AppKindsNameRoute: typeof AppKindsNameRoute
@@ -564,6 +603,7 @@ interface AppRouteChildren {
   AppSettingsAuditRoute: typeof AppSettingsAuditRoute
   AppSettingsBackupsRoute: typeof AppSettingsBackupsRoute
   AppSettingsBridgesRoute: typeof AppSettingsBridgesRoute
+  AppSettingsIconsRoute: typeof AppSettingsIconsRoute
   AppSettingsTelemetryRoute: typeof AppSettingsTelemetryRoute
   AppSettingsUsersRoute: typeof AppSettingsUsersRoute
   AppSourcesIdRoute: typeof AppSourcesIdRoute
@@ -582,6 +622,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMapRoute: AppMapRoute,
   AppRelationsRoute: AppRelationsRoute,
   AppRelationshipTypesRoute: AppRelationshipTypesRoute,
+  AppVersionsRoute: AppVersionsRoute,
   AppIndexRoute: AppIndexRoute,
   AppEntitiesIdRoute: AppEntitiesIdRoute,
   AppKindsNameRoute: AppKindsNameRoute,
@@ -591,6 +632,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsAuditRoute: AppSettingsAuditRoute,
   AppSettingsBackupsRoute: AppSettingsBackupsRoute,
   AppSettingsBridgesRoute: AppSettingsBridgesRoute,
+  AppSettingsIconsRoute: AppSettingsIconsRoute,
   AppSettingsTelemetryRoute: AppSettingsTelemetryRoute,
   AppSettingsUsersRoute: AppSettingsUsersRoute,
   AppSourcesIdRoute: AppSourcesIdRoute,

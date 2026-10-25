@@ -211,7 +211,7 @@ function KindMetaFields({ v, onChange, isNew }: { v: KindMeta; onChange: (v: Kin
       />
       <TextInput
         label="Icon"
-        description="pack:name — tabler:server, simple-icons:docker…"
+        description="pack:name — tabler:server, simple-icons:docker, or custom:<name> for an uploaded icon (Settings › Icons)"
         value={v.icon}
         onChange={(e) => onChange({ ...v, icon: e.currentTarget.value })}
         leftSection={<RefIcon iconRef={v.icon || 'tabler:cube'} size={14} />}

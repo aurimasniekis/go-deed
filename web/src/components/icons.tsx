@@ -3,6 +3,7 @@ import {
   IconAlertOctagon,
   IconAlertTriangle,
   IconApps,
+  IconArrowBigUpLines,
   IconArrowGuide,
   IconArrowsExchange,
   IconBell,
@@ -68,6 +69,7 @@ import {
   IconUsersGroup,
   IconWorld,
   IconWorldWww,
+  IconMinus,
   type Icon,
   type IconProps,
 } from '@tabler/icons-react'
@@ -88,6 +90,7 @@ import {
   siTraefikproxy,
   siUbiquiti,
 } from 'simple-icons'
+import { Store, useSelector } from '@tanstack/react-store'
 import { createElement, type CSSProperties } from 'react'
 
 /**
@@ -100,6 +103,7 @@ const tabler: Record<string, Icon> = {
   'alert-octagon': IconAlertOctagon,
   'alert-triangle': IconAlertTriangle,
   apps: IconApps,
+  'arrow-big-up-lines': IconArrowBigUpLines,
   'arrow-guide': IconArrowGuide,
   'arrows-exchange': IconArrowsExchange,
   bell: IconBell,
@@ -132,6 +136,7 @@ const tabler: Record<string, Icon> = {
   'git-branch': IconGitBranch,
   'git-pull-request': IconGitPullRequest,
   'help-circle': IconHelpCircle,
+  minus: IconMinus,
   hexagon: IconHexagon,
   hierarchy: IconHierarchy,
   'id-badge': IconIdBadge,
@@ -191,6 +196,13 @@ const simple: Record<string, SimpleIcon> = {
   ubiquiti: siUbiquiti,
 }
 
+/** Uploaded icons (GET /icons), by name. Filled once per session by useCustomIconsLoader in the app shell. */
+export const customIcons = new Store<Record<string, { url: string; monochrome: boolean }>>({})
+
+export function customIconURL(name: string): string {
+  return customIcons.state[name]?.url ?? `/api/v1/icons/${encodeURIComponent(name)}.svg`
+}
+
 export function tablerIcon(name: string | undefined): Icon {
   return tabler[name ?? ''] ?? IconCube
 }
@@ -224,6 +236,7 @@ export function RefIcon({
   color?: string
 }) {
   const { pack, name } = parseIconRef(iconRef)
+  const custom = useSelector(customIcons, (s) => (pack === 'custom' ? s[name] : undefined))
   if (pack === 'simple-icons' && name in simple) {
     const si = simple[name]
     if (si) {
@@ -245,16 +258,30 @@ export function RefIcon({
     }
   }
   if (pack === 'custom') {
-    // Custom uploads are sanitized server-side and only ever rendered via <img> (ADR-011b).
-    return (
-      <img
-        src={`/api/v1/icons/custom/${encodeURIComponent(name)}.svg`}
-        width={size}
-        height={size}
-        alt={title ?? ''}
-        style={{ flexShrink: 0, ...style }}
-      />
-    )
+    // Custom uploads are sanitized server-side and never inlined into the DOM (ADR-011b): full-colour icons render
+    // through <img>, monochrome ones as a CSS mask so they take the surrounding text colour in both themes.
+    const url = custom?.url ?? customIconURL(name)
+    if (custom?.monochrome) {
+      const mask = `url("${url}") center / contain no-repeat`
+      return (
+        <span
+          role={title ? 'img' : undefined}
+          aria-hidden={title ? undefined : true}
+          aria-label={title}
+          style={{
+            display: 'inline-block',
+            width: size,
+            height: size,
+            flexShrink: 0,
+            backgroundColor: color ?? 'currentColor',
+            mask,
+            WebkitMask: mask,
+            ...style,
+          }}
+        />
+      )
+    }
+    return <img src={url} width={size} height={size} alt={title ?? ''} style={{ flexShrink: 0, ...style }} />
   }
   const props: IconProps = { size, stroke, style: { flexShrink: 0, ...style }, color }
   return createElement(

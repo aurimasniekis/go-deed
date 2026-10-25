@@ -144,3 +144,37 @@ export function entityHealth(status: { health?: Record<string, unknown> } | unde
   const reason = typeof h.reason === 'string' ? h.reason : ''
   return { state, reason }
 }
+
+/** Version intelligence (GET /versions). */
+export const VERSION_STATUS: Record<string, StatusMeta> = {
+  eol: {
+    label: 'End of life',
+    tone: 'red',
+    icon: 'alert-octagon',
+    description: 'The release cycle is past its end-of-life date.',
+  },
+  update_available: {
+    label: 'Update available',
+    tone: 'yellow',
+    icon: 'arrow-big-up-lines',
+    description: 'A newer release exists than the version in use.',
+  },
+  current: {
+    label: 'Current',
+    tone: 'green',
+    icon: 'circle-check',
+    description: 'The newest known release is in use.',
+  },
+  unknown: {
+    label: 'Unknown',
+    tone: 'gray',
+    icon: 'help-circle',
+    description: 'No release data matched this product or version.',
+  },
+  not_applicable: {
+    label: 'Not applicable',
+    tone: 'gray',
+    icon: 'minus',
+    description: 'No version to compare, or the product is not tracked.',
+  },
+}
