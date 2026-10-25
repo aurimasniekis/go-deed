@@ -488,18 +488,26 @@ func (e *Engine) Path(ctx context.Context, scope Scope, from, to string, maxDept
 			return nil, catalog.ErrEntityNotFound
 		}
 	}
+	// Bidirectional breadth-first search: expand the smaller frontier each round, so a path of length d explores
+	// about two balls of radius d/2 instead of one of radius d; a visited-node budget bounds pathological graphs.
 	type step struct {
-		prev string
-		edge Edge
+		other string // the neighbour towards the search's origin
+		edge  Edge
 	}
-	prev := map[string]step{from: {}}
-	frontier := []string{from}
-	dir := "both"
+	fwd := map[string]step{from: {}}
+	bwd := map[string]step{to: {}}
+	ff, bf := []string{from}, []string{to}
+	fDir, bDir := "both", "both"
 	if directed {
-		dir = "out"
+		fDir, bDir = "out", "in"
 	}
-	found := false
-	for depth := 0; depth < maxDepth && len(frontier) > 0 && !found; depth++ {
+	budget := max(e.MaxNodes*10, 5000)
+	meet := ""
+	if from == to {
+		meet = from
+	}
+	exhausted := false
+	expand := func(frontier []string, dir string, seen, other map[string]step, forward bool) ([]string, error) {
 		raws, err := e.edgesOf(ctx, frontier, dir, Query{Types: types, IncludeStale: true})
 		if err != nil {
 			return nil, err
@@ -513,46 +521,67 @@ func (e *Engine) Path(ctx context.Context, scope Scope, from, to string, maxDept
 			if !scope.can(r.fromProject) || !scope.can(r.toProject) {
 				continue // paths never pass through unreadable projects
 			}
-			var o string
+			var o, cur string
 			switch {
-			case fs[r.From]:
-				o = r.To
-			case !directed && fs[r.To]:
-				o = r.From
+			case (forward || !directed) && fs[r.From] && (dir != "in"):
+				o, cur = r.To, r.From
+			case (!forward || !directed) && fs[r.To] && (dir != "out"):
+				o, cur = r.From, r.To
 			default:
 				continue
 			}
-			if _, seen := prev[o]; seen {
+			if _, ok := seen[o]; ok {
 				continue
 			}
-			src := r.From
-			if o == r.From {
-				src = r.To
-			}
-			prev[o] = step{prev: src, edge: r.Edge}
+			seen[o] = step{other: cur, edge: r.Edge}
 			next = append(next, o)
-			if o == to {
-				found = true
-				break
+			if _, ok := other[o]; ok {
+				meet = o
+				return next, nil
+			}
+			if len(fwd)+len(bwd) > budget {
+				exhausted = true
+				return next, nil
 			}
 		}
-		frontier = next
+		return next, nil
+	}
+	for depth := 0; depth < maxDepth && meet == "" && !exhausted && len(ff) > 0 && len(bf) > 0; depth++ {
+		var err error
+		if len(ff) <= len(bf) {
+			ff, err = expand(ff, fDir, fwd, bwd, true)
+		} else {
+			bf, err = expand(bf, bDir, bwd, fwd, false)
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 	res := &Result{Nodes: []Node{}, Edges: []Edge{}, Notes: []string{}}
-	if !found {
-		res.Notes = append(res.Notes, fmt.Sprintf("no path within %d hops", maxDepth))
+	if meet == "" {
+		if exhausted {
+			res.Notes = append(res.Notes, fmt.Sprintf("search stopped after visiting %d entities without finding a path", len(fwd)+len(bwd)))
+		} else {
+			res.Notes = append(res.Notes, fmt.Sprintf("no path within %d hops", maxDepth))
+		}
 		res.Nodes = append(res.Nodes, *ends[from], *ends[to])
 		res.ElapsedMS = time.Since(start).Milliseconds()
 		return res, nil
 	}
 	var chain []string
-	for cur := to; cur != from; cur = prev[cur].prev {
+	for cur := meet; cur != from; cur = fwd[cur].other {
 		chain = append(chain, cur)
-		res.Edges = append(res.Edges, prev[cur].edge)
+		res.Edges = append(res.Edges, fwd[cur].edge)
 	}
 	chain = append(chain, from)
 	slices.Reverse(chain)
 	slices.Reverse(res.Edges)
+	for cur := meet; cur != to; {
+		st := bwd[cur]
+		res.Edges = append(res.Edges, st.edge)
+		chain = append(chain, st.other)
+		cur = st.other
+	}
 	loaded, err := e.loadNodes(ctx, scope, chain)
 	if err != nil {
 		return nil, err
