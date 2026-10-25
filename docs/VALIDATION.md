@@ -189,6 +189,21 @@ intermediate, `deed.example.com` leaf; an origin-pull CA and client certificate;
   origin-pull certificate, Full (strict) with an Origin CA certificate, cloudflared's `X-Forwarded-For`, edge caching,
   SSE through the 100 s proxy timeout, and the firewall on a real host (listed in `docs/CLOUDFLARE.md`).
 
+### S3 implementations other than MinIO — `scripts/validate/s3.sh` (36/36 PASS)
+SeaweedFS 4.47 (with and without an SSE-S3 key), Garage v2.4.1 and Versity S3 Gateway v1.8.0 in Docker, images pinned
+by digest, at go-deed `b72afe7`. Per implementation: the parameterized integration tests (`TestMinIO`, `TestS3Backend`,
+`TestS3Compat`: multipart, SSE-S3, not-found mapping, ListObjectsV2 paging over 1,100 keys, deletes, abort of
+incomplete uploads under the prefix only, virtual-host addressing, wrong region and secret), then the real CLI:
+wrong-region refusal, a first backup with SSE-S3, a planted interrupted multipart upload and 1,001 keys sorted ahead
+of the backups, retention pruning (interrupted upload aborted), `deed backup list` and `verify`, and `deed restore`
+into a fresh data directory (escrowed KEK, audit chain and counts verified).
+- **Found and fixed:** a wrong region gave a bare "400 Bad Request" (now the server's explanation and a hint); a
+  rejected SSE-S3 upload read as an internal error (now says to set `sse: false`); a failed upload left incomplete
+  multipart uploads behind until the next successful backup; the Terraform state S3 reader reported S3 error answers
+  as a connection failure.
+- Behaviour to know: Garage and Versity accept the SSE-S3 header without encrypting; backups are encrypted by Deed
+  (age) before upload either way. AWS S3, Cloudflare R2 and Backblaze B2 themselves were not used.
+
 ### endoflife.date — `TestLiveEndOfLife` (PASS)
 `DEED_TEST_EOL_URL=https://endoflife.date go test -run TestLiveEndOfLife ./internal/versions/` runs the version
 checker against the live API: PostgreSQL 12.1 → end of life (cycle 12, latest 12.22), MySQL 5.7.30 → end of life
@@ -208,4 +223,4 @@ checker against the live API: PostgreSQL 12.1 → end of life (cycle 12, latest 
   graceful SIGTERM): PASS locally at `5d026c3` and in CI.
 - Real-service validation **pending**: production deployments of Pulse, Porch, HallPass, Mimir and OpenSearch (only
   local runs above), GitHub Enterprise Server and private repositories, a real Cloudflare zone in front of a VPS (the origin shape is
-  validated locally above), S3 providers other than MinIO.
+  validated locally above), hosted S3 services (AWS S3, R2, B2; four other S3 implementations are validated above).
