@@ -121,6 +121,27 @@ func TestHTTPBackend(t *testing.T) {
 	}
 }
 
+// TestS3ErrorMessages: S3 answers outside the mapped codes are reported as what they are, not as a connection failure.
+func TestS3ErrorMessages(t *testing.T) {
+	for _, c := range []struct {
+		err  minio.ErrorResponse
+		want string
+	}{
+		{minio.ErrorResponse{StatusCode: 404, Code: "NoSuchKey"}, "not found"},
+		{minio.ErrorResponse{StatusCode: 403, Code: "SignatureDoesNotMatch"}, "denied"},
+		{minio.ErrorResponse{StatusCode: 400, Code: "AuthorizationHeaderMalformed"}, "s3.region"},
+		{minio.ErrorResponse{StatusCode: 400, Code: "400 Bad Request"}, "s3.region"}, // HEAD: Garage's region mismatch
+		{minio.ErrorResponse{StatusCode: 500, Code: "InternalError"}, "answered 500 Internal Server Error"},
+	} {
+		if got := diagMessage(s3Error(c.err)); !strings.Contains(got, c.want) {
+			t.Errorf("%s: %q", c.err.Code, got)
+		}
+	}
+	if got := diagMessage(s3Error(&net.OpError{Op: "dial", Err: os.ErrDeadlineExceeded})); !strings.HasPrefix(got, "request failed: ") {
+		t.Errorf("network error: %q", got)
+	}
+}
+
 func TestValidateConfig(t *testing.T) {
 	p := newProvider(t)
 	for name, cfg := range map[string]string{
@@ -142,19 +163,19 @@ func TestValidateConfig(t *testing.T) {
 	}
 }
 
-// TestS3Backend reads a state object from MinIO: DEED_TEST_S3=http://user:password@host:port (CI), or a `minio`
-// binary on PATH.
+// TestS3Backend reads a state object from S3: DEED_TEST_S3=http://user:password@host:port[?region=…] (CI uses
+// MinIO; scripts/validate/s3.sh runs other implementations), or a `minio` binary on PATH.
 func TestS3Backend(t *testing.T) {
-	endpoint, user, pass := minioEndpoint(t)
+	endpoint, user, pass, region := minioEndpoint(t)
 	ctx := context.Background()
-	mc, err := minio.New(endpoint, &minio.Options{Creds: credentials.NewStaticV4(user, pass, ""), Secure: false})
+	mc, err := minio.New(endpoint, &minio.Options{Creds: credentials.NewStaticV4(user, pass, ""), Secure: false, Region: region})
 	if err != nil {
 		t.Fatal(err)
 	}
 	bucket := fmt.Sprintf("deed-tfstate-%d", time.Now().UnixNano())
 	deadline := time.Now().Add(20 * time.Second)
 	for {
-		if err = mc.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err == nil || time.Now().After(deadline) {
+		if err = mc.MakeBucket(ctx, bucket, minio.MakeBucketOptions{Region: region}); err == nil || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -168,10 +189,11 @@ func TestS3Backend(t *testing.T) {
 	}
 
 	p := newProvider(t)
-	cfg := func(key string) map[string]any {
-		return map[string]any{"backend": "s3", "s3": map[string]any{"endpoint": endpoint, "bucket": bucket, "key": key, "use_ssl": false, "lookup": "path"},
-			"insecure_http": true, "allow_cidrs": []string{"127.0.0.1/32"}}
+	cfgRegion := func(key, region string) map[string]any {
+		return map[string]any{"backend": "s3", "s3": map[string]any{"endpoint": endpoint, "bucket": bucket, "key": key, "use_ssl": false, "lookup": "path",
+			"region": region}, "insecure_http": true, "allow_cidrs": []string{"127.0.0.1/32"}}
 	}
+	cfg := func(key string) map[string]any { return cfgRegion(key, region) }
 	creds := map[string]string{"s3_access_key_id": user, "s3_secret_access_key": pass}
 	var rec recorder
 	if err := p.Sync(ctx, env(t, cfg("env:/prod/core.tfstate"), creds), &rec); err != nil {
@@ -190,17 +212,22 @@ func TestS3Backend(t *testing.T) {
 	if d := p.Test(ctx, env(t, cfg("env:/prod/core.tfstate"), wrong)); d[0].Level != "error" || !strings.Contains(d[0].Message, "denied") {
 		t.Fatalf("wrong credentials: %+v", d)
 	}
+	// Servers that check the signature scope (Garage) must say the region is wrong, not report a connection failure.
+	if d := p.Test(ctx, env(t, cfgRegion("env:/prod/core.tfstate", "deed-wrong-region-1"), creds)); d[0].Code != "ok" &&
+		(d[0].Level != "error" || !strings.Contains(d[0].Message, "s3.region")) {
+		t.Fatalf("wrong region: %+v", d)
+	}
 }
 
-func minioEndpoint(t *testing.T) (endpoint, user, pass string) {
+func minioEndpoint(t *testing.T) (endpoint, user, pass, region string) {
 	t.Helper()
 	if v := os.Getenv("DEED_TEST_S3"); v != "" {
 		u, err := url.Parse(v)
 		if err != nil || u.User == nil {
-			t.Fatalf("DEED_TEST_S3 must be http://user:password@host:port")
+			t.Fatalf("DEED_TEST_S3 must be http://user:password@host:port[?region=…]")
 		}
 		pass, _ = u.User.Password()
-		return u.Host, u.User.Username(), pass
+		return u.Host, u.User.Username(), pass, u.Query().Get("region")
 	}
 	bin, err := exec.LookPath("minio")
 	if err != nil {
@@ -219,5 +246,5 @@ func minioEndpoint(t *testing.T) (endpoint, user, pass string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait() })
-	return endpoint, user, pass
+	return endpoint, user, pass, ""
 }

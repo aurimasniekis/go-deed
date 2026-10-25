@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,8 +14,6 @@ import (
 	"time"
 
 	"filippo.io/age"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	"github.com/aurimasniekis/go-deed/internal/audit"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
@@ -307,13 +304,9 @@ func TestMinIO(t *testing.T) {
 	ctx := context.Background()
 	var endpoint, user, pass string
 	var stop func()
-	if v := os.Getenv("DEED_TEST_S3"); v != "" {
-		u, err := url.Parse(v)
-		if err != nil || u.User == nil {
-			t.Fatalf("DEED_TEST_S3 must be http://user:password@host:port")
-		}
-		endpoint, user = u.Host, u.User.Username()
-		pass, _ = u.User.Password()
+	tgt, ok := s3FromEnv(t)
+	if ok {
+		endpoint, user, pass = tgt.endpoint, tgt.user, tgt.pass
 	} else {
 		bin, err := exec.LookPath("minio")
 		if err != nil {
@@ -331,22 +324,11 @@ func TestMinIO(t *testing.T) {
 		stop = func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait() }
 		defer stop()
 	}
+	tgt.endpoint, tgt.user, tgt.pass = endpoint, user, pass
 	bucket := fmt.Sprintf("deed-test-%d", time.Now().UnixNano())
-	mc, _ := minio.New(endpoint, &minio.Options{Creds: credentials.NewStaticV4(user, pass, ""), Secure: false})
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		if err := mc.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err == nil {
-			break
-		} else if time.Now().After(deadline) {
-			t.Fatalf("minio not reachable: %v", err)
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	s3, err := NewS3(S3Options{Endpoint: endpoint, Bucket: bucket, Prefix: "deed/", AccessKey: user, SecretKey: pass, Insecure: true, Lookup: "path"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := newRig(t, s3)
+	tgt.makeBucket(t, ctx, bucket)
+	// sse=on in DEED_TEST_S3 runs the backup with SSE-S3 requested, as production does by default.
+	r := newRig(t, tgt.store(t, bucket, "deed/", tgt.sse == "on"))
 	run, err := r.svc.Run(ctx, "manual", audit.System)
 	if err != nil {
 		t.Fatalf("backup to minio: %v", err)

@@ -19,7 +19,8 @@ recipients are public: without the signature, anyone able to write to the bucket
 (`deed-backup-ed25519:…`, from `deed backup verify-key` or `GET /api/v1/backups`).
 
 Uploads stream (multipart, 16 MiB parts) and request SSE-S3 (`backup.s3.sse`, default on) as defense in depth.
-Interrupted multipart uploads are aborted; backups without a manifest are deleted after 24 hours.
+Interrupted multipart uploads are aborted (a failed upload right away, anything left over under `backups/` by the
+next successful backup); backups without a manifest are deleted after 24 hours.
 
 ## Setting up
 1. Generate an identity on a trusted machine and keep it offline (password manager, hardware token, printed copy):
@@ -51,6 +52,24 @@ Interrupted multipart uploads are aborted; backups without a manifest are delete
    curl -s -H "Authorization: Bearer $DEED_TOKEN" https://deed.example.com/api/v1/backups | jq -r .verify_key
    ```
    Rotating the `backup-meta` keyring purpose changes it; keep old keys for old backups.
+
+## S3 implementations
+Backups need: HEAD bucket, single and multipart PUT, GET, ListObjectsV2 with continuation, DELETE object, and
+ListMultipartUploads / AbortMultipartUpload. `region` may stay empty: the client then asks the bucket for its region
+(GetBucketLocation). If you set it, it must be the region the server signs with.
+
+| Implementation | Validated | Settings and behaviour |
+|---|---|---|
+| MinIO | CI service container, local binary (`TestMinIO`), `scripts/e2e.sh` | SSE-S3 needs a KMS configured in MinIO; the e2e run uses `sse: false` |
+| SeaweedFS `4.47` | `scripts/validate/s3.sh` | SSE-S3 is applied only when SeaweedFS has an SSE-S3 key (`s3.sse.kek`); without one it answers `InternalError` to every SSE-S3 upload: set `sse: false`. Ignores the signature region |
+| Garage `v2.4.1` | `scripts/validate/s3.sh` | Signs with its own `s3_region` (default `garage`): leave `region` empty or set it to that value; any other region is refused. Accepts the SSE-S3 header but **does not encrypt** (no `x-amz-server-side-encryption` on the object) |
+| Versity S3 Gateway `v1.8.0` (POSIX) | `scripts/validate/s3.sh` | Checks the region (`us-east-1` unless started with `--region`). Accepts the SSE-S3 header but does not encrypt |
+| AWS S3, Cloudflare R2, Backblaze B2 | not validated | |
+
+All of them work with `lookup: path` and, given DNS for `<bucket>.<endpoint>`, `lookup: virtual` (the server needs
+its virtual-host domain configured: SeaweedFS `-s3.domainName`, Garage `root_domain`, Versity `--virtual-domain`).
+Backups are age-encrypted before upload, so SSE-S3 is defense in depth only; where the server ignores it nothing is
+lost, but do not count on it.
 
 ## Operating
 - Scheduled backups run when the last successful one is older than `backup.interval` (failures retry after 15
@@ -99,8 +118,27 @@ Failure modes and what they mean:
 | `holds a different KEK` | `-kek-out` points at an existing, different KEK file |
 | `restore needs the server stopped` | the data directory is locked by a running server |
 
+Backup runs fail with these S3 messages (in `backup_runs.error`, the log and `deed backup run`):
+
+| Message | Cause |
+|---|---|
+| `… (SSE-S3 was requested and not every S3 implementation supports it …)` | the server rejected an SSE-S3 upload (SeaweedFS without a key answers `InternalError`): set `backup.s3.sse: false` |
+| `… (check backup.s3.region …)` | the server signs with another region (Garage: `unexpected scope …, expected: '…/garage/…'`) |
+| `bucket … does not exist` | wrong `bucket`, or a credential that cannot see it |
+| `Access Denied` / `The request signature we calculated does not match …` | wrong access key or secret |
+
 ## Validation status
 Covered by `internal/backup` tests: round trip, wrong identity, foreign signature, corrupted object, S3 outage,
 interrupted upload, newer schema, lock held, KEK mismatch, GFS retention and planted manifests — in memory and
 against a real MinIO server (when the `minio` binary is installed). A full CLI backup/verify/restore against local
-MinIO was run during development. Backups to AWS S3, R2 or B2 are **not yet validated**.
+MinIO was run during development.
+
+`scripts/validate/s3.sh` runs SeaweedFS (with and without an SSE-S3 key), Garage and Versity S3 Gateway in Docker
+and, for each, `TestMinIO`, `TestS3Backend` and `TestS3Compat` (bucket check, single and multipart puts, SSE-S3,
+not-found mapping, ListObjectsV2 paging over 1100 keys, deletes of present and missing keys, aborting incomplete
+multipart uploads under the prefix only, path and virtual-host addressing, wrong region and wrong secret) through
+`DEED_TEST_S3=http://key:secret@host:port[?region=…&sse=on|off&vhost=…]`, then the CLI end to end: a wrong region,
+the first backup with SSE-S3 (or its rejection), an interrupted multipart upload, an incomplete backup and 1001 keys
+sorted ahead of the backups, two more backups with `keep_daily: 1` (older backups pruned, the upload aborted, the
+fresh incomplete backup kept), `deed backup list`, `deed backup verify` and `deed restore` into a fresh data
+directory. Backups to AWS S3, R2 or B2 are **not yet validated**.

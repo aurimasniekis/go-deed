@@ -26,7 +26,7 @@ and reports the format, Terraform version, serial and how many managed resources
 | `backend` | `push` | `push`, `s3` or `http` |
 | `s3.endpoint` | — | `host[:port]` of the S3 API (a value containing `/` is refused) |
 | `s3.bucket`, `s3.key` | — | object location, e.g. `env:/prod/core.tfstate` |
-| `s3.region` | — | bucket region |
+| `s3.region` | — | bucket region; empty asks the bucket (GetBucketLocation). If set it must be the region the server signs with (Garage: its `s3_region`, default `garage`), or the test reports `the S3 server rejected the request region` / `answered 400 Bad Request (check s3.region …)` |
 | `s3.use_ssl` | `true` | `false` uses `http://` |
 | `s3.lookup` | `auto` | `auto`, `path` or `virtual` bucket addressing |
 | `http.url` | — | Terraform HTTP backend state URL |
@@ -188,5 +188,6 @@ Invalid mappings — and unknown keys anywhere in the source config — are refu
 
 ## Validation status
 `internal/tfimport` tests cover the built-in catalog, v4 and show-json fixtures with planted secrets
-(`internal/tfimport/testdata`) and parser rejections; `FuzzParse` fuzzes the parser. The provider descriptor lists
-the S3 reader as verified against local MinIO and push via the CLI.
+(`internal/tfimport/testdata`) and parser rejections; `FuzzParse` fuzzes the parser. `TestS3Backend` reads a state
+object (sync, test, missing key, wrong secret, wrong region) from a real S3 server: MinIO in CI, and SeaweedFS 4.47,
+Garage v2.4.1 and Versity S3 Gateway v1.8.0 through `scripts/validate/s3.sh`. Push is verified via the CLI.

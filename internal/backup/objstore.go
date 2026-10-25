@@ -105,7 +105,16 @@ func NewS3(o S3Options) (*S3, error) {
 func (s *S3) Check(ctx context.Context) error {
 	ok, err := s.c.BucketExists(ctx, s.bucket)
 	if err != nil {
-		return fmt.Errorf("backup: bucket %s: %w", s.bucket, err)
+		if minio.ToErrorResponse(err).StatusCode == http.StatusBadRequest {
+			// A HEAD answer has no error document, so a 400 (Garage's answer to a region mismatch, for one) explains
+			// nothing: a one-key listing returns the server's explanation.
+			lctx, cancel := context.WithCancel(ctx)
+			if o, ok := <-s.c.ListObjects(lctx, s.bucket, minio.ListObjectsOptions{Prefix: s.prefix, MaxKeys: 1}); ok && o.Err != nil {
+				err = o.Err
+			}
+			cancel()
+		}
+		return fmt.Errorf("backup: bucket %s: %w%s", s.bucket, err, regionHint(err))
 	}
 	if !ok {
 		return fmt.Errorf("backup: bucket %s does not exist", s.bucket)
@@ -122,7 +131,44 @@ func (s *S3) Put(ctx context.Context, key string, r io.Reader, size int64) error
 		o.ServerSideEncryption = encrypt.NewSSE()
 	}
 	_, err := s.c.PutObject(ctx, s.bucket, s.key(key), r, size, o)
+	if err == nil {
+		return nil
+	}
+	if size < 0 && minio.ToErrorResponse(err).StatusCode != 0 {
+		// Some servers (SeaweedFS without an SSE-S3 key) create the multipart upload and then answer 500, so the
+		// client's retries leave uploads whose IDs it never learned. Abort them now: a backup that keeps failing
+		// never reaches the prune that would. (Unreachable servers are not retried.)
+		actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+		_ = s.c.RemoveIncompleteUpload(actx, s.bucket, s.key(key))
+		cancel()
+	}
+	if s.sse && sseSuspect(err) {
+		return fmt.Errorf("%w (SSE-S3 was requested and not every S3 implementation supports it: if this one does not, "+
+			"set backup.s3.sse: false; backups are age-encrypted either way)", err)
+	}
 	return err
+}
+
+// sseSuspect reports whether a failed SSE-S3 upload may have failed because of the encryption header: any error
+// answer except authentication, addressing and missing-bucket errors. Servers without SSE-S3 answer NotImplemented,
+// InvalidArgument, InvalidRequest or even InternalError; network errors carry no code.
+func sseSuspect(err error) bool {
+	switch minio.ToErrorResponse(err).Code {
+	case "", "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch", "NoSuchBucket", "AuthorizationHeaderMalformed", "InvalidRegion",
+		"RequestTimeTooSkewed":
+		return false
+	}
+	return true
+}
+
+// regionHint explains errors that mean backup.s3.region does not match the region the server signs with.
+func regionHint(err error) string {
+	r := minio.ToErrorResponse(err)
+	if r.Code == "AuthorizationHeaderMalformed" || r.Code == "InvalidRegion" || r.StatusCode == http.StatusBadRequest {
+		return " (check backup.s3.region: leave it empty to discover the bucket's region, or set the region the server expects, " +
+			"e.g. Garage's s3_region)"
+	}
+	return ""
 }
 
 func notFound(err error) bool {

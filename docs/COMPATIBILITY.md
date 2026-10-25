@@ -24,7 +24,7 @@ version or reports an API major version it does not know.
 | Node (build) | 24.x, pnpm 10 | web UI |
 | Pulse | go-pulse pseudo-version pinned in `go.mod` | NATS 2.10+ JetStream |
 | OIDC providers | any OpenID Connect Core 1.0 OP with PKCE S256 | Porch is the primary documented provider |
-| S3 | AWS S3, MinIO, Cloudflare R2, Backblaze B2 (S3 API) | backups and Terraform state |
+| S3 | AWS S3, MinIO, SeaweedFS, Garage, Versity S3 Gateway, Cloudflare R2, Backblaze B2 (S3 API) | backups and Terraform state; validated locally against MinIO, SeaweedFS 4.47, Garage v2.4.1 and Versity S3 Gateway v1.8.0 (`scripts/validate/s3.sh`); AWS S3, R2 and B2 not validated. Leave `region` empty or set the server's (Garage: `garage`); `backup.s3.sse: false` where SSE-S3 is unsupported (docs/BACKUP.md) |
 | Terraform state | state `version: 4`; `terraform show -json` `format_version` 1.x | Terraform 0.12 – 1.x, OpenTofu |
 | Prometheus API | Prometheus 2.x/3.x, Mimir | `X-Scope-OrgID` supported; validated against Mimir 3.2.1 (`scripts/validate/telemetry.sh`) |
 | Loki | 2.9+ / 3.x | |
