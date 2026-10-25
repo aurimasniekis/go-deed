@@ -57,7 +57,9 @@ jobs:
             cgr.dev/chainguard/minio:latest@sha256:73297936408b731668ca0e835ac9add1a35cb6026a125c2f0cd476d9ef48222c server /data
       - name: race tests
         env:
-          DEED_TEST_TX_MAX: 500ms # race detector overhead on shared runners (local guard: 100 ms)
+          # Shared runners stall on fsync under the race detector and parallel packages (even one-row transactions
+          # have taken 600–800 ms); the static txscope check covers I/O in transactions. Local guard: 100 ms.
+          DEED_TEST_TX_MAX: 2s
           DEED_TEST_NATS: nats://127.0.0.1:4222
           DEED_TEST_S3: http://deedci:deedci-secret@127.0.0.1:9000
         run: make race

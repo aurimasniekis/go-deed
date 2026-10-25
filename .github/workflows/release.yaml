@@ -98,7 +98,7 @@ jobs:
           go-version-file: go.mod
       - name: vet and race tests
         env:
-          DEED_TEST_TX_MAX: 500ms # race detector overhead on shared runners (internal/store/storetest)
+          DEED_TEST_TX_MAX: 2s # fsync stalls on shared runners under the race detector (internal/store/storetest)
         run: make vet race
 
   web:
