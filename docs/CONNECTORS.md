@@ -14,8 +14,10 @@ diagnostics. Every connector exposes **Test** (connectivity, writes nothing) and
 | `hallpass` | service (instance), hallpass_agent, agent_box, hallpass_server, hallpass_role, hallpass_grant, agent_session | protected_by, has_access_to, contains, runs_on, references, connects_to | 5 min |
 | `porch` | service (instance), porch_app, porch_service_account | authenticates_with, protected_by | 15 min |
 
-Validation status: all three are tested against contract fixtures shaped by each API's published description
-(`internal/connectors/testdata`). Validation against live GitHub, HallPass and Porch instances is **pending**.
+Validation status: all three are tested against contract fixtures (`internal/connectors/testdata`); the HallPass and
+Porch fixtures follow what the real services return. HallPass and Porch are validated against real local instances
+by `scripts/validate/hallpass.sh` and `scripts/validate/porch.sh` (docs/VALIDATION.md). Validation against the live
+GitHub API is **pending**.
 
 ## github
 **Credential:** a fine-grained personal access token (or GitHub App installation token) limited to the repositories

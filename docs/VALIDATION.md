@@ -76,13 +76,50 @@ What is simulated here:
 - **Pulse:** the traffic is Pulse-compatible (go-pulse client, `EVENTS` stream created like pulsed does, CloudEvents
   headers) against plain NATS JetStream; a real pulsed deployment (accounts, grants, admin API) was not used.
   The Pulse admin adapter is validated only against fixtures shaped by pulsed's admin OpenAPI.
-- **GitHub, HallPass, Porch connectors:** contract fixtures shaped by their published API descriptions; no live
-  instances in this run.
-- **OIDC:** not part of this run; covered by `internal/oidc` tests against an in-process test OP; real Porch SSO
-  pending.
+- **GitHub, HallPass, Porch connectors:** contract fixtures in this run; HallPass and Porch are validated separately
+  against real local instances (below). GitHub has no live validation.
+- **OIDC:** not part of this run; validated separately against a real local Porch (below) and by `internal/oidc`
+  tests against an in-process test OP.
 - **OpenSearch, Mimir:** fixture tests only.
 - **Browser UI:** this script exercises the API paths the UI uses for step 12–13. The browser itself is covered by the
   Playwright + axe suite (`make web-e2e`, below).
+
+## Real services run locally — `scripts/validate/`
+Each script builds the real service from its source checkout (a sibling directory by default) and Deed from this
+tree, runs both as development-mode processes on random loopback ports with generated credentials in a private
+temporary directory, and tears everything down. Run 2026-10-25 against go-deed `3789a15`.
+
+### Porch — `scripts/validate/porch.sh` (16/16 PASS)
+Porch `99409626cc58` (main), development mode with its bundled test login provider.
+- **OIDC SSO** with Porch as the provider (groups claim `porch.groups`, tenant claim `porch.tenant.slug`,
+  `required_tenant: home`, JIT on, three group mappings): a full authorization-code flow (Deed start → Porch
+  authorize → callback) provisions a user in a mapped group as installation `admin` and project editor and a second
+  as `auditor`; a user only in an unmapped group is refused (`not_provisioned`); a user of another tenant reaching
+  the client through a share is refused (`tenant_mismatch`); a second login matches on (iss, sub); removing a group
+  in Porch removes the role at the next login; a callback with a wrong or missing RFC 9207 `iss` is refused; the
+  authorization request carries PKCE S256 and a nonce.
+- **Connector:** an installation auditor token is refused by Porch inside tenants and the source test names the
+  permission needed; a tenant token (`app:manage` + `service_account:manage`) imports the enabled applications and
+  service accounts with `authenticates_with` edges; a DNS record is matched to an application host
+  (`protected_by`, inferred); an installation admin token pages across 107 tenants.
+- **Found and fixed:** syncs with a tenant token always failed (the connector read `/tenants/{slug}`, which needs
+  `tenant:manage`); Deed now logs when the provider grants fewer scopes than requested.
+- **Porch behaviour to know** (Porch unchanged): new clients default to `allowed_scopes` without `groups`, so the
+  client registration must allow it; Porch has no read-only permission for applications and service accounts.
+
+### HallPass — `scripts/validate/hallpass.sh` (10/10 PASS)
+HallPass `a41b41466a21` (main), development mode, with HallPass's `test/openssh` destination container when Docker
+is available.
+- Agents, servers, roles and an auto-approve policy created through the API; grants requested over the agents' SSH
+  and an exec session held open through the destination.
+- The first sync with an auditor `hallpass_at_` token matches HallPass exactly (18 entities, 28 edges, grant
+  expiries); after deleting a server and an agent, revoking a grant and ending the session, the second sync
+  tombstones exactly what HallPass no longer holds (9 entities, 17 edges); a wrong token fails with a clear
+  diagnostic; a token allowed to read addresses matches catalog servers to HallPass servers and agent boxes.
+- **Found and fixed:** the agent → server access edge was emitted once per grant under one external ID (it could
+  expire while a longer grant was active); session channel counts were recorded as 0 although the list API omits
+  them.
+- Not exercised: interactive PTY sessions and recordings, git-kind servers, human approvals, lockdown states.
 
 ## Other validation
 - `go test -race ./...` (CI, against NATS and MinIO containers) — see the CI badge / Actions history.
@@ -95,5 +132,5 @@ What is simulated here:
   dark, and the render-budget measurements in `docs/UI.md` (run locally 2026-10-25 at `5d026c3`; also a CI job).
 - Docker image build and `scripts/container-smoke.sh` (non-root, KEK permission refusal, healthcheck, Docker health,
   graceful SIGTERM): PASS locally at `5d026c3` and in CI.
-- Real-service validation **pending**: production Pulse (pulsed), Porch SSO and API, HallPass API, GitHub API,
-  Mimir, OpenSearch, Cloudflare in front of a VPS, S3 providers other than MinIO.
+- Real-service validation **pending**: production deployments of Pulse, Porch and HallPass (only local runs above),
+  GitHub API, Mimir, OpenSearch, Cloudflare in front of a VPS, S3 providers other than MinIO.
