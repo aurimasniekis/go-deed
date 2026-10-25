@@ -20,7 +20,8 @@ recipients are public: without the signature, anyone able to write to the bucket
 
 Uploads stream (multipart, 16 MiB parts) and request SSE-S3 (`backup.s3.sse`, default on) as defense in depth.
 Interrupted multipart uploads are aborted (a failed upload right away, anything left over under `backups/` by the
-next successful backup); backups without a manifest are deleted after 24 hours.
+next successful backup — by prefix, and by exact key for runs of the last 30 days that did not finish, because MinIO
+lists incomplete uploads only for an exact object name); backups without a manifest are deleted after 24 hours.
 
 ## Setting up
 1. Generate an identity on a trusted machine and keep it offline (password manager, hardware token, printed copy):

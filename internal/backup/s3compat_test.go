@@ -263,6 +263,13 @@ func TestS3Compat(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if n == 0 {
+			// MinIO lists incomplete uploads only for an exact object name; Prune also aborts by key for unfinished runs.
+			t.Log("the prefix sweep found no uploads; aborting by exact key")
+			if n, err = st.AbortIncomplete(ctx, "backups/bkp_interrupted/deed.db.zst.age"); err != nil {
+				t.Fatal(err)
+			}
+		}
 		if n < 1 {
 			t.Fatalf("aborted %d uploads", n)
 		}

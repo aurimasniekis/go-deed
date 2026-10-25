@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -295,6 +296,46 @@ func TestPruneDropsIncompleteAndOld(t *testing.T) {
 	}
 	if !have[ids[3]] || !have[ids[2]] || have[ids[0]] || have[ids[1]] {
 		t.Fatalf("after prune: %v (ids %v)", have, ids)
+	}
+}
+
+// aborting records AbortIncomplete calls on top of the in-memory store.
+type aborting struct {
+	*Mem
+	prefixes []string
+}
+
+func (a *aborting) AbortIncomplete(_ context.Context, prefix string) (int, error) {
+	a.prefixes = append(a.prefixes, prefix)
+	return 0, nil
+}
+
+func TestPruneAbortsUploadsOfUnfinishedRunsByKey(t *testing.T) {
+	objs := &aborting{Mem: NewMem()}
+	r := newRig(t, objs)
+	ctx := context.Background()
+	now := r.env.Clock.Now()
+	if err := r.env.Store.W().Tx(ctx, func(tx *store.Tx) error {
+		for _, x := range []struct {
+			id, result string
+			age        time.Duration
+		}{{"bkp_failed", "error", time.Hour}, {"bkp_crashed", "running", 2 * time.Hour}, {"bkp_done", "ok", time.Hour},
+			{"bkp_ancient", "error", 40 * 24 * time.Hour}} {
+			if _, err := tx.Exec(ctx, `INSERT INTO backup_runs (id, started_at, result, trigger) VALUES (?, ?, ?, 'schedule')`,
+				x.id, now.Add(-x.age).UnixMicro(), x.result); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.svc.Prune(ctx); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{backupPrefix, objectKey("bkp_failed", dbObject), objectKey("bkp_crashed", dbObject)}
+	if !slices.Equal(objs.prefixes, want) {
+		t.Fatalf("aborted %v, want %v", objs.prefixes, want)
 	}
 }
 

@@ -571,6 +571,38 @@ func (s *Service) Prune(ctx context.Context) (int, error) {
 		if _, err := a.AbortIncomplete(ctx, backupPrefix); err != nil {
 			s.o.Log.Warn("abort incomplete uploads", "error.message", err.Error())
 		}
+		// MinIO lists incomplete uploads only for an exact object name, so the prefix sweep above finds nothing there:
+		// also abort by key for the database object of recent runs that did not finish.
+		for _, id := range s.unfinishedRuns(ctx) {
+			if _, err := a.AbortIncomplete(ctx, objectKey(id, dbObject)); err != nil {
+				s.o.Log.Warn("abort incomplete uploads", "backup.id", id, "error.message", err.Error())
+			}
+		}
 	}
 	return n, nil
+}
+
+// unfinishedRuns lists backup runs of the last 30 days that did not succeed (failed, or interrupted while running).
+func (s *Service) unfinishedRuns(ctx context.Context) []string {
+	if s.o.Store == nil {
+		return nil
+	}
+	rows, err := s.o.Store.R().QueryContext(ctx, `SELECT id FROM backup_runs WHERE result != 'ok' AND started_at >= ? ORDER BY started_at DESC LIMIT 100`,
+		s.o.Clock.Now().Add(-30*24*time.Hour).UnixMicro())
+	if err != nil {
+		s.o.Log.Warn("list unfinished backup runs", "error.message", err.Error())
+		return nil
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		s.o.Log.Warn("list unfinished backup runs", "error.message", err.Error())
+	}
+	return ids
 }
