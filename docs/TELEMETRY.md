@@ -23,6 +23,16 @@ dial time (DNS rebinding cannot redirect a query), cloud metadata addresses are 
 ranges only when listed in `allow_cidrs`, redirects are refused, and responses are capped (4 MiB for queries).
 `POST /integrations/{id}/test` checks connectivity and updates `deed_telemetry_integration_up`.
 
+**Mimir / Cortex.** Use the query URL including the `/prometheus` prefix and set `tenant`; Deed sends it as
+`X-Scope-OrgID`. Without it a multi-tenant Mimir answers 401 ("no org id"), which Deed reports as a missing tenant
+rather than bad credentials. A tenant with no data is valid: queries simply return no data.
+
+**OpenSearch.** A user with the `read` action on the bound index patterns is enough. Without the
+`cluster:monitor/main` permission the connectivity test still succeeds (the version is not shown). For a private CA
+(for example the demo certificates of the security plugin) set `outbound.ca_file`. `time_field` may use any date
+mapping format (`date`, `date_nanos`, `epoch_millis`, custom patterns): the window bounds are sent as ISO 8601 with an
+explicit `format`. An index pattern that matches no index is *no data*, not a count of zero.
+
 Grafana is never treated as the metrics store: a `grafana` integration produces links. To chart data that lives
 behind Grafana, either query the data source directly or point a `prometheus` integration at
 `https://GRAFANA/api/datasources/proxy/uid/<uid>` with a Grafana service-account token.
@@ -93,5 +103,13 @@ streams run at once.
 
 ## Validation status
 Adapters are tested against API-shaped fixtures (`internal/telemetry/telemetry_test.go`). Prometheus, Loki and
-Grafana are additionally exercised against the docker-compose stack by `scripts/e2e.sh`. OpenSearch, Mimir and
-production Grafana validation are **pending**.
+Grafana are additionally exercised against the docker-compose stack by `scripts/e2e.sh`.
+
+`scripts/validate/telemetry.sh` validates the `prometheus` adapter against **Grafana Mimir 3.2.1** (monolithic,
+multitenancy on, samples pushed through remote write for two tenants) and the `opensearch` adapter against
+**OpenSearch 3.8.0** with the security plugin (HTTPS with the demo CA, basic auth, a least-privilege reader), both in
+Docker on loopback. It compares every supported shape (scalar, health, `{{window}}`, timeseries and table for Mimir;
+scalar and timeseries for OpenSearch) with the same queries sent directly to the backend, and checks tenant
+isolation, a missing or unknown tenant, wrong credentials, a forbidden index, rejected queries, an unreachable
+endpoint, stale values after credential rotation and an outage, and that no upstream body or secret reaches Deed's
+answers or log. Production Grafana validation is **pending**.

@@ -329,7 +329,8 @@ func evaluate(t BindingThresholds, v float64, unit string) *TelemetryHealth {
 		if t.Direction == "below" {
 			op = "<"
 		}
-		return strings.TrimSpace(fmt.Sprintf("%g %s %s %g %s", v, unit, op, limit, unit))
+		// Fields collapses the gaps an empty unit leaves ("42 < 50", not "42  < 50").
+		return strings.Join(strings.Fields(fmt.Sprintf("%g %s %s %g %s", v, unit, op, limit, unit)), " ")
 	}
 	switch {
 	case t.Critical != nil && bad(*t.Critical):

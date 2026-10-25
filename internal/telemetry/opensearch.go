@@ -35,7 +35,8 @@ func (OpenSearch) Info() AdapterInfo {
 		"(no documents are returned). Authenticate with username/password, an API key or a bearer token.", ConfigSchema: json.RawMessage(osSchema),
 		SecretFields: []string{"username", "password", "api_key", "token"}, Shapes: []string{ShapeScalar, ShapeTimeseries},
 		QueryHelp: "`<index-pattern> <query DSL object>`; the window filter on time_field is added automatically. Scripts are not allowed.",
-		Verified:  "contract tests against OpenSearch _count/_search fixtures; real OpenSearch validation pending"}
+		Verified: "contract tests against OpenSearch _count/_search fixtures; OpenSearch with the security plugin (HTTPS, basic auth, " +
+			"least-privilege reader) validated in scripts/validate/telemetry.sh"}
 }
 
 // Validate implements Adapter.
@@ -104,6 +105,11 @@ func (OpenSearch) Test(ctx context.Context, c Conn) (string, error) {
 		} `json:"version"`
 	}
 	if err := cl.do(ctx, http.MethodGet, "/", nil, nil, &info); err != nil {
+		// With the security plugin, a 403 means the credentials were accepted but the user lacks cluster:monitor/main,
+		// which a least-privilege reader (index read only) does not need for counts and histograms.
+		if upstreamStatus(err) == http.StatusForbidden {
+			return "OpenSearch reachable and the credentials were accepted (version hidden: the user lacks cluster:monitor/main)", nil
+		}
 		return "", err
 	}
 	return fmt.Sprintf("%s %s reachable", map[bool]string{true: info.Version.Distribution, false: "OpenSearch"}[info.Version.Distribution != ""], info.Version.Number), nil
@@ -126,24 +132,30 @@ func (OpenSearch) Query(ctx context.Context, c Conn, q Query) (*TelemetryData, e
 	if cfg.TimeField == "" {
 		cfg.TimeField = "@timestamp"
 	}
+	// The explicit format parses the bounds whatever date format the field is mapped with (epoch_millis, custom
+	// patterns); without it OpenSearch parses them with the mapping's format and rejects RFC 3339.
 	filtered := map[string]any{"bool": map[string]any{"filter": []any{dsl, map[string]any{"range": map[string]any{cfg.TimeField: map[string]any{
-		"gte": q.Start.UTC().Format(time.RFC3339), "lte": q.End.UTC().Format(time.RFC3339)}}}}}}
+		"gte": q.Start.UTC().Format(time.RFC3339), "lte": q.End.UTC().Format(time.RFC3339), "format": "strict_date_optional_time"}}}}}}
 	path := "/" + url.PathEscape(idx)
 	d := &TelemetryData{}
 	if q.Shape == ShapeScalar {
 		var r struct {
-			Count float64 `json:"count"`
+			Count  float64   `json:"count"`
+			Shards *osShards `json:"_shards"`
 		}
 		if err := cl.do(ctx, http.MethodPost, path+"/_count", url.Values{"ignore_unavailable": {"true"}}, map[string]any{"query": filtered}, &r); err != nil {
 			return nil, err
 		}
-		d.Value = &r.Count
+		if !r.Shards.none() {
+			d.Value = &r.Count
+		}
 		return d, nil
 	}
 	body := map[string]any{"size": 0, "track_total_hits": false, "query": filtered, "aggs": map[string]any{"t": map[string]any{"date_histogram": map[string]any{
 		"field": cfg.TimeField, "fixed_interval": fmt.Sprintf("%ds", int(q.Step.Seconds())), "min_doc_count": 0,
 		"extended_bounds": map[string]any{"min": q.Start.UnixMilli(), "max": q.End.UnixMilli()}}}}}
 	var r struct {
+		Shards       *osShards `json:"_shards"`
 		Aggregations struct {
 			T struct {
 				Buckets []struct {
@@ -156,6 +168,9 @@ func (OpenSearch) Query(ctx context.Context, c Conn, q Query) (*TelemetryData, e
 	if err := cl.do(ctx, http.MethodPost, path+"/_search", url.Values{"ignore_unavailable": {"true"}}, body, &r); err != nil {
 		return nil, err
 	}
+	if r.Shards.none() || len(r.Aggregations.T.Buckets) == 0 {
+		return d, nil
+	}
 	s := TelemetrySeries{Labels: map[string]string{"index": idx}, Points: []TelemetryPoint{}}
 	for _, b := range r.Aggregations.T.Buckets {
 		s.Points = append(s.Points, TelemetryPoint{T: time.UnixMilli(b.Key).UTC(), V: b.DocCount})
@@ -163,3 +178,12 @@ func (OpenSearch) Query(ctx context.Context, c Conn, q Query) (*TelemetryData, e
 	d.Series = []TelemetrySeries{s}
 	return d, nil
 }
+
+// osShards is the _shards header of a _count or _search answer.
+type osShards struct {
+	Total int `json:"total"`
+}
+
+// none reports that the index pattern matched no index (ignore_unavailable turns that into an empty success): the
+// answer is "no data", not a count of zero.
+func (s *osShards) none() bool { return s != nil && s.Total == 0 }

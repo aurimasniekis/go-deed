@@ -118,19 +118,20 @@ func (c *client) do(ctx context.Context, method, path string, q url.Values, body
 		return err
 	}
 	defer resp.Body.Close()
-	switch {
-	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+	if resp.StatusCode >= 300 {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		return apperr.New(apperr.CodeForbidden, "upstream refused the credentials (%d)", resp.StatusCode)
-	case resp.StatusCode == http.StatusTooManyRequests:
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return apperr.New(apperr.CodeRateLimited, "upstream rate limited the query")
-	case resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnprocessableEntity:
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return apperr.New(apperr.CodeInvalid, "upstream rejected the query (%d); check the binding", resp.StatusCode)
-	case resp.StatusCode >= 300:
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return apperr.New(apperr.CodeUnavailable, "upstream answered %d", resp.StatusCode)
+		var e *apperr.Error
+		switch resp.StatusCode {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			e = apperr.New(apperr.CodeForbidden, "upstream refused the credentials (%d)", resp.StatusCode)
+		case http.StatusTooManyRequests:
+			e = apperr.New(apperr.CodeRateLimited, "upstream rate limited the query")
+		case http.StatusBadRequest, http.StatusUnprocessableEntity:
+			e = apperr.New(apperr.CodeInvalid, "upstream rejected the query (%d); check the binding", resp.StatusCode)
+		default:
+			e = apperr.New(apperr.CodeUnavailable, "upstream answered %d", resp.StatusCode)
+		}
+		return &statusError{status: resp.StatusCode, err: e}
 	}
 	if out == nil {
 		_, _ = io.Copy(io.Discard, resp.Body)
@@ -143,4 +144,23 @@ func (c *client) do(ctx context.Context, method, path string, q url.Values, body
 		return apperr.New(apperr.CodeUnavailable, "upstream returned an unexpected body")
 	}
 	return nil
+}
+
+// statusError is a refused upstream request: a safe message plus the HTTP status, so adapters can tell, for example,
+// a missing tenant (401) from a missing permission (403). The upstream body is never kept.
+type statusError struct {
+	status int
+	err    *apperr.Error
+}
+
+func (e *statusError) Error() string { return e.err.Error() }
+func (e *statusError) Unwrap() error { return e.err }
+
+// upstreamStatus returns the HTTP status of a refused upstream request, or 0.
+func upstreamStatus(err error) int {
+	var se *statusError
+	if errors.As(err, &se) {
+		return se.status
+	}
+	return 0
 }
