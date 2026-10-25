@@ -7,6 +7,94 @@ import { mergeResults, MAX_NODES, type Expansion } from './model'
 
 export type MapMode = 'overview' | 'neighborhood' | 'path' | 'impact'
 
+const GROUP_FILTERS = ['kind', 'environment', 'owner', 'project'] as const
+
+/**
+ * Expands an overview group (`kind|service`, `environment|prod`, …). /graph/expand only accepts fan-cluster keys, so
+ * the members come from GET /entities and their relationships from a depth-1 neighbourhood; relationships to entities
+ * outside the group are re-pointed at that entity's (still collapsed) overview group, bundled with counts.
+ */
+export async function expandOverviewGroup(
+  key: string,
+  projects: string[],
+  types: string[],
+  evidence: Evidence[],
+): Promise<GraphResult> {
+  const [groupBy = '', value = ''] = key.split('|', 2)
+  const empty: GraphResult = { nodes: [], edges: [], notes: [], truncated: false, elapsed_ms: 0 }
+  if (!(GROUP_FILTERS as readonly string[]).includes(groupBy)) return { ...empty, notes: [`cannot expand ${key}`] }
+  if (value === '') return { ...empty, notes: [`entities without a ${groupBy} cannot be listed by filter`] }
+  const filter =
+    groupBy === 'kind'
+      ? { kind: [value] }
+      : groupBy === 'environment'
+        ? { environment: [value] }
+        : groupBy === 'owner'
+          ? { owner: value }
+          : { project: [value] }
+  const page = unwrap(
+    await api.GET('/entities', {
+      params: {
+        query: { ...filter, limit: 500, ...(projects.length && groupBy !== 'project' ? { project: projects } : {}) },
+      },
+    }),
+  )
+  const members = new Set(page.items.map((e) => e.metadata.id))
+  if (members.size === 0) return empty
+  const hood = unwrap(
+    await api.GET('/graph/neighborhood', {
+      params: {
+        query: {
+          root: [...members].slice(0, 300),
+          depth: 1,
+          direction: 'both',
+          max_nodes: 2000,
+          include_stale: true,
+          ...(types.length ? { type: types } : {}),
+          ...(evidence.length ? { evidence } : {}),
+        },
+      },
+    }),
+  )
+  const groupOf = (n: GraphResult['nodes'][number]): string => {
+    switch (groupBy) {
+      case 'kind':
+        return n.kind
+      case 'environment':
+        return n.environment ?? ''
+      case 'owner':
+        return n.owner ?? ''
+      default:
+        return n.project_id
+    }
+  }
+  const outside = new Map(
+    hood.nodes.filter((n) => !members.has(n.id)).map((n) => [n.id, `group:${groupBy}:${groupOf(n)}`]),
+  )
+  const edges = new Map<string, GraphResult['edges'][number]>()
+  for (const e of hood.edges) {
+    // Direct edges stay (they render when the other end is loaded, e.g. its group is expanded too) …
+    edges.set(e.id, e)
+    // … and an aggregated edge points at the other end's collapsed group.
+    const from = outside.get(e.from) ?? e.from
+    const to = outside.get(e.to) ?? e.to
+    if (from === e.from && to === e.to) continue
+    const id = `agg:${from}>${to}:${e.type}`
+    const cur = edges.get(id)
+    edges.set(id, cur ? { ...cur, count: (cur.count ?? 1) + 1 } : { ...e, id, from, to, count: 1 })
+  }
+  return {
+    nodes: hood.nodes.filter((n) => members.has(n.id)).map((n) => ({ ...n, depth: 1 })),
+    edges: [...edges.values()],
+    notes:
+      page.items.length < page.total
+        ? [`${groupBy} ${value}: showing ${page.items.length} of ${page.total} entities`]
+        : [],
+    truncated: page.items.length < page.total || hood.truncated,
+    elapsed_ms: hood.elapsed_ms,
+  }
+}
+
 export function modeOf(s: MapSearch): MapMode {
   if (s.mode === 'path' && s.from && s.to) return 'path'
   if (s.mode === 'impact' && s.focus) return 'impact'
@@ -107,7 +195,13 @@ export function useMapData(s: MapSearch, globalProjects: string[]) {
           )
           return { key: null, result }
         }
-        return { key: k, result: unwrap(await api.GET('/graph/expand', { params: { query: { key: k, limit: 500 } } })) }
+        if (k.startsWith('fan|')) {
+          return {
+            key: k,
+            result: unwrap(await api.GET('/graph/expand', { params: { query: { key: k, limit: 500 } } })),
+          }
+        }
+        return { key: k, result: await expandOverviewGroup(k, scopeProjects, types, evidence) }
       },
       staleTime: 30_000,
     })),

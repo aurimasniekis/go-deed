@@ -143,9 +143,25 @@
   outline-offset: 3px;
 }
 
+.deed-map .react-flow__controls-button {
+  width: 28px;
+  height: 28px;
+}
+
+/* Keep the zoom controls clear of the attribution link below them (WCAG 2.5.8 target spacing). */
+.deed-map .react-flow__controls {
+  margin-bottom: 44px;
+}
+
 .deed-map .react-flow__attribution {
   background: transparent;
-  font-size: 9px;
+  font-size: 10px;
+}
+
+.deed-map .react-flow__attribution a {
+  display: inline-block;
+  min-height: 24px;
+  padding: 5px 4px;
 }
 
 .deed-map .react-flow__minimap {

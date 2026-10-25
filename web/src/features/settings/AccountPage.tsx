@@ -226,7 +226,12 @@ function SessionsCard() {
               <Table.Tr key={s.id}>
                 <Table.Td>
                   <Text size="sm">
-                    {s.user_agent.slice(0, 80) || 'unknown client'} {s.current && <Badge size="xs">this session</Badge>}
+                    {s.user_agent.slice(0, 80) || 'unknown client'}{' '}
+                    {s.current && (
+                      <Badge size="xs" component="span">
+                        this session
+                      </Badge>
+                    )}
                   </Text>
                   <Text size="xs" c="dimmed">
                     {s.method}

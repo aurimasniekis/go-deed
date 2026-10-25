@@ -43,6 +43,7 @@ import {
   useReactFlow,
   type Edge,
   type Node,
+  type FitViewOptions,
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isInstallationAdmin, useMe } from '@/api/auth'
@@ -117,6 +118,13 @@ interface Patch {
   health: string
   freshness: string
   findings: number
+}
+
+/** Fit padding that keeps nodes clear of the legend panel (bottom-left) when it is open. */
+function fitPadding(): NonNullable<FitViewOptions['padding']> {
+  return mapStore.state.legendOpen
+    ? { top: '48px', right: '72px', bottom: '48px', left: '290px' }
+    : { x: '48px', y: '48px' }
 }
 
 function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: MapSearch, replace?: boolean) => void }) {
@@ -391,7 +399,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     if (!layout || built.nodes.length === 0 || lastFit.current === layout.sig) return
     lastFit.current = layout.sig
     requestAnimationFrame(() => {
-      void rf.fitView({ padding: 0.15, duration: reduced ? 0 : 250, maxZoom: 1.25 })
+      void rf.fitView({ padding: fitPadding(), duration: reduced ? 0 : 250, maxZoom: 1.25 })
       requestAnimationFrame(() => {
         renders.current += 1
         let fetchToRender = 0
@@ -531,7 +539,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         setPanel('pathOpen', false)
         break
       case 'f':
-        void rf.fitView({ padding: 0.15, duration: reduced ? 0 : 250 })
+        void rf.fitView({ padding: fitPadding(), duration: reduced ? 0 : 250 })
         break
       case 'i':
         if (selected && view.model.nodes.get(selected) && !view.model.nodes.get(selected)?.cluster)
@@ -892,12 +900,12 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
               }}
             >
               <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-              <Controls showInteractive={false} position="bottom-right" aria-label="Zoom controls">
+              <Controls showInteractive={false} showFitView={false} position="bottom-right" aria-label="Zoom controls">
                 <Tooltip label="Fit view (f)">
                   <button
                     type="button"
                     className="react-flow__controls-button"
-                    onClick={() => void rf.fitView({ padding: 0.15 })}
+                    onClick={() => void rf.fitView({ padding: fitPadding() })}
                     aria-label="Fit view"
                   >
                     <IconArrowsMaximize size={12} />

@@ -183,7 +183,14 @@ export function OverviewTab({ e, project }: { e: Entity; project?: ProjectView }
                   <Group key={`${l.type}-${l.url}`} gap="xs" wrap="nowrap">
                     <NamedIcon name={linkIconName(l.type)} size={16} />
                     {url ? (
-                      <Anchor href={url} target="_blank" rel="noopener noreferrer" size="sm">
+                      <Anchor
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="sm"
+                        py={4}
+                        display="inline-block"
+                      >
                         {l.title || l.type} <IconExternalLink size={12} aria-label="(opens in a new tab)" />
                       </Anchor>
                     ) : (

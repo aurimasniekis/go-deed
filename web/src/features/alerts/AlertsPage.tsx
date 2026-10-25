@@ -52,6 +52,12 @@ const STATE_META: Record<
     description: 'Waiting for the rule’s “for” duration.',
   },
   resolved: { label: 'Resolved', tone: 'green', icon: 'circle-check', description: 'The finding closed.' },
+  suppressed: {
+    label: 'Suppressed',
+    tone: 'gray',
+    icon: 'bell',
+    description: 'Matched a silence; no notifications are sent.',
+  },
 }
 
 const DELIVERY_META: Record<
@@ -427,7 +433,7 @@ function RulesTab({ admin }: { admin: boolean }) {
                   <Text size="sm" fw={500}>
                     {r.name}{' '}
                     {r.builtin && (
-                      <Badge size="xs" variant="outline">
+                      <Badge size="xs" variant="outline" component="span">
                         built-in
                       </Badge>
                     )}

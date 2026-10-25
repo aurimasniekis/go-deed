@@ -74,7 +74,13 @@ function Shell({
           </ActionIcon>
         </Tooltip>
       </Group>
-      <ScrollArea type="auto" style={{ flex: 1 }} px="sm" py="xs">
+      <ScrollArea
+        type="auto"
+        style={{ flex: 1 }}
+        px="sm"
+        py="xs"
+        viewportProps={{ tabIndex: 0, 'aria-label': 'Inspector details' }}
+      >
         {children}
       </ScrollArea>
     </div>

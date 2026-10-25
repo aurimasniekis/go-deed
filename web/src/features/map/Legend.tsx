@@ -46,7 +46,13 @@ export function MapLegend({
           </ActionIcon>
         </Tooltip>
       </Group>
-      <ScrollArea.Autosize mah={280} type="auto" px="sm" pb="sm">
+      <ScrollArea.Autosize
+        mah={280}
+        type="auto"
+        px="sm"
+        pb="sm"
+        viewportProps={{ tabIndex: 0, 'aria-label': 'Legend entries' }}
+      >
         <Stack gap={8}>
           {legend.colors.length > 0 && (
             <Stack gap={3}>

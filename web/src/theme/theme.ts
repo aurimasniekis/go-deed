@@ -19,7 +19,7 @@ const deed: MantineColorsTuple = [
 
 export const theme = createTheme({
   primaryColor: 'deed',
-  primaryShade: { light: 7, dark: 5 },
+  primaryShade: { light: 7, dark: 7 },
   colors: { deed },
   autoContrast: true,
   luminanceThreshold: 0.3,

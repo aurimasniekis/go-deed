@@ -23,7 +23,7 @@ import { EvidenceBadge, HealthBadge } from '@/components/StatusBadge'
 import { EmptyState, ErrorState, LoadingRows } from '@/components/States'
 import { EvidenceList } from '@/features/findings/FindingItem'
 import { humanize } from '@/lib/format'
-import { isStaleRelation } from '@/lib/status'
+import { evidenceMeta, isStaleRelation } from '@/lib/status'
 import { useEntityRelations, useRelationDetail } from './queries'
 
 /** Popover with the assertions behind a relationship (who asserts it, evidence, confidence). */
@@ -38,7 +38,7 @@ export function EvidencePopover({ rel }: { rel: Relation }) {
           type="button"
           size="xs"
           onClick={() => setOpen((o) => !o)}
-          aria-label={`Evidence for ${rel.type}`}
+          aria-label={`${evidenceMeta(rel.evidence_class).label}: show the evidence for this ${rel.type} relationship`}
         >
           <EvidenceBadge cls={rel.evidence_class} size="xs" />
         </Anchor>

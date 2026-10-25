@@ -241,7 +241,7 @@ export function RelTypesPage() {
                           <Text size="sm" fw={500}>
                             {t.title}{' '}
                             {!t.builtin && (
-                              <Badge size="xs" variant="outline">
+                              <Badge size="xs" variant="outline" component="span">
                                 custom
                               </Badge>
                             )}

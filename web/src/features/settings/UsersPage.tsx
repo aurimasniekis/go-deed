@@ -120,7 +120,12 @@ export function UsersPage() {
                   <Table.Tr key={u.id}>
                     <Table.Td>
                       <Text size="sm" fw={500}>
-                        {u.display_name} {u.id === me?.user_id && <Badge size="xs">you</Badge>}
+                        {u.display_name}{' '}
+                        {u.id === me?.user_id && (
+                          <Badge size="xs" component="span">
+                            you
+                          </Badge>
+                        )}
                       </Text>
                       <Text size="xs" c="dimmed">
                         {u.email}

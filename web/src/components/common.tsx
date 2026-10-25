@@ -148,7 +148,7 @@ export function Mono({ children, c }: { children: ReactNode; c?: string }) {
 
 export function JsonBlock({ value, maxHeight = 320 }: { value: unknown; maxHeight?: number }) {
   return (
-    <ScrollArea.Autosize mah={maxHeight} type="auto">
+    <ScrollArea.Autosize mah={maxHeight} type="auto" viewportProps={{ tabIndex: 0, 'aria-label': 'JSON document' }}>
       <Code block style={{ whiteSpace: 'pre', fontSize: 12 }}>
         {JSON.stringify(value, null, 2)}
       </Code>

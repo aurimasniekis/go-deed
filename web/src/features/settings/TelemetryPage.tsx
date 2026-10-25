@@ -251,7 +251,7 @@ function IntegrationsTab({ admin }: { admin: boolean }) {
                       <Text size="sm" fw={500}>
                         {i.name}{' '}
                         {!i.enabled && (
-                          <Badge size="xs" color="gray">
+                          <Badge size="xs" color="gray" component="span">
                             disabled
                           </Badge>
                         )}

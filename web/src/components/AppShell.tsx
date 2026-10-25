@@ -112,7 +112,10 @@ function UserMenu() {
   return (
     <Menu position="bottom-end" width={240} withinPortal>
       <Menu.Target>
-        <UnstyledButton aria-label={`Account menu for ${me.display_name}`} data-testid="user-menu">
+        <UnstyledButton
+          aria-label={`${initials || 'Account'}: account menu for ${me.display_name}`}
+          data-testid="user-menu"
+        >
           <Avatar size={28} radius="xl" color="deed">
             {initials || <IconUser size={14} />}
           </Avatar>
@@ -294,7 +297,7 @@ export function AppShellLayout() {
           <Group gap={6} wrap="nowrap">
             <UnstyledButton
               onClick={() => spotlight.open()}
-              aria-label="Search (press /)"
+              title="Search (press /)"
               data-testid="search-button"
               px="sm"
               py={5}
