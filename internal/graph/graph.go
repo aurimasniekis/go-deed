@@ -5,6 +5,7 @@
 package graph
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -163,6 +164,28 @@ func redacted(id string) Node {
 
 // edgesOf loads live relations touching ids in the given direction.
 func (e *Engine) edgesOf(ctx context.Context, ids []string, dir string, q Query) ([]rawEdge, error) {
+	if dir != "out" && dir != "in" {
+		// Two indexed lookups: SQLite answers "from_id IN (…) OR to_id IN (…)" with a scan of every relation.
+		outs, err := e.edgesOf(ctx, ids, "out", q)
+		if err != nil {
+			return nil, err
+		}
+		ins, err := e.edgesOf(ctx, ids, "in", q)
+		if err != nil {
+			return nil, err
+		}
+		seen := make(map[string]bool, len(outs))
+		for _, x := range outs {
+			seen[x.ID] = true
+		}
+		for _, x := range ins {
+			if !seen[x.ID] {
+				outs = append(outs, x)
+			}
+		}
+		slices.SortFunc(outs, func(a, b rawEdge) int { return cmp.Or(cmp.Compare(a.Type, b.Type), cmp.Compare(a.ID, b.ID)) })
+		return outs, nil
+	}
 	var out []rawEdge
 	staleCut := e.Clock.Now().Add(-7 * 24 * time.Hour).UnixMicro()
 	for start := 0; start < len(ids); start += chunk {
@@ -180,13 +203,6 @@ func (e *Engine) edgesOf(ctx context.Context, ids []string, dir string, q Query)
 			conds = append(conds, "r.to_id IN ("+in+")")
 			for _, id := range part {
 				args = append(args, id)
-			}
-		default:
-			conds = append(conds, "(r.from_id IN ("+in+") OR r.to_id IN ("+in+"))")
-			for range 2 {
-				for _, id := range part {
-					args = append(args, id)
-				}
 			}
 		}
 		conds = append(conds, "r.live = 1", "fe.tombstoned_at IS NULL", "te.tombstoned_at IS NULL")

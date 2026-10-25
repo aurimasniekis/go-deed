@@ -355,7 +355,7 @@ func (s *Service) ListEntities(ctx context.Context, f EntityFilter) (*EntityPage
 		args = append(args, `$."`+strings.ReplaceAll(k, `"`, ``)+`"`, f.Labels[k])
 	}
 	if f.SourceID != "" {
-		conds = append(conds, "EXISTS (SELECT 1 FROM facets fc WHERE fc.entity_id = e.id AND fc.source_id = ? AND fc.tombstoned_at IS NULL)")
+		conds = append(conds, "e.id IN (SELECT fc.entity_id FROM facets fc WHERE fc.source_id = ? AND fc.tombstoned_at IS NULL)")
 		args = append(args, f.SourceID)
 	}
 	if f.Declared != nil {
@@ -796,7 +796,7 @@ func (s *Service) ListRelations(ctx context.Context, f RelationFilter) (*Relatio
 		conds = append(conds, inClause("r.evidence_class", f.Evidence, &args))
 	}
 	if f.SourceID != "" {
-		conds = append(conds, "EXISTS (SELECT 1 FROM relation_assertions a WHERE a.relation_id = r.id AND a.source_id = ? AND a.tombstoned_at IS NULL)")
+		conds = append(conds, "r.id IN (SELECT a.relation_id FROM relation_assertions a WHERE a.source_id = ? AND a.tombstoned_at IS NULL)")
 		args = append(args, f.SourceID)
 	}
 	where := ""
