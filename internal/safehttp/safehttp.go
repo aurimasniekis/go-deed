@@ -95,7 +95,8 @@ func (g *Guard) AddRootCAs(pem []byte) error {
 
 // Allowed reports whether address a may be dialed with the extra per-policy CIDRs.
 func (g *Guard) Allowed(a netip.Addr, extra []netip.Prefix) bool {
-	a = a.Unmap()
+	// netip.Prefix.Contains never matches a zoned address, so drop the zone before checking the prefix lists.
+	a = a.Unmap().WithZone("")
 	for _, p := range metadata {
 		if p.Contains(a) {
 			return false
