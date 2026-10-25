@@ -154,8 +154,12 @@ func (r *Relay) Maintain(ctx context.Context) error {
 		if ret <= 0 {
 			ret = 7 * 24 * time.Hour
 		}
-		_, err := tx.Exec(ctx, `DELETE FROM outbox WHERE (published_at IS NOT NULL AND published_at < ?) OR (dead_at IS NOT NULL AND dead_at < ?)`,
-			tx.Now.Add(-ret).UnixMicro(), tx.Now.Add(-ret).UnixMicro())
+		// Two statements so each uses its partial index (an OR of both would scan the outbox).
+		cut := tx.Now.Add(-ret).UnixMicro()
+		if _, err := tx.Exec(ctx, `DELETE FROM outbox WHERE published_at IS NOT NULL AND published_at < ?`, cut); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `DELETE FROM outbox WHERE dead_at IS NOT NULL AND dead_at < ?`, cut)
 		return err
 	})
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 )
 
 // TestQueryPlans guards the indexes behind the hot read paths: each query below has the shape the code builds
-// (graph.edgesOf, catalog.ListEntities and ListRelations filters, the SSE change-log resume) and must not scan a
+// (graph.edgesOf, catalog.ListEntities and ListRelations filters, outbox retention, the SSE change-log resume) and must not scan a
 // whole table. The plans are taken on a fresh database without statistics, as on a new installation.
 func TestQueryPlans(t *testing.T) {
 	env := testenv.New(t)
@@ -33,6 +33,8 @@ func TestQueryPlans(t *testing.T) {
 			WHERE r.id IN (SELECT a.relation_id FROM relation_assertions a WHERE a.source_id = ? AND a.tombstoned_at IS NULL)`, []string{"ix_assertions_source"}},
 		{"assertions of a relation", `SELECT a.id FROM relation_assertions a JOIN sources s ON s.id = a.source_id WHERE a.relation_id = ?
 			ORDER BY a.layer, s.name`, []string{"(relation_id=?)"}},
+		{"outbox retention (published)", `DELETE FROM outbox WHERE published_at IS NOT NULL AND published_at < ?`, []string{"ix_outbox_published"}},
+		{"outbox retention (dead)", `DELETE FROM outbox WHERE dead_at IS NOT NULL AND dead_at < ?`, []string{"ix_outbox_dead"}},
 		{"change-log resume", `SELECT seq FROM change_log WHERE seq > ? ORDER BY seq LIMIT 500`, []string{"INTEGER PRIMARY KEY (rowid>?)"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -58,7 +60,7 @@ func TestQueryPlans(t *testing.T) {
 			plan := strings.Join(steps, " | ")
 			for _, s := range steps {
 				// A covering scan of a lookup table (projects, sources) is fine; a scan of a catalog table is not.
-				for _, big := range []string{"SCAN e", "SCAN r", "SCAN fe", "SCAN te", "SCAN a", "SCAN fc", "SCAN change_log"} {
+				for _, big := range []string{"SCAN e", "SCAN r", "SCAN fe", "SCAN te", "SCAN a", "SCAN fc", "SCAN change_log", "SCAN outbox"} {
 					if s == big || strings.HasPrefix(s, big+" ") {
 						t.Fatalf("full scan: %s", plan)
 					}
