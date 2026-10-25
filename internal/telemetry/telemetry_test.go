@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -327,7 +328,7 @@ func TestLokiNATSOpenSearchGrafana(t *testing.T) {
 		case "/logs-*/_count":
 			b, _ := io.ReadAll(req.Body)
 			osBody.Store(string(b))
-			_, _ = io.WriteString(w, `{"count":5}`)
+			_, _ = io.WriteString(w, `{"count":5,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0}}`)
 		case "/api/search":
 			_, _ = io.WriteString(w, `[{"uid":"abc","title":"Node","url":"/d/abc/node","folderTitle":"Infra"},{"uid":"x","title":"Evil","url":"https://evil.example.net/"}]`)
 		default:
@@ -368,7 +369,7 @@ func TestLokiNATSOpenSearchGrafana(t *testing.T) {
 	}
 	var body map[string]any
 	if err := json.Unmarshal([]byte(osBody.Load().(string)), &body); err != nil || !strings.Contains(osBody.Load().(string), `"https://api.example.com"`) ||
-		!strings.Contains(osBody.Load().(string), `"range"`) {
+		!strings.Contains(osBody.Load().(string), `"range"`) || !strings.Contains(osBody.Load().(string), `"format":"strict_date_optional_time"`) {
 		t.Fatalf("opensearch body: %s", osBody.Load())
 	}
 	res := run(BindingInput{Name: "dash", Integration: "grafana", Query: `search node`, Shape: ShapeLink})
@@ -437,5 +438,130 @@ func TestEdgeRatesFromPulseRollups(t *testing.T) {
 	}
 	if got := rates[2]; got.Status != StatusUnavailable || got.Rate != nil {
 		t.Fatalf("unmeasured edge: %+v", got)
+	}
+}
+
+// TestMimirTenant uses answers recorded from Grafana Mimir 3.2.1 with multitenancy on (scripts/validate/telemetry.sh):
+// without X-Scope-OrgID every API call is a plain-text 401 "no org id".
+func TestMimirTenant(t *testing.T) {
+	r := newRig(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("X-Scope-OrgID") == "" {
+			http.Error(w, "no org id", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch req.URL.Path {
+		case "/prometheus/api/v1/query":
+			_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1792899229.584,"1"]}]}}`)
+		case "/prometheus/api/v1/status/buildinfo":
+			_, _ = io.WriteString(w, `{"status":"success","data":{"application":"Grafana Mimir","version":"3.2.1","revision":"e49585d4"}}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	cfg := func(tenant string) json.RawMessage {
+		b, _ := json.Marshal(map[string]any{"url": srv.URL + "/prometheus", "insecure_http": true, "allow_cidrs": []string{"127.0.0.1/32"}, "tenant": tenant})
+		return b
+	}
+	ctx := context.Background()
+	msg, err := r.svc.Test(ctx, r.integration(t, "mimir", "prometheus", cfg("team-a"), nil))
+	if err != nil || msg != "Prometheus API reachable (version 3.2.1)" {
+		t.Fatalf("with tenant: %q %v", msg, err)
+	}
+	_, err = r.svc.Test(ctx, r.integration(t, "mimir-no-tenant", "prometheus", cfg(""), nil))
+	if err == nil || !strings.Contains(err.Error(), "tenant (X-Scope-OrgID)") || strings.Contains(err.Error(), "no org id") {
+		t.Fatalf("without tenant: %v", err)
+	}
+	e := r.entity(t, "home", "service", "api", nil)
+	res := r.svc.Run(ctx, r.binding(t, BindingInput{Name: "one", Integration: "mimir-no-tenant", Query: "vector(1)"}), Subject{Entity: e}, "1h")
+	if res.Status != StatusUnavailable || !strings.Contains(res.Error, "tenant (X-Scope-OrgID)") {
+		t.Fatalf("query without tenant: %+v", res)
+	}
+	warn := 50.0
+	if h := evaluate(BindingThresholds{Warning: &warn, Direction: "below"}, 42, ""); h.State != "warning" || h.Reason != "42 < 50" {
+		t.Fatalf("health without a unit: %+v", h)
+	}
+}
+
+// TestOpenSearchRealAnswers uses answers recorded from OpenSearch 3.8.0 with the security plugin
+// (scripts/validate/telemetry.sh).
+func TestOpenSearchRealAnswers(t *testing.T) {
+	r := newRig(t)
+	var bodies sync.Map
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		user, pass, _ := req.BasicAuth()
+		w.Header().Set("Content-Type", "application/json")
+		if pass != "s3cret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, "Unauthorized")
+			return
+		}
+		b, _ := io.ReadAll(req.Body)
+		bodies.Store(req.URL.Path, string(b))
+		switch {
+		case req.URL.Path == "/" && user == "reader":
+			// A reader with index permissions only.
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `{"error":{"root_cause":[{"type":"security_exception","reason":"no permissions for [cluster:monitor/main] and User [name=reader]"}]},"status":403}`)
+		case req.URL.Path == "/":
+			_, _ = io.WriteString(w, `{"name":"n1","version":{"distribution":"opensearch","number":"3.8.0"}}`)
+		case req.URL.Path == "/logs-x/_count":
+			_, _ = io.WriteString(w, `{"count":16,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0}}`)
+		case req.URL.Path == "/nomatch-*/_count":
+			_, _ = io.WriteString(w, `{"count":0,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0}}`)
+		case req.URL.Path == "/logs-x/_search":
+			_, _ = io.WriteString(w, `{"took":5,"timed_out":false,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0},"hits":{"max_score":null,"hits":[]},`+
+				`"aggregations":{"t":{"buckets":[{"key_as_string":"2026-10-25T02:41:00.000Z","key":1792896060000,"doc_count":0},`+
+				`{"key_as_string":"2026-10-25T02:42:00.000Z","key":1792896120000,"doc_count":2}]}}}`)
+		case req.URL.Path == "/nomatch-*/_search":
+			_, _ = io.WriteString(w, `{"took":0,"timed_out":false,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0},"hits":{"max_score":0.0,"hits":[]}}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	ctx := context.Background()
+	reader := r.integration(t, "os", "opensearch", local(srv.URL), map[string]string{"username": "reader", "password": "s3cret"})
+	if msg, err := r.svc.Test(ctx, reader); err != nil || !strings.Contains(msg, "credentials were accepted") {
+		t.Fatalf("least-privilege reader test: %q %v", msg, err)
+	}
+	full := r.integration(t, "os-full", "opensearch", local(srv.URL), map[string]string{"username": "admin", "password": "s3cret"})
+	if msg, err := r.svc.Test(ctx, full); err != nil || msg != "opensearch 3.8.0 reachable" {
+		t.Fatalf("full test: %q %v", msg, err)
+	}
+	bad := r.integration(t, "os-bad", "opensearch", local(srv.URL), map[string]string{"username": "reader", "password": "nope"})
+	if _, err := r.svc.Test(ctx, bad); err == nil || !strings.Contains(err.Error(), "(401)") || strings.Contains(err.Error(), "Unauthorized") {
+		t.Fatalf("wrong password test: %v", err)
+	}
+	e := r.entity(t, "home", "service", "api", nil)
+	run := func(name, q, shape string) *TelemetryResult {
+		t.Helper()
+		return r.svc.Run(ctx, r.binding(t, BindingInput{Name: name, Integration: "os", Query: q, Shape: shape}), Subject{Entity: e}, "1h")
+	}
+	if res := run("count", `logs-x {"match_all": {}}`, ShapeScalar); res.Status != StatusMeasured || *res.Data.Value != 16 {
+		t.Fatalf("count: %+v", res)
+	}
+	var body struct {
+		Query struct {
+			Bool struct {
+				Filter []map[string]map[string]map[string]string `json:"filter"`
+			} `json:"bool"`
+		} `json:"query"`
+	}
+	raw, _ := bodies.Load("/logs-x/_count")
+	if err := json.Unmarshal([]byte(raw.(string)), &body); err != nil || len(body.Query.Bool.Filter) != 2 ||
+		body.Query.Bool.Filter[1]["range"]["@timestamp"]["format"] != "strict_date_optional_time" {
+		t.Fatalf("range filter without an explicit format: %s", raw)
+	}
+	if res := run("series", `logs-x {"match_all": {}}`, ShapeTimeseries); res.Status != StatusMeasured || len(res.Data.Series) != 1 ||
+		len(res.Data.Series[0].Points) != 2 || res.Data.Series[0].Points[1].V != 2 {
+		t.Fatalf("series: %+v", res.Data)
+	}
+	for _, shape := range []string{ShapeScalar, ShapeTimeseries} {
+		if res := run("none-"+shape, `nomatch-* {"match_all": {}}`, shape); res.Status != StatusUnavailable || res.Error != "no data" {
+			t.Fatalf("no matching index (%s): %+v", shape, res)
+		}
 	}
 }

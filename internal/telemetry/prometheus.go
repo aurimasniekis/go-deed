@@ -35,7 +35,8 @@ func (Prometheus) Info() AdapterInfo {
 		Shapes: []string{ShapeScalar, ShapeTimeseries, ShapeTable},
 		QueryHelp: "PromQL. Scalars need a single-series result (aggregate with sum/max). Use {{window}} for range selectors, e.g. " +
 			`sum(rate(http_requests_total{job="{{job}}"}[{{window}}])).`,
-		Verified: "contract tests against Prometheus HTTP API v1 fixtures; docker-compose Prometheus validation in scripts/e2e.sh"}
+		Verified: "contract tests against Prometheus HTTP API v1 fixtures; docker-compose Prometheus validation in scripts/e2e.sh; " +
+			"multi-tenant Grafana Mimir validation in scripts/validate/telemetry.sh"}
 }
 
 // Validate implements Adapter.
@@ -204,19 +205,28 @@ func labelKey(m map[string]string) string {
 	return b.String()
 }
 
+// tenantHint explains a 401 from an integration without a tenant: multi-tenant Mimir, Cortex and Loki answer
+// "no org id" (401) when X-Scope-OrgID is missing, which otherwise reads like bad credentials.
+func tenantHint(err error, cfg *httpConfig) error {
+	if cfg.Tenant == "" && upstreamStatus(err) == http.StatusUnauthorized {
+		return apperr.New(apperr.CodeForbidden, "upstream refused the request (401); a multi-tenant Mimir, Cortex or Loki needs tenant (X-Scope-OrgID)")
+	}
+	return err
+}
+
 func unixParam(t time.Time) string {
 	return strconv.FormatFloat(float64(t.UnixMilli())/1000, 'f', 3, 64)
 }
 
 // Test implements Adapter.
 func (Prometheus) Test(ctx context.Context, c Conn) (string, error) {
-	cl, _, err := newHTTPClient(c, 1<<20)
+	cl, cfg, err := newHTTPClient(c, 1<<20)
 	if err != nil {
 		return "", err
 	}
 	var r promResponse
 	if err := cl.do(ctx, http.MethodGet, "/api/v1/query", url.Values{"query": {"vector(1)"}}, nil, &r); err != nil {
-		return "", err
+		return "", tenantHint(err, cfg)
 	}
 	if r.Status != "success" {
 		return "", apperr.New(apperr.CodeUnavailable, "the endpoint did not answer like a Prometheus API")
@@ -234,7 +244,7 @@ func (Prometheus) Test(ctx context.Context, c Conn) (string, error) {
 
 // Query implements Adapter.
 func (Prometheus) Query(ctx context.Context, c Conn, q Query) (*TelemetryData, error) {
-	cl, _, err := newHTTPClient(c, 4<<20)
+	cl, cfg, err := newHTTPClient(c, 4<<20)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +256,7 @@ func (Prometheus) Query(ctx context.Context, c Conn, q Query) (*TelemetryData, e
 		err = cl.do(ctx, http.MethodGet, "/api/v1/query", url.Values{"query": {q.Text}, "time": {unixParam(q.End)}}, nil, &r)
 	}
 	if err != nil {
-		return nil, err
+		return nil, tenantHint(err, cfg)
 	}
 	return decodeProm(&r, q.Shape)
 }
@@ -290,7 +300,7 @@ func (Loki) Escape(v string) string { return promEscape(v) }
 
 // Test implements Adapter.
 func (Loki) Test(ctx context.Context, c Conn) (string, error) {
-	cl, _, err := newHTTPClient(c, 1<<20)
+	cl, cfg, err := newHTTPClient(c, 1<<20)
 	if err != nil {
 		return "", err
 	}
@@ -304,14 +314,14 @@ func (Loki) Test(ctx context.Context, c Conn) (string, error) {
 		Status string `json:"status"`
 	}
 	if err := cl.do(ctx, http.MethodGet, "/loki/api/v1/labels", nil, nil, &labels); err != nil {
-		return "", err
+		return "", tenantHint(err, cfg)
 	}
 	return "Loki reachable (version " + bi.Version + ")", nil
 }
 
 // Query implements Adapter.
 func (Loki) Query(ctx context.Context, c Conn, q Query) (*TelemetryData, error) {
-	cl, _, err := newHTTPClient(c, 4<<20)
+	cl, cfg, err := newHTTPClient(c, 4<<20)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +334,7 @@ func (Loki) Query(ctx context.Context, c Conn, q Query) (*TelemetryData, error) 
 		err = cl.do(ctx, http.MethodGet, "/loki/api/v1/query", url.Values{"query": {q.Text}, "time": {ns(q.End)}, "limit": {"1"}}, nil, &r)
 	}
 	if err != nil {
-		return nil, err
+		return nil, tenantHint(err, cfg)
 	}
 	return decodeProm(&r, q.Shape)
 }
