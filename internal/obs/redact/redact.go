@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"regexp"
 	"strings"
 )
 
@@ -98,5 +99,25 @@ func ReplaceAttr(_ []string, a slog.Attr) slog.Attr {
 	if a.Value.Kind() != slog.KindGroup && IsSensitiveKey(a.Key) {
 		return slog.String(a.Key, Redacted)
 	}
+	switch a.Value.Kind() {
+	case slog.KindString:
+		if s := a.Value.String(); tokenRE.MatchString(s) {
+			return slog.String(a.Key, Tokens(s))
+		}
+	case slog.KindAny:
+		if err, ok := a.Value.Any().(error); ok && tokenRE.MatchString(err.Error()) {
+			return slog.String(a.Key, Tokens(err.Error()))
+		}
+	}
 	return a
+}
+
+// tokenRE matches bearer tokens with a well-known prefix (Deed's own and those of the systems it integrates with).
+var tokenRE = regexp.MustCompile(`\b(deed_at_|deed_st_|pulse_pat_|porch_at_|hallpass_at_|ghp_|github_pat_|glpat-)[A-Za-z0-9_-]{16,}`)
+
+// Tokens replaces every well-known token in s, keeping its prefix so the kind of credential stays visible.
+func Tokens(s string) string {
+	return tokenRE.ReplaceAllStringFunc(s, func(m string) string {
+		return tokenRE.FindStringSubmatch(m)[1] + Redacted
+	})
 }

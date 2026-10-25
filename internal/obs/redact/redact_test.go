@@ -3,6 +3,7 @@ package redact
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -237,5 +238,24 @@ func TestSecret(t *testing.T) {
 		if strings.Contains(buf.String(), raw) {
 			t.Fatalf("handler leaked: %s", buf.String())
 		}
+	}
+}
+
+func TestTokenValuesUnderHarmlessKeys(t *testing.T) {
+	var buf bytes.Buffer
+	l := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{ReplaceAttr: ReplaceAttr}))
+	tok := "deed_at_" + strings.Repeat("A1b2", 11)
+	l.Info("x", "note", "used "+tok+" here", "err", errors.New("rejected "+tok), "short", "deed_at_abc", "plain", "hello")
+	out := buf.String()
+	if strings.Contains(out, tok) {
+		t.Fatalf("token logged: %s", out)
+	}
+	for _, want := range []string{`"note":"used deed_at_[REDACTED] here"`, `"err":"rejected deed_at_[REDACTED]"`, `"short":"deed_at_abc"`, `"plain":"hello"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %s in %s", want, out)
+		}
+	}
+	if got := Tokens("a ghp_" + strings.Repeat("x", 36) + " b"); got != "a ghp_[REDACTED] b" {
+		t.Fatalf("Tokens: %q", got)
 	}
 }
