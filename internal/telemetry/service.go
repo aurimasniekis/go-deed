@@ -76,6 +76,17 @@ type cached struct {
 	at   time.Time
 }
 
+// emptyTTL bounds how long an empty answer is reused: a backend that has not ingested recent data yet (Loki indexing,
+// a first scrape) should show it within seconds, not after a whole freshness period.
+const emptyTTL = 15 * time.Second
+
+func (c cached) ttl(fresh time.Duration) time.Duration {
+	if c.data.empty() {
+		return min(fresh, emptyTTL)
+	}
+	return fresh
+}
+
 // Init prepares internal state.
 func (s *Service) Init() {
 	if s.Timeout <= 0 {
@@ -235,7 +246,7 @@ func (s *Service) Run(ctx context.Context, b *Binding, subj Subject, window stri
 	q := Query{Text: text, Shape: b.Shape, Start: end.Add(-w), End: end, Step: step}
 	key := fmt.Sprintf("%s|%d|%s|%s|%s", b.ID, b.ResourceVersion, it.UpdatedAt.Format(time.RFC3339Nano), window, text)
 	fresh := time.Duration(b.FreshnessSeconds) * time.Second
-	if c, ok := s.cache.get(key); ok && now.Sub(c.at) < fresh {
+	if c, ok := s.cache.get(key); ok && now.Sub(c.at) < c.ttl(fresh) {
 		s.Metrics.Cache("telemetry", "hit")
 		s.fill(res, b, c.data, c.at, true)
 		return res
@@ -296,8 +307,7 @@ func (s *Service) fill(res *TelemetryResult, b *Binding, d *TelemetryData, at ti
 	if d.Inferred {
 		res.Status = StatusInferred
 	}
-	empty := d.Value == nil && len(d.Series) == 0 && len(d.Rows) == 0 && len(d.Links) == 0
-	if empty {
+	if d.empty() {
 		res.Status, res.Error = StatusUnavailable, "no data"
 		return
 	}

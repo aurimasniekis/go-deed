@@ -67,7 +67,8 @@ Viewers see binding names, titles, kinds and parameters but not query text.
 Errors never include upstream response bodies. Each integration allows `limits.telemetry_concurrency` queries at a
 time (default 4); each query times out after `limits.telemetry_timeout` (10 s); identical concurrent queries are
 coalesced; results are cached (LRU, `limits.telemetry_cache_entries`) for the binding's `freshness_seconds`, with
-range queries aligned to their step so viewers share entries.
+range queries aligned to their step so viewers share entries. An empty answer ("no data") is reused for at most 15 s,
+so data a backend has only just ingested appears without waiting out the freshness period.
 
 ## Traffic overlays
 `POST /telemetry/edge-rates {"relation_ids": [...], "window": "15m"}` returns a rate per relationship whose

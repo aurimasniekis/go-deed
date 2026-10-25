@@ -110,6 +110,10 @@ type TelemetryData struct {
 	Truncated bool   `json:"truncated,omitempty"`
 }
 
+func (d *TelemetryData) empty() bool {
+	return d.Value == nil && len(d.Series) == 0 && len(d.Rows) == 0 && len(d.Links) == 0
+}
+
 // Adapter queries one kind of external system.
 type Adapter interface {
 	Info() AdapterInfo

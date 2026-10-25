@@ -86,6 +86,7 @@ type promServer struct {
 	*httptest.Server
 	queries atomic.Int64
 	fail    atomic.Bool
+	empty   atomic.Bool  // answer instant queries with an empty vector
 	last    atomic.Value // url.Values encoded
 	headers atomic.Value
 }
@@ -105,6 +106,10 @@ func newProm(t *testing.T) *promServer {
 		switch r.URL.Path {
 		case "/api/v1/query":
 			q := r.URL.Query().Get("query")
+			if p.empty.Load() {
+				_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+				return
+			}
 			if strings.Contains(q, "by (code)") {
 				_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"code":"200"},"value":[1790000000,"12"]},{"metric":{"code":"500"},"value":[1790000000,"0.5"]}]}}`)
 				return
@@ -241,6 +246,36 @@ func TestCacheStaleAndHealth(t *testing.T) {
 	other := r.entity(t, "home", "server", "nohost", nil)
 	if res := r.svc.Run(ctx, b, Subject{Entity: other}, "1h"); !strings.Contains(res.Error, "not applicable") {
 		t.Fatalf("missing param: %+v", res)
+	}
+}
+
+func TestEmptyResultsAreCachedBriefly(t *testing.T) {
+	r := newRig(t)
+	prom := newProm(t)
+	r.integration(t, "prom", "prometheus", local(prom.URL), nil)
+	b := r.binding(t, BindingInput{Name: "errors", Integration: "prom", Query: `sum(errors)`, FreshnessSeconds: 300})
+	e := r.entity(t, "home", "service", "api", nil)
+	ctx := context.Background()
+	// The backend has not ingested anything yet.
+	prom.empty.Store(true)
+	if res := r.svc.Run(ctx, b, Subject{Entity: e}, "1h"); res.Status != StatusUnavailable || res.Error != "no data" {
+		t.Fatalf("empty: %+v", res)
+	}
+	prom.empty.Store(false)
+	r.svc.Run(ctx, b, Subject{Entity: e}, "1h")
+	if n := prom.queries.Load(); n != 1 {
+		t.Fatalf("empty answer not reused within its short TTL: %d upstream queries", n)
+	}
+	// Well inside the freshness period, but past the empty-result TTL: the new data shows up.
+	r.env.Clock.Advance(20 * time.Second)
+	if res := r.svc.Run(ctx, b, Subject{Entity: e}, "1h"); res.Status != StatusMeasured || res.Data.Value == nil {
+		t.Fatalf("data after ingestion: %+v", res)
+	}
+	// A real value is then cached for the whole freshness period.
+	r.env.Clock.Advance(time.Minute)
+	r.svc.Run(ctx, b, Subject{Entity: e}, "1h")
+	if n := prom.queries.Load(); n != 2 {
+		t.Fatalf("measured value not cached: %d upstream queries", n)
 	}
 }
 
