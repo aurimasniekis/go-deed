@@ -20,6 +20,9 @@ function toInfo(r: EdgeRate): RateInfo {
   }
 }
 
+/** Returned while the overlay is off: one shared map, so the map's memoized nodes and edges stay stable. */
+const NO_RATES = new Map<string, RateInfo>()
+
 /**
  * Traffic overlay data: POST /telemetry/edge-rates for the visible relationships (batches of 200, refreshed every
  * minute) plus the telemetry SSE stream for up to 100 of them (30 s ticks). Rates patch edge data only — they are not
@@ -70,7 +73,7 @@ export function useEdgeRates(relationIds: string[], enabled: boolean, window = '
     return m
   }, [q.data, live])
   return {
-    rates: enabled ? rates : new Map<string, RateInfo>(),
+    rates: enabled ? rates : NO_RATES,
     error: q.error,
     stream,
     measured: [...rates.values()].filter((r) => r.status === 'measured').length,

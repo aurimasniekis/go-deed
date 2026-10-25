@@ -406,8 +406,10 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     [view.model.nodes],
   )
 
+  // A selection that is no longer drawn (a cluster that was just expanded) dims nothing.
   const neighbourSet = useMemo(
-    () => (selected ? new Set([selected, ...neighbours(view.model, selected)]) : null),
+    () =>
+      selected && view.model.nodes.has(selected) ? new Set([selected, ...neighbours(view.model, selected)]) : null,
     [selected, view.model],
   )
 

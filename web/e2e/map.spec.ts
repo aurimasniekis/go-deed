@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { entityId } from './helpers'
+import { entityId, readState } from './helpers'
 
 test('map: filter, group, inspect, keyboard and provenance', async ({ page }) => {
   const billing = entityId('service/billing-api')
@@ -95,7 +95,37 @@ test('map overview groups expand on click', async ({ page }) => {
   await cluster.click()
   await expect(page).toHaveURL(/expand=kind%7Cservice|expand=kind\|service/)
   await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
-  await expect(page.locator(`[data-entity-id="${entityId('service/billing-api')}"]`)).toBeVisible()
+  // Every member of the group appears (repeated `root` parameters used to keep only the first), and nothing is dimmed:
+  // the clicked cluster is gone, so it no longer drives the neighbour highlight.
+  const services = Object.keys(readState().seed.entities).filter((k) => k.startsWith('service/'))
+  expect(services.length).toBeGreaterThan(1)
+  for (const key of services) await expect(page.locator(`[data-entity-id="${entityId(key)}"]`)).toBeVisible()
+  await expect(page.locator('.react-flow__node [data-dimmed]')).toHaveCount(0)
+})
+
+test('map options can be switched without breaking the page', async ({ page }) => {
+  await page.goto(`/map?focus=${entityId('service/billing-api')}&mode=neighborhood&depth=2`)
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await page.getByTestId('map-options-button').click()
+  const drawer = page.getByTestId('map-options')
+  const ok = async (what: string) => {
+    await page.waitForTimeout(300)
+    expect(await page.getByText('Something went wrong on this page').count(), what).toBe(0)
+  }
+  // Turning the traffic overlay off used to loop renders (React error #185).
+  await page.getByTestId('traffic-toggle').click()
+  await ok('traffic off')
+  await page.getByTestId('traffic-toggle').click()
+  await ok('traffic on')
+  for (const label of ['Mid-edge type labels', 'Direction hint (marching dashes — not traffic)']) {
+    await drawer.getByLabel(label).click()
+    await ok(label)
+    await drawer.getByLabel(label).click()
+  }
+  for (const option of ['Smooth step', 'Straight', 'Bezier', 'Force', 'Radial', 'Layered']) {
+    await drawer.getByText(option, { exact: true }).click()
+    await ok(option)
+  }
 })
 
 test('traffic overlay shows measured rates only on measured edges', async ({ page }) => {
