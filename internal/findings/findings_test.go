@@ -144,6 +144,34 @@ func TestRaisedFindingsLiveUntilExpiry(t *testing.T) {
 	if len(byType(open(t, env), TypeBreakGlass)) != 0 {
 		t.Fatal("break-glass finding outlived its expiry")
 	}
+	// Raising announces the finding once while it stays open, and again when a closed one is raised anew.
+	raise := func() {
+		t.Helper()
+		if err := env.Store.W().Tx(ctx, func(tx *store.Tx) error {
+			return RaiseTx(ctx, tx, Finding{DedupKey: TypeBreakGlass + "|u1", Type: TypeBreakGlass, Severity: Critical, Class: ClassConfirmed,
+				Title: "Break-glass sign-in used", Message: "test"}, time.Hour)
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	opened := func() (n int) {
+		t.Helper()
+		if err := env.Store.R().QueryRow(`SELECT COUNT(*) FROM outbox WHERE type = 'deed.findings.finding_opened.v1'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := opened(); n != 1 {
+		t.Fatalf("opened events after the first raise: %d", n)
+	}
+	raise()
+	if n := opened(); n != 2 {
+		t.Fatalf("reopening a closed finding emitted %d opened events in total, want 2", n)
+	}
+	raise()
+	if n := opened(); n != 2 {
+		t.Fatalf("raising an open finding again emitted another opened event (%d)", n)
+	}
 }
 
 func auditSystem() audit.Actor { return audit.System }

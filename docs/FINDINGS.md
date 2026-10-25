@@ -57,7 +57,7 @@ update available).
 The findings engine recomputes every finding every two minutes and reconciles the result with the stored set:
 - a new finding is inserted as `open` and emits `evt.deed.findings.finding.opened`;
 - a finding still present has its severity, class, title, message, evidence and `last_seen_at` updated (a closed
-  one is reopened with a new `first_seen_at`);
+  one is reopened with a new `first_seen_at` and emits `finding.opened` again);
 - a finding no longer present is set to `closed` with `closed_at` and emits `evt.deed.findings.finding.closed`.
   Evaluation never deletes findings; closed findings are pruned daily after `retention.closed_findings`
   (default 90 days).

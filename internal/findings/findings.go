@@ -185,11 +185,28 @@ func RaiseTx(ctx context.Context, tx *store.Tx, f Finding, ttl time.Duration) er
 	}
 	ev["expires_at"] = tx.Now.Add(ttl).UTC().Format(time.RFC3339)
 	b, _ := json.Marshal(ev)
-	_, err := tx.Exec(ctx, `INSERT INTO findings (id, dedup_key, type, severity, class, project_id, entity_id, source_id, title, message, evidence_json,
+	var prev string
+	if err := tx.QueryRow(ctx, `SELECT state FROM findings WHERE dedup_key = ?`, f.DedupKey).Scan(&prev); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO findings (id, dedup_key, type, severity, class, project_id, entity_id, source_id, title, message, evidence_json,
 		state, first_seen_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
-		ON CONFLICT (dedup_key) DO UPDATE SET state = 'open', last_seen_at = excluded.last_seen_at, evidence_json = excluded.evidence_json, closed_at = NULL`,
+		ON CONFLICT (dedup_key) DO UPDATE SET state = 'open', last_seen_at = excluded.last_seen_at, evidence_json = excluded.evidence_json, closed_at = NULL,
+		first_seen_at = CASE WHEN findings.state = 'closed' THEN excluded.first_seen_at ELSE findings.first_seen_at END`,
 		ids.New(ids.Finding), f.DedupKey, f.Type, f.Severity, f.Class, nullStr(f.ProjectID), nullStr(f.EntityID), nullStr(f.SourceID), f.Title, f.Message,
-		string(b), tx.NowMicros(), tx.NowMicros())
+		string(b), tx.NowMicros(), tx.NowMicros()); err != nil {
+		return err
+	}
+	if prev == "open" {
+		return nil
+	}
+	return enqueueOpened(ctx, tx, f)
+}
+
+// enqueueOpened announces a finding that is new or reopened.
+func enqueueOpened(ctx context.Context, tx *store.Tx, f Finding) error {
+	_, err := outbox.Enqueue(ctx, tx, outbox.Event{Area: "findings", Entity: "finding", Action: "opened", ProjectID: f.ProjectID,
+		Payload: map[string]any{"type": f.Type, "severity": f.Severity, "class": f.Class, "entity_id": f.EntityID, "title": f.Title}})
 	return err
 }
 
@@ -549,8 +566,7 @@ func (e *Engine) reconcile(ctx context.Context, cur []Finding) error {
 					nullStr(f.SourceID), f.Title, f.Message, string(ev), tx.NowMicros(), tx.NowMicros()); err != nil {
 					return err
 				}
-				if _, err := outbox.Enqueue(ctx, tx, outbox.Event{Area: "findings", Entity: "finding", Action: "opened", ProjectID: f.ProjectID,
-					Payload: map[string]any{"type": f.Type, "severity": f.Severity, "class": f.Class, "entity_id": f.EntityID, "title": f.Title}}); err != nil {
+				if err := enqueueOpened(ctx, tx, f); err != nil {
 					return err
 				}
 			case err != nil:
@@ -560,6 +576,11 @@ func (e *Engine) reconcile(ctx context.Context, cur []Finding) error {
 					closed_at = NULL, first_seen_at = CASE WHEN state = 'closed' THEN ? ELSE first_seen_at END WHERE dedup_key = ?`,
 					f.Severity, f.Class, f.Title, f.Message, string(ev), tx.NowMicros(), tx.NowMicros(), f.DedupKey); err != nil {
 					return err
+				}
+				if state == "closed" {
+					if err := enqueueOpened(ctx, tx, f); err != nil {
+						return err
+					}
 				}
 			}
 		}
