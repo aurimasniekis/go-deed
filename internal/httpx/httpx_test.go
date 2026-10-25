@@ -50,6 +50,10 @@ func TestClientIPSpoofing(t *testing.T) {
 		{"trusted proxy without XFF", res, "10.0.0.2:1", nil, "10.0.0.2"},
 		{"cloudflare edge direct", res, "173.245.48.10:443", map[string][]string{"CF-Connecting-IP": {"203.0.113.50"}}, "203.0.113.50"},
 		{"cloudflare via local proxy", res, "10.0.0.2:1", map[string][]string{"X-Forwarded-For": {"173.245.48.10"}, "CF-Connecting-IP": {"203.0.113.50"}}, "203.0.113.50"},
+		// docs/CLOUDFLARE.md (Tunnel): a trusted local proxy is not a Cloudflare address, so its CF-Connecting-IP is
+		// ignored; the visitor comes from the X-Forwarded-For entry Cloudflare appended.
+		{"trusted non-cloudflare proxy cannot vouch for CF header", res, "10.0.0.2:1", map[string][]string{"CF-Connecting-IP": {"203.0.113.50"}}, "10.0.0.2"},
+		{"tunnel: visitor from cloudflare-appended XFF", res, "10.0.0.2:1", map[string][]string{"X-Forwarded-For": {"1.2.3.4, 203.0.113.50"}, "CF-Connecting-IP": {"1.2.3.4"}}, "203.0.113.50"},
 		{"cloudflare disabled ignores header", noCF, "173.245.48.10:443", map[string][]string{"CF-Connecting-IP": {"203.0.113.50"}}, "173.245.48.10"},
 		{"cloudflare edge bad header", res, "173.245.48.10:443", map[string][]string{"CF-Connecting-IP": {"nope"}}, "173.245.48.10"},
 		{"forged cf range inside XFF from untrusted", res, "198.51.100.7:1", map[string][]string{"X-Forwarded-For": {"173.245.48.10"}, "CF-Connecting-IP": {"1.2.3.4"}}, "198.51.100.7"},
