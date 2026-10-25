@@ -37,7 +37,8 @@ const UNMODIFIED = {
 
 /**
  * The curated subset: brands relevant to an infrastructure inventory. `variant` defaults to `mono` when the icon has
- * one (it follows the theme), else `default`; `title` corrects a published title. Left out on purpose: icons that
+ * one (it follows the theme), else `default`; `title` corrects a published title. Left out on purpose: Microsoft logos (theSVG
+ * labels Azure and Windows MIT but its other Microsoft icons proprietary, so their provenance is doubtful), icons that
  * are only a wordmark and unreadable at 16 px (synology, qnap, vmware, juniper-networks), and the CC-BY-ND AWS
  * service icons other than those on UNMODIFIED.
  */
@@ -45,7 +46,6 @@ const ICONS = [
   // Clouds and hosting providers
   { slug: 'aws' },
   ...Object.keys(UNMODIFIED).map((slug) => ({ slug })),
-  { slug: 'microsoft-azure' },
   { slug: 'google-cloud' },
   { slug: 'gcp-compute-engine' },
   { slug: 'gcp-cloud-sql', title: 'Cloud SQL' },
@@ -60,7 +60,6 @@ const ICONS = [
   // Virtualisation, operating systems
   { slug: 'proxmox' },
   { slug: 'vsphere', title: 'vSphere' },
-  { slug: 'windows' },
   // Storage and home lab
   { slug: 'truenas' },
   { slug: 'unraid' },

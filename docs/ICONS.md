@@ -39,7 +39,7 @@ every icon the server assigns (built-in kinds, Terraform mappings, connectors, d
 logo, upload it as a custom icon.
 
 The kind editor's **Icon** field suggests every bundled icon and the uploaded ones; type part of a reference or a
-title (`azure`, `route 53`, `nas`) to search. Any well-formed reference can still be typed.
+title (`aws`, `route 53`, `nas`) to search. Any well-formed reference can still be typed.
 
 ### theSVG
 theSVG icons come from the npm package `@thesvg/icons`, pinned in `web/package.json` (devDependency, exact version;
@@ -88,7 +88,6 @@ Bundled theSVG icons (`@thesvg/icons` 3.3.13):
 | `thesvg:google-cloud` | Google Cloud | CC0-1.0 | tinted |
 | `thesvg:hetzner` | Hetzner | CC0-1.0 | tinted |
 | `thesvg:home-assistant` | Home Assistant | CC0-1.0 | tinted |
-| `thesvg:microsoft-azure` | Microsoft Azure | MIT | colour |
 | `thesvg:mikrotik` | MikroTik | CC0-1.0 | tinted |
 | `thesvg:openwrt` | OpenWrt | CC0-1.0 | tinted |
 | `thesvg:opnsense` | OPNsense | CC0-1.0 | tinted |
@@ -102,7 +101,6 @@ Bundled theSVG icons (`@thesvg/icons` 3.3.13):
 | `thesvg:unraid` | Unraid | CC0-1.0 | tinted |
 | `thesvg:valkey` | Valkey | BSD-3-Clause | tinted |
 | `thesvg:vsphere` | vSphere | MIT | tinted |
-| `thesvg:windows` | Windows | MIT | tinted |
 | `thesvg:wireguard` | WireGuard | CC0-1.0 | tinted |
 
 The four AWS Architecture Icons are licensed CC BY-ND 2.0 and allowlisted for unmodified use because the Terraform
