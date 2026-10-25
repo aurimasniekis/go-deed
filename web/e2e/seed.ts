@@ -646,7 +646,7 @@ export async function seedCatalog(
 
 /** About n entities in a synthetic "scale" project: hosts with containers and a mesh of service connections. */
 /**
- * Telemetry: a Prometheus integration (the e2e mock, e2e/mock-prometheus.ts) and bindings — request rate, latency
+ * Telemetry: a Prometheus integration (the e2e mock, e2e/mock-upstreams.ts) and bindings — request rate, latency
  * series and an error-rate health check for services, plus an edge-rate binding for routes_to and connects_to so the
  * map's traffic overlay has measured rates.
  */
@@ -734,10 +734,23 @@ export async function seedLarge(c: DeedClient, n: number, out: SeedResult): Prom
   })
   const tok = await c.post<{ token: string }>(`/sources/${src.id}/tokens`, { name: 'generator', expires_in_days: 7 })
   const g = c.withBearer(tok.token)
-  const hosts = Math.max(1, Math.round(n / 50))
-  const perHost = Math.max(1, Math.floor((n - hosts) / hosts))
+  // A core network every host connects to (≤ 50 per fan, so the server does not collapse it): the neighbourhood of
+  // core-net at depth 2 is the whole project — hosts and their containers.
+  const hosts = Math.min(50, Math.max(1, Math.round(n / 50)))
+  const perHost = Math.min(49, Math.max(1, Math.ceil((n - hosts - 1) / hosts)))
   const envs = ['production', 'staging', 'development']
-  let batch: { entities: unknown[]; relations: unknown[] } = { entities: [], relations: [] }
+  let batch: { entities: unknown[]; relations: unknown[] } = {
+    entities: [
+      {
+        kind: 'network',
+        name: 'core-net',
+        revision: 1,
+        metadata: { environment: 'production' },
+        health: { state: 'ok' },
+      },
+    ],
+    relations: [],
+  }
   const flush = async () => {
     if (batch.entities.length === 0 && batch.relations.length === 0) return
     await g.post(`/sources/${src.id}/items`, batch)
@@ -751,6 +764,13 @@ export async function seedLarge(c: DeedClient, n: number, out: SeedResult): Prom
       revision: 1,
       metadata: { environment: envs[h % 3] },
       health: { state: 'ok' },
+    })
+    batch.relations.push({
+      type: 'connects_to',
+      from: { kind: 'docker_host', name: host },
+      to: { kind: 'network', name: 'core-net' },
+      evidence_class: 'structural',
+      revision: 1,
     })
     for (let i = 0; i < perHost; i++) {
       const name = `${host}-app-${String(i).padStart(2, '0')}`
@@ -809,10 +829,15 @@ async function main() {
   }
   mkdirSync(dirname(statePath), { recursive: true, mode: 0o700 })
   writeFileSync(statePath, JSON.stringify(state, null, 2), { mode: 0o600 })
-  const res = args.includes('--large-only')
-    ? (await seedLarge(client, large, { projects: {}, entities: {}, sources: {} }), null)
-    : await seedCatalog(client, { large })
-  writeFileSync(statePath, JSON.stringify({ ...state, seed: res }, null, 2), { mode: 0o600 })
+  if (args.includes('--large-only')) {
+    // Adds the scale project to an already seeded server; the existing seed result in the state file is kept.
+    const out: SeedResult = { projects: {}, entities: {}, sources: {} }
+    await seedLarge(client, large, out)
+    writeFileSync(statePath, JSON.stringify({ ...state, large: out }, null, 2), { mode: 0o600 })
+  } else {
+    const res = await seedCatalog(client, { large })
+    writeFileSync(statePath, JSON.stringify({ ...state, seed: res }, null, 2), { mode: 0o600 })
+  }
   console.log(`seeded ${url}; owner ${state.email}; state in ${statePath}`)
 }
 

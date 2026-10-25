@@ -2,7 +2,7 @@
  * Starts a throwaway Deed server for e2e tests and local development: a fresh data directory (mode 0700), a
  * development-mode config, `deed admin bootstrap` for the first-owner link, then `deed serve`.
  *
- *   node e2e/server.ts --port 38787 [--dir /tmp/deed-e2e] [--seed] [--large 2000] [--prometheus 39090] [--binary ../bin/deed]
+ *   node e2e/server.ts --port 38787 [--dir /tmp/deed-e2e] [--seed] [--large 2000] [--mocks 39090] [--binary ../bin/deed]
  *
  * With --seed the catalog is seeded (e2e/seed.ts) and the owner's credentials are written to <dir>/owner.json.
  */
@@ -60,10 +60,12 @@ export async function startServer(opts: {
       '',
     ].join('\n'),
   )
-  const boot = execFileSync(binary, ['admin', 'bootstrap', '-config', cfg], { encoding: 'utf8' })
+  // deed refuses unknown DEED_* environment overrides, so the test harness's own variables are not passed on.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('DEED_')))
+  const boot = execFileSync(binary, ['admin', 'bootstrap', '-config', cfg], { encoding: 'utf8', env })
   const setupLink = /(https?:\/\/\S+\/setup#bootstrap=\S+)/.exec(boot)?.[1]
   if (!setupLink) throw new Error(`no setup link in bootstrap output:\n${boot}`)
-  const proc = spawn(binary, ['serve', '-config', cfg], { stdio: ['ignore', 'inherit', 'inherit'] })
+  const proc = spawn(binary, ['serve', '-config', cfg], { stdio: ['ignore', 'inherit', 'inherit'], env })
   const deadline = Date.now() + 30_000
   for (;;) {
     try {
@@ -105,10 +107,10 @@ async function main() {
       const { bootstrapOwner, seedCatalog } = await import('./seed.ts')
       const { client, state } = await bootstrapOwner(srv.baseURL, srv.setupLink)
       let prometheusURL: string | undefined
-      const promPort = arg('prometheus')
+      const promPort = arg('mocks')
       if (promPort) {
-        const { startMockPrometheus } = await import('./mock-prometheus.ts')
-        await startMockPrometheus(Number(promPort))
+        const { startMockUpstreams } = await import('./mock-upstreams.ts')
+        await startMockUpstreams(Number(promPort))
         prometheusURL = `http://127.0.0.1:${promPort}`
       }
       const seed = await seedCatalog(client, {
