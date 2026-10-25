@@ -43,11 +43,12 @@ import {
   useNodesState,
   useReactFlow,
   useStoreApi,
+  useUpdateNodeInternals,
   type Edge,
   type Node,
   type FitViewOptions,
 } from '@xyflow/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isInstallationAdmin, useMe } from '@/api/auth'
 import { api, unwrap, type View } from '@/api/client'
 import { keys, useKinds, useProjects, useRelTypes } from '@/api/queries'
@@ -164,7 +165,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     () =>
       flowStore.subscribe((s) => {
         const z = s.transform[2]
-        setZoomedOut((prev) => (prev ? z < LOD.leave : z < LOD.enter))
+        // A transition: swapping drawings must not block the wheel or drag event that crossed the threshold.
+        startTransition(() => setZoomedOut((prev) => (prev ? z < LOD.leave : z < LOD.enter)))
       }),
     [flowStore],
   )
@@ -369,13 +371,11 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       const size = sizeOf(n, compactCards)
       return {
         id: n.id,
-        type: lod ? 'lod' : n.cluster ? 'cluster' : 'entity',
+        type: n.cluster ? 'cluster' : 'entity',
         position: pos,
         width: size.width,
         height: size.height,
         selected: n.id === selected,
-        // Dragging a block in the zoomed-out overview is never useful, and skipping the drag set-up per node is cheap.
-        ...(lod ? { draggable: false } : {}),
         data: {
           node: n,
           kindTitle: k?.title ?? humanize(n.cluster?.value ?? n.kind),
@@ -386,6 +386,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           sourcePos: hp.source,
           targetPos: hp.target,
           dimmed: !!neighbourSet && !neighbourSet.has(n.id),
+          lod: false,
         },
         ariaLabel: `${n.cluster ? 'Cluster' : (k?.title ?? n.kind)} ${n.displayName ?? n.name}, health ${n.health}, freshness ${n.freshness}`,
       }
@@ -428,7 +429,6 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     })
     return { nodes: [...groupNodes, ...nodes] as Node[], edges: edges }
   }, [
-    lod,
     layout,
     signature,
     view,
@@ -448,10 +448,40 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     now,
   ])
 
+  // Level of detail only swaps how nodes draw (crossing the threshold must not rebuild every node and edge).
+  const shownNodes = useMemo(
+    () =>
+      lod
+        ? built.nodes.map((n) =>
+            n.type === 'group'
+              ? n
+              : // Dragging a block in the zoomed-out overview is never useful, and skips the drag set-up per node.
+                { ...n, draggable: false, data: { ...(n.data as EntityNodeData), lod: true } },
+          )
+        : built.nodes,
+    [built.nodes, lod],
+  )
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   useEffect(() => {
-    setNodes(built.nodes)
-  }, [built.nodes, setNodes])
+    setNodes(shownNodes)
+  }, [shownNodes, setNodes])
+
+  // Blocks have no handles, so nodes that stay mounted when cards come back are re-measured, all in one batch, once
+  // the cards are on screen (newly mounted nodes are measured by React Flow itself).
+  const updateNodeInternals = useUpdateNodeInternals()
+  const remeasure = useRef(false)
+  useEffect(() => {
+    if (lod) remeasure.current = true
+  }, [lod])
+  useEffect(() => {
+    const first = nodes.find((n) => n.type !== 'group')
+    if (!remeasure.current || !first || (first.data as EntityNodeData).lod) return
+    remeasure.current = false
+    const mounted = [...document.querySelectorAll('.deed-map .react-flow__node[data-id]')].map(
+      (el) => el.getAttribute('data-id') ?? '',
+    )
+    updateNodeInternals(mounted)
+  }, [nodes, updateNodeInternals])
 
   // Fit the view when the topology changes; record render timings for the budget measurements.
   const lastFit = useRef('')
@@ -928,7 +958,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
               colorMode={scheme}
               minZoom={0.05}
               maxZoom={2}
-              onlyRenderVisibleElements={!lod && nodes.length > 400}
+              onlyRenderVisibleElements={nodes.length > 400}
               disableKeyboardA11y
               deleteKeyCode={null}
               selectionKeyCode={null}

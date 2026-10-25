@@ -40,6 +40,61 @@
   border-left-color: var(--mantine-color-red-6);
 }
 
+.deed-node-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  height: 100%;
+  padding-inline: 8px;
+}
+
+.deed-node-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.deed-node-name,
+.deed-node-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deed-node-name {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.deed-node-meta {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--mantine-color-dimmed);
+}
+
+.deed-node-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.deed-chip {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+
+.deed-chip-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--mantine-color-text);
+}
+
 .deed-node-dot {
   width: 8px;
   height: 8px;
