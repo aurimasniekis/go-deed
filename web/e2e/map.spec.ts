@@ -49,6 +49,44 @@ test('map: filter, group, inspect, keyboard and provenance', async ({ page }) =>
   await expect(page.getByTestId('provenance-table')).toContainText('metadata › owner')
 })
 
+test('map: colour relationships by their primary source', async ({ page }) => {
+  await page.goto(`/map?focus=${entityId('service/billing-api')}&mode=neighborhood&depth=1`)
+  const canvas = page.getByTestId('map-canvas')
+  await expect(canvas).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await page.getByTestId('map-options-button').click()
+  await page.getByTestId('map-color-mode').click()
+  await page.getByRole('option', { name: 'Source (primary asserting source)' }).click()
+  await expect(page.getByTestId('map-options')).toContainText('primary source')
+  await page.getByRole('button', { name: 'Close' }).first().click()
+
+  // The legend names each source colour on screen and how it is chosen.
+  const legend = page.getByTestId('map-legend')
+  const api = legend.locator('[data-legend-key^="source:src_"]', {
+    hasText: 'API declarations (declared layer, Home infrastructure)',
+  })
+  await expect(api).toBeVisible()
+  await expect(api).toHaveCount(1)
+  await expect(legend).toContainText('Colour: the primary source')
+  const color = await api.getAttribute('data-legend-color')
+  expect(color).toMatch(/^#[0-9a-f]{6}$/)
+
+  // Every relationship names its sources in its accessible name and in the inspector.
+  const edge = page.locator('.react-flow__edge[aria-label*="Depends on"]').first()
+  await expect(edge).toHaveAttribute('aria-label', /sources: API declarations \(Home infrastructure, primary\)/)
+  await edge.locator('path').first().dispatchEvent('click')
+  await expect(page.getByTestId('edge-sources')).toContainText('API declarations')
+  await expect(page.getByTestId('edge-sources')).toContainText('primary')
+
+  // The colour belongs to the source: the same after a reload.
+  await page.reload()
+  await expect(canvas).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await expect(
+    page.getByTestId('map-legend').locator('[data-legend-key^="source:src_"]', {
+      hasText: 'API declarations (declared layer, Home infrastructure)',
+    }),
+  ).toHaveAttribute('data-legend-color', color ?? '')
+})
+
 test('map overview groups expand on click', async ({ page }) => {
   await page.goto('/map?group=kind')
   await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })

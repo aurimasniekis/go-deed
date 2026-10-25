@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { readState, ready } from './helpers'
+import { entityId, readState, ready } from './helpers'
 
 test('sources: create a GitHub source, test the connection and preview the import', async ({ page }) => {
   const { mocks } = readState()
@@ -62,6 +62,42 @@ test('kinds: create a custom kind with a schema dry run', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Feature flag' })).toBeVisible()
   await page.goto('/kinds')
   await expect(page.getByRole('link', { name: 'Feature flag' })).toBeVisible()
+})
+
+test('relationship types: change and reset the colour of a built-in type', async ({ page }) => {
+  const legendEntry = (p: typeof page) =>
+    p.getByTestId('map-legend').locator('[data-legend-key="monitored_by"]', { hasText: 'Monitored by' })
+  const map = `/map?focus=${entityId('service/billing-api')}&mode=neighborhood&depth=1`
+  await page.goto(map)
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  const before = await legendEntry(page).getAttribute('data-legend-color')
+
+  await page.goto('/relationship-types')
+  await ready(page)
+  const row = page.getByRole('row', { name: /Monitored by/ })
+  await page.getByRole('button', { name: 'Change colour of Monitored by' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText(`Built-in default: ${before ?? ''}`)
+  await page.getByTestId('reltype-color-input').fill('#123abc')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(row).toContainText('colour changed')
+
+  // The map's default edge colour (and its legend) follow.
+  await page.goto(map)
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await expect(legendEntry(page)).toHaveAttribute('data-legend-color', '#123abc')
+
+  // Reset restores the built-in default.
+  await page.goto('/relationship-types')
+  await ready(page)
+  await page.getByRole('button', { name: 'Change colour of Monitored by' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Reset to default' }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(row).not.toContainText('colour changed')
+  await page.goto(map)
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await expect(legendEntry(page)).toHaveAttribute('data-legend-color', before ?? '')
 })
 
 test('audit log verifies the hash chain', async ({ page }) => {

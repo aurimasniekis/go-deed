@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   buildLegend,
   edgeVisual,
+  FALLBACK_TYPE_COLOR,
   flowSeconds,
   formatRate,
+  MIXED_SOURCE_COLOR,
+  SOURCE_PALETTE,
+  sourceColor,
+  sourcePalette,
   rateWidth,
   strokeOf,
   type EdgeStyleOptions,
@@ -23,6 +28,7 @@ const edge = (over: Partial<MapEdge>): MapEdge => ({
   inferred: false,
   crossProject: false,
   count: 1,
+  sources: [],
   ...over,
 })
 
@@ -209,5 +215,88 @@ describe('legend generation', () => {
     expect(custom.colors[0]).toMatchObject({ color: '#123456', description: 'custom colour for this view' })
     const health = buildLegend([edge({})], { ...opts, colorMode: 'health' }, typeColor, () => 'x', nodes, NOW)
     expect(health.colors[0]?.label).toContain('Worst endpoint health')
+  })
+})
+
+describe('colour by source', () => {
+  const api = {
+    id: 'src_01a',
+    name: 'api',
+    displayName: 'API declarations',
+    layer: 'declared',
+    projectId: 'p',
+    relations: 1,
+  }
+  const scanner = { id: 'src_01b', name: 'scanner', layer: 'discovered', projectId: 'p', relations: 1 }
+  const sopts: EdgeStyleOptions = { ...opts, colorMode: 'source', sourceColors: sourcePalette([api.id, scanner.id]) }
+
+  it('colours an edge by its primary source and says when there is none', () => {
+    const v = edgeVisual(edge({ sources: [api, scanner], primarySource: api.id }), sopts, typeColor, nodes, NOW)
+    expect(v.color).toBe(sopts.sourceColors?.get(api.id))
+    expect(v.colorKey).toBe('source:src_01a')
+    expect(v.colorLabel).toBe('API declarations')
+    const mixed = edgeVisual(edge({ count: 4, sources: [api, scanner] }), sopts, typeColor, nodes, NOW)
+    expect(mixed).toMatchObject({ color: MIXED_SOURCE_COLOR, colorKey: 'source:mixed' })
+    const none = edgeVisual(edge({}), sopts, typeColor, nodes, NOW)
+    expect(none).toMatchObject({ color: FALLBACK_TYPE_COLOR, colorKey: 'source:none' })
+  })
+
+  it('keeps source colours stable, distinct and independent of what is on screen', () => {
+    const ids = Array.from({ length: 24 }, (_, i) => `src_01${String(i).padStart(2, '0')}`)
+    const all = sourcePalette(ids)
+    expect(new Set(all.values()).size).toBe(24)
+    // The same sources in another order (another reload): the same colours.
+    expect(sourcePalette([...ids].reverse())).toEqual(all)
+    // A newer source (IDs sort by creation time) never recolours an existing one.
+    const before = sourcePalette(ids.slice(0, 10))
+    const after = sourcePalette([...ids.slice(0, 10), 'src_09zz'])
+    for (const id of ids.slice(0, 10)) expect(after.get(id)).toBe(before.get(id))
+    // Without a palette entry a source still gets a deterministic colour.
+    expect(sourceColor('src_x')).toBe(sourceColor('src_x'))
+    expect(SOURCE_PALETTE).toContain(sourceColor('src_x'))
+  })
+
+  it('uses colours with at least 3:1 contrast against the canvas in both themes', () => {
+    const lum = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+      }) as [number, number, number]
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    const contrast = (a: string, b: string) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p) as [number, number]
+      return (x + 0.05) / (y + 0.05)
+    }
+    // --deed-canvas in web/src/theme/global.css (light, dark)
+    for (const canvas of ['#f8f9fb', '#1c1d21']) {
+      for (const c of [...SOURCE_PALETTE, MIXED_SOURCE_COLOR, FALLBACK_TYPE_COLOR]) {
+        expect(contrast(c, canvas), `${c} on ${canvas}`).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
+
+  it('lists the sources on screen in the legend, neutral entries last, with how the colour is chosen', () => {
+    const legend = buildLegend(
+      [
+        edge({ id: 'rel_1', sources: [scanner], primarySource: scanner.id }),
+        edge({ id: 'rel_2', sources: [api, scanner], primarySource: api.id }),
+        edge({ id: 'bundle:x', count: 3, sources: [api, scanner] }),
+        edge({ id: 'rel_3' }),
+      ],
+      sopts,
+      typeColor,
+      (t) => t,
+      nodes,
+      NOW,
+    )
+    expect(legend.colors.map((c) => c.label)).toEqual([
+      'API declarations',
+      'scanner',
+      'Several sources (bundled relationships with different primary sources)',
+      'No source you can see',
+    ])
+    expect(legend.colors[0]?.description).toBe('declared layer, p')
+    expect(legend.notes.join(' ')).toContain('primary source')
   })
 })

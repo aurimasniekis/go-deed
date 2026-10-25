@@ -1,15 +1,16 @@
 /**
  * Edge styling (ADR-011c). Colour = relationship type (palette from /relationship-types, overridable per view); alternative
- * colour modes: health (worst endpoint), freshness (last seen) and evidence. Stroke encodes evidence: solid for
+ * colour modes: health (worst endpoint), freshness (last seen), evidence and source (the primary asserting source, from a
+ * stable per-source palette). Stroke encodes evidence: solid for
  * declared/structural (observed: solid, thinner), dashed for inferred, dotted for stale, double for a cross-project
  * bridge, faded for unknown. Traffic overlays (POST /telemetry/edge-rates and the telemetry stream): width is the
  * log-scaled measured rate and the dash flow animates — only for `measured` rates; `inferred` rates are labelled with
  * their note and never animated; `unavailable` rates change nothing. The legend is generated from what is on screen.
  */
 import { evidenceMeta, freshnessMeta, healthMeta, isStaleRelation } from '@/lib/status'
-import type { MapEdge, MapNode } from './types'
+import { sourceLabel, type MapEdge, type MapNode } from './types'
 
-export type ColorMode = 'type' | 'health' | 'freshness' | 'evidence'
+export type ColorMode = 'type' | 'health' | 'freshness' | 'evidence' | 'source'
 export type Routing = 'bezier' | 'smoothstep' | 'straight'
 export type StrokeKind = 'solid' | 'observed' | 'dashed' | 'dotted' | 'double' | 'faded'
 
@@ -17,6 +18,10 @@ export interface EdgeStyleOptions {
   colorMode: ColorMode
   /** Type → colour overrides (user edits), falling back to the relationship type's colour. */
   typeColors: Record<string, string>
+  /** Source ID → colour (see sourcePalette); sources missing from it fall back to their hash slot. */
+  sourceColors?: Map<string, string>
+  /** Project names for source legend entries (every project has its own system sources, e.g. "API declarations"). */
+  projectName?: (id: string) => string
   labels: boolean
   directionHint: boolean
   /** Traffic overlay switched on. */
@@ -76,6 +81,84 @@ export const EVIDENCE_COLORS: Record<string, string> = {
   observed: '#1c7ed6',
   inferred: '#e8590c',
   unknown: '#868e96',
+}
+
+/**
+ * Source colours: 12 hues at two lightness steps (OKLCH L 0.60 and 0.55), each at least 3:1 against the canvas in both
+ * themes (WCAG 1.4.11; asserted in edgeStyle.test.ts). Status colours are not reused. Ordered so neighbouring slots
+ * are far apart on the hue wheel (150° steps, alternating lightness): a source moved to the next free slot does not
+ * end up with a look-alike of the colour it collided with.
+ */
+export const SOURCE_PALETTE = [
+  '#c5547c',
+  '#138282',
+  '#25984d',
+  '#ac4785',
+  '#8f68cb',
+  '#478416',
+  '#9c7c0b',
+  '#6b61c4',
+  '#0b89c8',
+  '#986603',
+  '#ca5747',
+  '#127d9d',
+  '#149483',
+  '#b84455',
+  '#b05baa',
+  '#038660',
+  '#768b09',
+  '#9252ad',
+  '#5e78d9',
+  '#7c7406',
+  '#bb6802',
+  '#2971c6',
+  '#1590a1',
+  '#b64e10',
+] as const
+
+/** Bundled relationships whose primary sources differ. */
+export const MIXED_SOURCE_COLOR = '#8a7f72'
+
+/** FNV-1a: a stable slot for a source ID. */
+function hashSlot(id: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0) % SOURCE_PALETTE.length
+}
+
+/**
+ * Assigns palette colours to sources: each takes its hash slot, or the next free one when an older source (IDs sort by
+ * creation time) holds it. Colours stay put across reloads, and a new source never recolours an existing one; only
+ * beyond 24 sources do colours repeat (the legend and tooltips still name each source).
+ */
+export function sourcePalette(ids: Iterable<string>): Map<string, string> {
+  const out = new Map<string, string>()
+  const taken = new Set<number>()
+  for (const id of [...new Set(ids)].sort()) {
+    let slot = hashSlot(id)
+    if (taken.size < SOURCE_PALETTE.length) {
+      while (taken.has(slot)) slot = (slot + 1) % SOURCE_PALETTE.length
+    }
+    taken.add(slot)
+    out.set(id, SOURCE_PALETTE[slot] ?? FALLBACK_TYPE_COLOR)
+  }
+  return out
+}
+
+export function sourceColor(id: string, palette?: Map<string, string>): string {
+  return palette?.get(id) ?? SOURCE_PALETTE[hashSlot(id)] ?? FALLBACK_TYPE_COLOR
+}
+
+const LAYER_LABEL: Record<string, string> = {
+  declared: 'declared',
+  imported: 'imported',
+  discovered: 'discovered',
+  observation: 'observation',
+  annotation: 'annotation',
+  override: 'override',
 }
 
 const healthRank: Record<string, number> = { failed: 3, warning: 2, ok: 1, unknown: 0 }
@@ -173,6 +256,22 @@ export function edgeVisual(
       colorKey = `evidence:${e.evidence}`
       colorLabel = `Evidence: ${evidenceMeta(e.evidence).label}`
       break
+    case 'source': {
+      const primary = e.primarySource ? e.sources.find((s) => s.id === e.primarySource) : undefined
+      if (primary) {
+        color = sourceColor(primary.id, opts.sourceColors)
+        colorKey = `source:${primary.id}`
+        colorLabel = sourceLabel(primary)
+      } else if (e.sources.length > 0) {
+        color = MIXED_SOURCE_COLOR
+        colorKey = 'source:mixed'
+        colorLabel = 'Several sources (bundled relationships with different primary sources)'
+      } else {
+        colorKey = 'source:none'
+        colorLabel = 'No source you can see'
+      }
+      break
+    }
   }
   const notes: string[] = []
   if (stroke === 'dashed') notes.push('inferred')
@@ -266,17 +365,30 @@ export function buildLegend(
     inferred ||= v.rateStatus === 'inferred' || v.rateStatus === 'stale'
     bundled ||= e.count > 1
     if (!colors.has(v.colorKey)) {
+      const primary =
+        opts.colorMode === 'source' && e.primarySource ? e.sources.find((s) => s.id === e.primarySource) : undefined
       colors.set(v.colorKey, {
         key: v.colorKey,
         label: opts.colorMode === 'type' ? typeTitle(e.type) : v.colorLabel,
         color: v.color,
         ...(opts.colorMode === 'type' && opts.typeColors[e.type] ? { description: 'custom colour for this view' } : {}),
+        ...(primary
+          ? {
+              description: `${LAYER_LABEL[primary.layer] ?? primary.layer} layer, ${opts.projectName?.(primary.projectId) ?? primary.projectId}`,
+            }
+          : {}),
       })
     }
   }
   const order: StrokeKind[] = ['solid', 'observed', 'dashed', 'dotted', 'double', 'faded']
   const strokeList = order.filter((s) => strokes.has(s)).map((kind) => ({ kind, ...STROKE_LABEL[kind] }))
-  const colorList = [...colors.values()].sort((a, b) => a.label.localeCompare(b.label))
+  // Neutral source entries (several / none) go last.
+  const rank = (c: LegendColor) => (c.key === 'source:mixed' ? 1 : c.key === 'source:none' ? 2 : 0)
+  const colorList = [...colors.values()].sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label))
+  const sourceNote =
+    opts.colorMode === 'source' && edges.length > 0
+      ? 'Colour: the primary source (highest-precedence layer, then the oldest claim). Hover or select a relationship for every source asserting it.'
+      : undefined
   if (opts.lod) {
     // The simplified drawing keeps colours, strokes and rate widths, and drops everything else: say so.
     const notes = [
@@ -284,6 +396,7 @@ export function buildLegend(
     ]
     if (measuredStatic || traffic) notes.push('Wider lines carry a measured rate.')
     if (bundled) notes.push('Thicker lines bundle several relationships.')
+    if (sourceNote) notes.push(sourceNote)
     return { colors: colorList, strokes: strokeList, animations: [], notes }
   }
   const animations: Legend['animations'] = []
@@ -301,6 +414,7 @@ export function buildLegend(
     })
   }
   const notes: string[] = ['Arrowheads point from the source of a relationship to its target.']
+  if (sourceNote) notes.push(sourceNote)
   if (measuredStatic)
     notes.push('Wider lines with a rate label carry a measured rate; animation is off (reduced motion).')
   if (inferred)

@@ -1,6 +1,6 @@
 import type { GraphResult, ImpactResult } from '@/api/client'
 import { isStaleRelation } from '@/lib/status'
-import { emptyModel, toMapEdge, toMapNode, type GraphModel, type MapEdge, type MapNode } from './types'
+import { bundleSources, emptyModel, toMapEdge, toMapNode, type GraphModel, type MapEdge, type MapNode } from './types'
 
 /** Render budgets (ADR-011): never more than this on screen at once. */
 export const MAX_NODES = 2000
@@ -234,7 +234,12 @@ export function clusterModel(
     edges.set(
       id,
       cur
-        ? { ...cur, count: cur.count + e.count, evidence: weakerEvidence(cur.evidence, e.evidence) }
+        ? {
+            ...cur,
+            count: cur.count + e.count,
+            evidence: weakerEvidence(cur.evidence, e.evidence),
+            ...bundleSources(cur, e),
+          }
         : { ...e, id, from, to },
     )
   }

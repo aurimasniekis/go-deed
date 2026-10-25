@@ -51,14 +51,14 @@ import {
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isInstallationAdmin, useMe } from '@/api/auth'
 import { api, unwrap, type View } from '@/api/client'
-import { keys, useKinds, useProjects, useRelTypes } from '@/api/queries'
+import { keys, useKinds, useProjects, useRelTypes, useSources } from '@/api/queries'
 import { onLiveChanges } from '@/api/useLive'
 import { EmptyState, ErrorState } from '@/components/States'
 import { SavedViewsMenu } from '@/features/views/SavedViews'
 import { useProjectFilter, useTitle } from '@/lib/appStore'
 import { humanize, plural } from '@/lib/format'
 import { compact, decodeList, encodeList, validateMapSearch, type MapSearch } from '@/lib/urlState'
-import { buildLegend, edgeVisual } from './edgeStyle'
+import { buildLegend, edgeVisual, sourceColor, sourcePalette } from './edgeStyle'
 import { edgeTypes, LodEdges, type DeedFlowEdge } from './edges'
 import { EdgeInspector, NodeInspector, type InspectorActions } from './Inspector'
 import { layoutCache, runLayout, warmLayout } from './layout'
@@ -87,7 +87,7 @@ import {
 import { LOD, NODE_SIZE, nodeTypes, type EntityNodeData, type GroupNodeData } from './nodes'
 import { OptionsDrawer } from './OptionsDrawer'
 import { PathFinder } from './PathFinder'
-import type { MapNode } from './types'
+import { sourceLabel, type MapEdge, type MapNode } from './types'
 import { kindAccent } from '@/theme/chart'
 import { useEdgeRates } from './useEdgeRates'
 import { useMapData } from './useMapData'
@@ -135,6 +135,16 @@ function fitPadding(): NonNullable<FitViewOptions['padding']> {
     : { x: '48px', y: '48px' }
 }
 
+/** The asserting sources for an edge's tooltip and accessible name. */
+function sourcesText(e: MapEdge, projectName: (id: string) => string): string {
+  if (e.sources.length === 0) return ''
+  const names = e.sources.map(
+    (s) =>
+      `${sourceLabel(s)} (${[projectName(s.projectId), ...(s.id === e.primarySource ? ['primary'] : []), ...(e.count > 1 ? [`${s.relations}/${e.count}`] : [])].join(', ')})`,
+  )
+  return ` · sources: ${names.join(', ')}`
+}
+
 function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: MapSearch, replace?: boolean) => void }) {
   useTitle('Map')
   const rf = useReactFlow()
@@ -177,7 +187,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     return () => clearInterval(t)
   }, [])
 
-  const data = useMapData(search, globalProjects)
+  const data = useMapData(search, globalProjects, style.colorMode === 'source')
+  const sources = useSources()
   const kindMap = useMemo(() => new Map((kinds.data ?? []).map((k) => [k.name, k])), [kinds.data])
   const typeMap = useMemo(() => new Map((relTypes.data ?? []).map((t) => [t.name, t])), [relTypes.data])
   const projectName = useCallback(
@@ -217,6 +228,15 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     const groups = clustered.groups.filter((g) => !g.collapsed && g.members.some((m) => budgeted.nodes.has(m)))
     return { model: budgeted, groups }
   }, [data.model, filters, clustering, collapsed, projectName])
+
+  // Source colours are assigned over every source the user can see (oldest first), so a colour does not depend on
+  // what happens to be on screen.
+  const sourceColors = useMemo(() => {
+    const ids = new Set((sources.data ?? []).map((s) => s.id))
+    for (const e of view.model.edges.values()) for (const s of e.sources) ids.add(s.id)
+    return sourcePalette(ids)
+  }, [sources.data, view.model])
+  const colorOfSource = useCallback((id: string) => sourceColor(id, sourceColors), [sourceColors])
 
   const signature = useMemo(
     () =>
@@ -396,6 +416,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     const opts = {
       colorMode: style.colorMode,
       typeColors: style.typeColors,
+      sourceColors,
+      projectName,
       labels: style.labels,
       directionHint: style.directionHint,
       traffic: style.traffic,
@@ -405,7 +427,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       const v = edgeVisual(e, opts, typeColor, view.model.nodes, now, traffic.rates.get(e.id))
       const from = view.model.nodes.get(e.from)
       const to = view.model.nodes.get(e.to)
-      const title = `${from?.displayName ?? from?.name ?? e.from} ${typeTitle(e.type)} ${to?.displayName ?? to?.name ?? e.to} · evidence: ${e.evidence}${v.notes.length ? ` · ${v.notes.join(', ')}` : ''}`
+      const title = `${from?.displayName ?? from?.name ?? e.from} ${typeTitle(e.type)} ${to?.displayName ?? to?.name ?? e.to} · evidence: ${e.evidence}${sourcesText(e, projectName)}${v.notes.length ? ` · ${v.notes.join(', ')}` : ''}`
       return {
         id: e.id,
         source: e.from,
@@ -448,6 +470,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     typeTitle,
     traffic.rates,
     now,
+    sourceColors,
+    projectName,
   ])
 
   // Level of detail only swaps how nodes draw (crossing the threshold must not rebuild every node and edge).
@@ -658,6 +682,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         {
           colorMode: style.colorMode,
           typeColors: style.typeColors,
+          sourceColors,
+          projectName,
           labels: style.labels,
           directionHint: style.directionHint,
           traffic: style.traffic,
@@ -670,7 +696,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         now,
         traffic.rates,
       ),
-    [view.model, style, reduced, lod, typeColor, typeTitle, traffic.rates, now],
+    [view.model, style, reduced, lod, typeColor, typeTitle, traffic.rates, now, sourceColors, projectName],
   )
 
   // Breadcrumb names for the exploration trail.
@@ -1061,6 +1087,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                     edge={selEdge}
                     model={view.model}
                     typeTitle={typeTitle}
+                    sourceColor={colorOfSource}
+                    projectName={projectName}
                     onClose={() => setSelectedEdge(null)}
                   />
                 ) : null}

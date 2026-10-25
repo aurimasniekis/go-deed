@@ -1,9 +1,28 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { api, unwrap, type GraphResult, type ImpactResult } from '@/api/client'
+import { api, unwrap, type GraphEdge, type GraphResult, type ImpactResult } from '@/api/client'
 import { keys } from '@/api/queries'
 import { decodeList, type Evidence, type MapSearch } from '@/lib/urlState'
 import { mergeResults, MAX_NODES, type Expansion } from './model'
+import { bundleSources, toMapEdge } from './types'
+
+/** Adds one more relationship to a client-side bundle, keeping the union of the asserting sources. */
+function addToBundle(cur: GraphEdge, e: GraphEdge): GraphEdge {
+  const { sources, primarySource } = bundleSources(toMapEdge(cur), toMapEdge(e))
+  return {
+    ...cur,
+    count: (cur.count ?? 1) + 1,
+    sources: sources.map((s) => ({
+      id: s.id,
+      name: s.name,
+      ...(s.displayName ? { display_name: s.displayName } : {}),
+      layer: s.layer,
+      project_id: s.projectId,
+      relations: s.relations,
+    })),
+    primary_source: primarySource,
+  }
+}
 
 export type MapMode = 'overview' | 'neighborhood' | 'path' | 'impact'
 
@@ -81,7 +100,7 @@ export async function expandOverviewGroup(
     if (from === e.from && to === e.to) continue
     const id = `agg:${from}>${to}:${e.type}`
     const cur = edges.get(id)
-    edges.set(id, cur ? { ...cur, count: (cur.count ?? 1) + 1 } : { ...e, id, from, to, count: 1 })
+    edges.set(id, cur ? addToBundle(cur, e) : { ...e, id, from, to, count: 1 })
   }
   return {
     nodes: hood.nodes.filter((n) => members.has(n.id)).map((n) => ({ ...n, depth: 1 })),
@@ -114,8 +133,10 @@ function mark(name: string) {
  * Loads what the map shows: the base query for the mode (overview groups, a neighbourhood, a path, an impact
  * traversal) plus on-demand expansions from the URL (`expand`: cluster keys, or `e:<id>` entity neighbourhoods), and
  * entity IDs for a source filter. Server caps (depth, max_nodes) keep every answer within the render budget.
+ * withSources asks the overview for its bundles' asserting sources (colour-by-source mode); other answers always
+ * carry them.
  */
-export function useMapData(s: MapSearch, globalProjects: string[]) {
+export function useMapData(s: MapSearch, globalProjects: string[], withSources = false) {
   const mode = modeOf(s)
   const focus = decodeList(s.focus)
   const types = decodeList(s.type)
@@ -127,7 +148,11 @@ export function useMapData(s: MapSearch, globalProjects: string[]) {
   const params = (() => {
     switch (mode) {
       case 'overview':
-        return { group_by: s.group ?? 'kind', ...(scopeProjects.length ? { project: scopeProjects } : {}) }
+        return {
+          group_by: s.group ?? 'kind',
+          ...(scopeProjects.length ? { project: scopeProjects } : {}),
+          ...(withSources ? { sources: true } : {}),
+        }
       case 'neighborhood':
         return {
           root: focus,

@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   ColorInput,
   Divider,
@@ -67,23 +66,14 @@ export function OptionsDrawer({
   const projects = useProjects()
   const sources = useSources()
   const qc = useQueryClient()
+  // Built-in types keep their definition; the colour becomes an installation override (reset on the
+  // relationship-types page).
   const saveTypeColor = useMutation({
     mutationFn: async ({ t, color }: { t: RelType; color: string }) =>
       unwrap(
-        await api.PUT('/relationship-types/{name}', {
+        await api.PUT('/relationship-types/{name}/color', {
           params: { path: { name: t.name }, header: { 'If-Match': String(t.resource_version) } },
-          body: {
-            title: t.title,
-            color,
-            description: t.description,
-            inverse_name: t.inverse_name,
-            impact: t.impact,
-            default_evidence: t.default_evidence,
-            directed: t.directed,
-            cardinality: t.cardinality,
-            from_kinds: t.from_kinds,
-            to_kinds: t.to_kinds,
-          },
+          body: { color },
         }),
       ),
     onSuccess: (t) => {
@@ -247,11 +237,20 @@ export function OptionsDrawer({
               { value: 'health', label: 'Health (worst endpoint)' },
               { value: 'freshness', label: 'Freshness (last seen)' },
               { value: 'evidence', label: 'Evidence class' },
+              { value: 'source', label: 'Source (primary asserting source)' },
             ]}
             value={style.colorMode}
             onChange={(v) => setStyle({ colorMode: (v ?? 'type') as ColorMode })}
             allowDeselect={false}
+            data-testid="map-color-mode"
           />
+          {style.colorMode === 'source' && (
+            <Text size="xs" c="dimmed">
+              Each relationship takes the colour of its primary source: the highest-precedence layer, then the oldest
+              claim. Every source keeps its colour across reloads. The legend names the colours on screen; hover or
+              select a relationship for all the sources asserting it.
+            </Text>
+          )}
           <SegmentedControl
             value={style.routing}
             onChange={(v) => setStyle({ routing: v as Routing })}
@@ -326,7 +325,7 @@ export function OptionsDrawer({
                     Reset
                   </Button>
                 )}
-                {custom && canEditTypes && t && !t.builtin && (
+                {custom && canEditTypes && t && (
                   <Button
                     size="xs"
                     variant="default"
@@ -339,11 +338,6 @@ export function OptionsDrawer({
               </Group>
             )
           })}
-          {shownTypes.some((n) => typeTitle.get(n)?.builtin && n in style.typeColors) && (
-            <Alert color="gray" variant="light" p="xs">
-              <Text size="xs">Built-in types keep their server colour; your override applies to your views.</Text>
-            </Alert>
-          )}
         </Section>
 
         <Section title="Nodes">

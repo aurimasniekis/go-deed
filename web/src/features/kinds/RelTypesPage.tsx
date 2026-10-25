@@ -18,7 +18,7 @@ import {
   Textarea,
   Tooltip,
 } from '@mantine/core'
-import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconPalette, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { isInstallationAdmin, useMe } from '@/api/auth'
@@ -113,6 +113,7 @@ function RelTypeModal({ t, opened, onClose }: { t: RelType | null; opened: boole
             value={v.color ?? ''}
             onChange={(c) => setV({ ...v, color: c })}
             format="hex"
+            withEyeDropper={false}
           />
           <Select
             label="Impact"
@@ -177,6 +178,84 @@ function RelTypeModal({ t, opened, onClose }: { t: RelType | null; opened: boole
   )
 }
 
+/**
+ * Changes the map colour of a built-in type: an installation override (the definition stays as Deed ships it) that can
+ * be reset to the built-in default.
+ */
+function BuiltinColorModal({ t, onClose }: { t: RelType; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [color, setColor] = useState(t.color)
+  const done = () => {
+    void qc.invalidateQueries({ queryKey: keys.relTypes() })
+    onClose()
+  }
+  const save = useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.PUT('/relationship-types/{name}/color', {
+          params: { path: { name: t.name }, header: { 'If-Match': String(t.resource_version) } },
+          body: { color },
+        }),
+      ),
+    onSuccess: done,
+  })
+  const reset = useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.DELETE('/relationship-types/{name}/color', {
+          params: { path: { name: t.name }, header: { 'If-Match': String(t.resource_version) } },
+        }),
+      ),
+    onSuccess: done,
+  })
+  const error = save.error ?? reset.error
+  return (
+    <Modal opened onClose={onClose} title={`Colour of ${t.title}`} centered>
+      <Stack gap="sm">
+        <Text size="sm" c="dimmed">
+          Built-in relationship types keep their definition; only the map colour can change for this installation. It is
+          the default edge colour for everyone (map views can still override it).
+        </Text>
+        <ColorInput
+          label="Map colour"
+          value={color}
+          onChange={setColor}
+          format="hex"
+          withEyeDropper={false}
+          data-testid="reltype-color-input"
+          description={`Built-in default: ${t.default_color ?? t.color}`}
+        />
+        {error && (
+          <Alert color="red" role="alert">
+            {errorMessage(error)}
+          </Alert>
+        )}
+        <Group justify="space-between">
+          {t.color_overridden ? (
+            <Button variant="subtle" onClick={() => reset.mutate()} loading={reset.isPending}>
+              Reset to default
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Group gap="xs">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => save.mutate()}
+              loading={save.isPending}
+              disabled={!/^#[0-9a-fA-F]{6}$/.test(color) || color.toLowerCase() === t.color.toLowerCase()}
+            >
+              Save
+            </Button>
+          </Group>
+        </Group>
+      </Stack>
+    </Modal>
+  )
+}
+
 export function RelTypesPage() {
   useTitle('Relationship types')
   const qc = useQueryClient()
@@ -184,6 +263,7 @@ export function RelTypesPage() {
   const admin = isInstallationAdmin(useMe().data)
   const [edit, setEdit] = useState<RelType | null | 'new'>(null)
   const [del, setDel] = useState<RelType | null>(null)
+  const [recolor, setRecolor] = useState<RelType | null>(null)
   const remove = useMutation({
     mutationFn: async (t: RelType) =>
       check(await api.DELETE('/relationship-types/{name}', { params: { path: { name: t.name } } })),
@@ -196,7 +276,7 @@ export function RelTypesPage() {
     <Page>
       <PageHeader
         title="Relationship types"
-        description="How entities relate. Impact direction drives impact analysis; the colour is the default edge colour on the map (views can override it)."
+        description="How entities relate. Impact direction drives impact analysis; the colour is the default edge colour on the map (views can override it). Admins can change the colour of built-in types too."
         actions={
           admin && (
             <Button leftSection={<IconPlus size={14} />} onClick={() => setEdit('new')}>
@@ -245,6 +325,11 @@ export function RelTypesPage() {
                                 custom
                               </Badge>
                             )}
+                            {t.color_overridden && (
+                              <Badge size="xs" variant="light" color="gray" component="span">
+                                colour changed
+                              </Badge>
+                            )}
                           </Text>
                           <Text size="xs" c="dimmed" className="mono">
                             {t.name}
@@ -275,6 +360,13 @@ export function RelTypesPage() {
                       </Text>
                     </Table.Td>
                     <Table.Td ta="right">
+                      {admin && t.builtin && (
+                        <Tooltip label="Change colour">
+                          <ActionIcon aria-label={`Change colour of ${t.title}`} onClick={() => setRecolor(t)}>
+                            <IconPalette size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
                       {admin && !t.builtin && (
                         <Group gap={4} justify="flex-end">
                           <ActionIcon aria-label={`Edit ${t.title}`} onClick={() => setEdit(t)}>
@@ -294,6 +386,7 @@ export function RelTypesPage() {
         </Card>
       )}
       {edit !== null && <RelTypeModal t={edit === 'new' ? null : edit} opened onClose={() => setEdit(null)} />}
+      {recolor && <BuiltinColorModal t={recolor} onClose={() => setRecolor(null)} />}
       <ConfirmModal
         opened={del !== null}
         title="Delete relationship type"
