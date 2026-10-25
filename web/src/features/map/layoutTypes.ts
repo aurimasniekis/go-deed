@@ -187,6 +187,26 @@ export function wrapLayers(
 }
 
 /**
+ * Common end of both layered layouts (ELK in layout.ts, fastLayered in the worker): wraps very tall layers into columns
+ * (ungrouped layouts only) and lets pinned positions win, growing groups around them.
+ */
+export function finishLayered(
+  req: Pick<LayoutRequest, 'nodes' | 'groups' | 'direction' | 'pinned'>,
+  positions: Record<string, { x: number; y: number }>,
+  groups: LayoutResult['groups'],
+): Pick<LayoutResult, 'positions' | 'groups'> {
+  // Hubs with hundreds of neighbours make one enormous layer; wrap it into columns.
+  const maxPerLayer = Math.max(30, Math.ceil(Math.sqrt(req.nodes.length) * 1.2))
+  const wrapped =
+    req.groups.length === 0 && req.nodes.length > maxPerLayer
+      ? wrapLayers(positions, new Map(req.nodes.map((n) => [n.id, n])), req.direction, maxPerLayer)
+      : positions
+  const merged = { ...positions, ...wrapped, ...req.pinned }
+  const hasPins = Object.keys(req.pinned).length > 0
+  return { positions: merged, groups: hasPins ? groupBounds(req, merged) : groups }
+}
+
+/**
  * Layouts of more nodes than this take the cheaper paths: ELK polyline instead of orthogonal routing (layout.ts), and
  * leaf folding, warm start and scaled ticks for force layouts (layout.worker.ts). Typical neighbourhoods stay below it
  * and are laid out exactly as before.
