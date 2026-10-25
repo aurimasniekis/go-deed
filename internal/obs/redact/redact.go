@@ -56,7 +56,7 @@ var exactKeys = map[string]bool{
 	"stdout":         true,
 	"stderr":         true,
 	"cookie":         true,
-	"set-cookie":     true,
+	"set_cookie":     true, // keys are normalized to underscores before lookup
 	"authorization":  true,
 	"otp":            true,
 	"answer":         true,
@@ -67,9 +67,10 @@ var exactKeys = map[string]bool{
 	"code":           false, // generic; not redacted (exit codes, error codes)
 }
 
-// sensitiveSuffixes match keys such as "password", "client_secret", "bot_token", "private_key".
+// sensitiveSuffixes match keys such as "password", "client_secret", "bot_token", "private_key",
+// "proxy_authorization".
 var sensitiveSuffixes = []string{
-	"password", "passwd", "secret", "token", "private_key", "privatekey", "passphrase", "kek", "dek",
+	"authorization", "password", "passwd", "secret", "token", "private_key", "privatekey", "passphrase", "kek", "dek",
 	"api_key", "apikey", "totp", "recovery_code", "recovery_codes", "credential", "credentials", "signature",
 }
 
