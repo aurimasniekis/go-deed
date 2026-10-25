@@ -96,7 +96,7 @@ func (p *Provider) Describe() sources.Descriptor {
 		SecretFields: []string{"s3_access_key_id", "s3_secret_access_key", "http_username", "http_password", "http_token"},
 		Capabilities: sources.Capabilities{Pull: true, Push: true, Snapshot: true}, Kinds: kinds, RelTypes: []string{"contains", "resolves_to", "runs_on",
 			"stored_in", "member_of", "depends_on"}, DefaultSchedule: 900, Docs: "docs/TERRAFORM_IMPORT.md",
-		Verified: "redacted state fixtures (v4 and show-json) with planted secrets; S3 reader against local MinIO; push via CLI"}
+		Verified: "redacted state fixtures (v4 and show-json) with planted secrets; S3 reader against local MinIO; HTTP backend reader against a test server; push via CLI"}
 }
 
 func parseConfig(raw json.RawMessage) (*Config, error) {

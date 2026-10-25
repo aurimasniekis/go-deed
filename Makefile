@@ -30,6 +30,7 @@ fmt:
 
 fmt-check:
 	@out=$$(gofmt -l cmd internal pkg); if [[ -n "$$out" ]]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	@$(GO) mod tidy -diff >/dev/null || { echo "go.mod/go.sum need go mod tidy"; exit 1; }
 
 vet:
 	$(GO) vet ./...
