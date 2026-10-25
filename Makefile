@@ -47,6 +47,8 @@ race: ## race tests (DEED_TEST_TX_MAX relaxes the 100 ms transaction guard on lo
 fuzz-smoke:
 	$(GO) test -run '^$$' -fuzz FuzzSanitize -fuzztime $(FUZZTIME) ./internal/icons/
 	$(GO) test -run '^$$' -fuzz FuzzParse -fuzztime $(FUZZTIME) ./internal/tfimport/
+	$(GO) test -run '^$$' -fuzz FuzzParseSchema -fuzztime $(FUZZTIME) ./internal/catalog/
+	DEED_TEST_TX_MAX=2s $(GO) test -run '^$$' -fuzz FuzzBatch -fuzztime $(FUZZTIME) ./internal/ingest/
 
 openapi: ## regenerate api/openapi.json
 	$(GO) run ./cmd/deed openapi > api/openapi.json.tmp && mv api/openapi.json.tmp api/openapi.json

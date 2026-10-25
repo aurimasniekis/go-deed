@@ -126,13 +126,61 @@ func checkLimits(v any, depth int, props *int) error {
 					// Secret-looking property names are allowed; CheckSecretValues refuses plain values under them at write time.
 				}
 			}
-			if err := checkLimits(x, depth+1, props); err != nil {
+			var err error
+			if m, ok := x.(map[string]any); ok && namedSchemas[k] {
+				// Keys are property/definition names, not keywords ("format" is a valid property name).
+				err = checkNamed(m, depth+1, props)
+			} else if dataKeywords[k] {
+				err = checkDepth(x, depth+1) // instance data, not a schema
+			} else {
+				err = checkLimits(x, depth+1, props)
+			}
+			if err != nil {
 				return err
 			}
 		}
 	case []any:
 		for _, x := range t {
 			if err := checkLimits(x, depth+1, props); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// namedSchemas are keywords whose value maps names to subschemas; dataKeywords hold instance values.
+var (
+	namedSchemas = map[string]bool{"properties": true, "patternProperties": true, "$defs": true, "definitions": true, "dependentSchemas": true}
+	dataKeywords = map[string]bool{"const": true, "enum": true, "default": true, "examples": true}
+)
+
+func checkNamed(m map[string]any, depth int, props *int) error {
+	if depth > MaxSchemaDepth {
+		return fmt.Errorf("schema nesting deeper than %d", MaxSchemaDepth)
+	}
+	for _, x := range m {
+		if err := checkLimits(x, depth+1, props); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkDepth(v any, depth int) error {
+	if depth > MaxSchemaDepth {
+		return fmt.Errorf("schema nesting deeper than %d", MaxSchemaDepth)
+	}
+	switch t := v.(type) {
+	case map[string]any:
+		for _, x := range t {
+			if err := checkDepth(x, depth+1); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, x := range t {
+			if err := checkDepth(x, depth+1); err != nil {
 				return err
 			}
 		}
