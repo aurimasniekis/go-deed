@@ -327,9 +327,13 @@ func Load(path string, environ []string) (*Config, error) {
 }
 
 func decode(r io.Reader, cfg *Config) error {
-	data, err := io.ReadAll(io.LimitReader(r, 1<<20))
+	const maxSize = 1 << 20
+	data, err := io.ReadAll(io.LimitReader(r, maxSize+1))
 	if err != nil {
 		return err
+	}
+	if len(data) > maxSize {
+		return errors.New("config file exceeds 1 MiB")
 	}
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil
