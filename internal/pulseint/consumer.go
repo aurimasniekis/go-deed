@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/aurimasniekis/go-pulse/pkg/pulse"
 
@@ -22,6 +23,24 @@ const (
 	TypeHeartbeat    = "deed.ingest.heartbeat.v1"
 )
 
+// DefaultIngestFilter is the ingest consumer's default subject filter.
+const DefaultIngestFilter = "evt.deed.ingest.>"
+
+// SubjectPublisher returns the subject token at the filter's first wildcard ("" when there is none or the subject is
+// shorter): the publisher slot of ingest subjects, e.g. "billing" in evt.deed.ingest.billing.items.
+func SubjectPublisher(filter, subject string) string {
+	ft, st := strings.Split(filter, "."), strings.Split(subject, ".")
+	for i, t := range ft {
+		if t == "*" || t == ">" {
+			if i < len(st) {
+				return st[i]
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
 // Envelope is the payload of an ingest event.
 type Envelope struct {
 	SourceID     string                 `json:"source_id"`
@@ -32,7 +51,9 @@ type Envelope struct {
 }
 
 // Consumer applies ingest events from Pulse. A source accepts events only from the publisher named in its config
-// (`pulse_source`, matched against ce-source), so a Pulse client can never write into another source.
+// (`pulse_source`), which must match both ce-source and the subject token at the ingest filter's first wildcard
+// (evt.deed.ingest.<pulse_source>.items). Pulse authenticates subjects through client grants but not ce-source, which
+// any publisher sets freely, so the subject token is what keeps a Pulse client out of other publishers' sources.
 type Consumer struct {
 	Catalog *catalog.Service
 	Ingest  *ingest.Service
@@ -41,6 +62,8 @@ type Consumer struct {
 	// Self is Deed's own Pulse source: its outbox notifications (evt.deed.ingest.snapshot_committed, …) share the
 	// subject space and are skipped.
 	Self string
+	// Filter is the subject filter Run subscribes with (pulse.ingest_filter; DefaultIngestFilter when empty).
+	Filter string
 }
 
 // ErrNotAllowed is terminal: the publisher may not write into the source.
@@ -84,7 +107,12 @@ func (c *Consumer) handle(ctx context.Context, e pulse.Event) error {
 		PulseSource string `json:"pulse_source"`
 	}
 	_ = json.Unmarshal(src.Config, &cfg)
-	if src.Provider != "push" || !src.Enabled || cfg.PulseSource == "" || cfg.PulseSource != e.Source {
+	filter := c.Filter
+	if filter == "" {
+		filter = DefaultIngestFilter
+	}
+	if src.Provider != "push" || !src.Enabled || cfg.PulseSource == "" || cfg.PulseSource != e.Source ||
+		SubjectPublisher(filter, e.Subject) != cfg.PulseSource {
 		return ErrNotAllowed
 	}
 	actor := audit.Actor{Type: audit.ActorSource, ID: src.ID}

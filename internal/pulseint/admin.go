@@ -58,7 +58,7 @@ func (Admin) Describe() sources.Descriptor {
 			{Kind: "nats_consumer", Level: sources.SupportNative}, {Kind: "nats_subject", Level: sources.SupportNative},
 			{Kind: "service", Level: sources.SupportNative, Note: "one per Pulse client"}, {Kind: "event_contract", Level: sources.SupportNative, Note: "last ce-type per subject"}},
 		RelTypes: []string{"publishes", "subscribes_to", "contains", "carried_on"}, DefaultSchedule: 300, Docs: "docs/PULSE.md",
-		Verified: "contract tests against fixtures shaped by Pulse's admin OpenAPI (api/admin.openapi.json); real pulsed validation pending"}
+		Verified: "contract tests against fixtures recorded from a real pulsed; validated against pulsed built from source (scripts/validate/pulse.sh)"}
 }
 
 func parseAdmin(raw json.RawMessage) (*AdminConfig, error) {

@@ -52,7 +52,7 @@ func (TailProvider) Describe() sources.Descriptor {
 		Kinds: []sources.KindSupport{{Kind: "service", Level: sources.SupportRuntime, Note: "publishers by ce-source"},
 			{Kind: "nats_subject", Level: sources.SupportRuntime}, {Kind: "event_contract", Level: sources.SupportRuntime}},
 		RelTypes: []string{"publishes", "carried_on"}, Docs: "docs/PULSE.md",
-		Verified: "integration test against a local nats-server with JetStream using the go-pulse client; real pulsed validation pending"}
+		Verified: "integration test against a local nats-server with JetStream; validated against pulsed built from source with Pulse client credentials (scripts/validate/pulse.sh)"}
 }
 
 // Validate implements sources.Provider.
