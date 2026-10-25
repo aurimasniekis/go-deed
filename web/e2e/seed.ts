@@ -767,6 +767,16 @@ export async function seedLarge(c: DeedClient, n: number, out: SeedResult): Prom
     await g.post(`/sources/${src.id}/items`, batch)
     batch = { entities: [], relations: [] }
   }
+  // A second, smaller network joined by the first ten hosts: its depth-2 neighbourhood is ~500 nodes (the hosts, their
+  // containers and core-net), the size the 60 fps pan/zoom budget is stated for.
+  const dmzHosts = Math.min(10, hosts)
+  batch.entities.push({
+    kind: 'network',
+    name: 'dmz-net',
+    revision: 1,
+    metadata: { environment: 'production' },
+    health: { state: 'ok' },
+  })
   for (let h = 0; h < hosts; h++) {
     const host = `host-${String(h).padStart(3, '0')}`
     batch.entities.push({
@@ -783,6 +793,14 @@ export async function seedLarge(c: DeedClient, n: number, out: SeedResult): Prom
       evidence_class: 'structural',
       revision: 1,
     })
+    if (h < dmzHosts)
+      batch.relations.push({
+        type: 'connects_to',
+        from: { kind: 'docker_host', name: host },
+        to: { kind: 'network', name: 'dmz-net' },
+        evidence_class: 'structural',
+        revision: 1,
+      })
     for (let i = 0; i < perHost; i++) {
       const name = `${host}-app-${String(i).padStart(2, '0')}`
       const health = (h * perHost + i) % 37 === 0 ? 'failed' : (h * perHost + i) % 11 === 0 ? 'warning' : 'ok'
