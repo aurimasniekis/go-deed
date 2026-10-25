@@ -1,0 +1,38 @@
+/* Screenshots: show the image that matches the site theme (see siteHtml in config.mts). */
+.ss-dark,
+.dark .ss-light {
+  display: none;
+}
+.dark .ss-dark {
+  display: inline;
+}
+.vp-doc img.ss-light,
+.vp-doc img.ss-dark {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+.home-shots {
+  max-width: 1152px;
+  margin: 48px auto 0;
+  padding: 0 24px;
+}
+.home-shots h2 {
+  margin: 32px 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.home-shots img {
+  width: 100%;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+}
+.home-shots .grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+.home-shots p {
+  margin: 6px 0 0;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+}

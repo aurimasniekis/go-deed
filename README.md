@@ -17,6 +17,58 @@ which Pulse/NATS events, and — for every value — where it came from and how 
 > [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md); what has actually been run end to end (and what is still pending against
 > real services) is in [docs/VALIDATION.md](docs/VALIDATION.md). Documentation site: https://aurimasniekis.github.io/go-deed/
 
+## Screenshots
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/map-focus-dark.png">
+  <img src="docs/assets/screenshots/map-focus-light.png" alt="Map: the neighbourhood of a service, edges coloured by relationship type, measured traffic rates on the edges and the legend">
+</picture>
+
+<table>
+<tr>
+<td width="50%">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/dashboard-dark.png">
+  <img src="docs/assets/screenshots/dashboard-light.png" alt="Dashboard: entities, relationships, findings, alerts and source health">
+</picture>
+
+<p align="center"><b>Dashboard</b></p>
+</td>
+<td width="50%">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/entity-provenance-dark.png">
+  <img src="docs/assets/screenshots/entity-provenance-light.png" alt="Entity provenance: for every field, the winning source, its layer and revision, and the losing candidates">
+</picture>
+
+<p align="center"><b>Why does this value exist?</b> Field-level provenance</p>
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/map-source-dark.png">
+  <img src="docs/assets/screenshots/map-source-light.png" alt="Map coloured by asserting source, with the edge inspector listing every source that asserts a relationship">
+</picture>
+
+<p align="center"><b>Map coloured by source</b>, with the edge inspector</p>
+</td>
+<td width="50%">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/findings-dark.png">
+  <img src="docs/assets/screenshots/findings-light.png" alt="Findings: expiring certificates, drift, source conflicts, missing relationship targets and available updates">
+</picture>
+
+<p align="center"><b>Findings</b> derived from evidence</p>
+</td>
+</tr>
+</table>
+
+All screenshots show the synthetic demo dataset (`deed demo seed`); they are taken by the browser test suite in both
+themes. More in the [UI guide](docs/UI.md).
+
 ## What it does
 - **Catalog** of entities (built-in kinds plus custom kinds with versioned JSON Schemas) in projects, connected by
   typed relationships with evidence (declared, structural, observed, inferred).

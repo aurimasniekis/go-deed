@@ -31,3 +31,32 @@ features:
   - title: Safe by default
     details: Argon2id + TOTP, OIDC SSO (Porch first), project-scoped roles and tokens, SSRF-guarded outbound calls, a hash-chained audit log, and age-encrypted backups with signed manifests.
 ---
+
+<div class="home-shots">
+
+<h2>The map</h2>
+<img class="ss-light" src="docs/assets/screenshots/map-focus-light.png" alt="Map: the neighbourhood of a service, edges coloured by relationship type, measured traffic rates and the legend"><img class="ss-dark" src="docs/assets/screenshots/map-focus-dark.png" alt="Map: the neighbourhood of a service, edges coloured by relationship type, measured traffic rates and the legend">
+<p>A focused neighbourhood: relationship types by colour, evidence by line style, measured rates only where a measurement exists.</p>
+
+<div class="grid">
+<div>
+<h2>Dashboard</h2>
+<img class="ss-light" src="docs/assets/screenshots/dashboard-light.png" alt="Dashboard: entities, relationships, findings, alerts, health and freshness"><img class="ss-dark" src="docs/assets/screenshots/dashboard-dark.png" alt="Dashboard: entities, relationships, findings, alerts, health and freshness">
+</div>
+<div>
+<h2>Why does this value exist?</h2>
+<img class="ss-light" src="docs/assets/screenshots/entity-provenance-light.png" alt="Entity provenance: winning source, layer and revision per field, and the losing candidates"><img class="ss-dark" src="docs/assets/screenshots/entity-provenance-dark.png" alt="Entity provenance: winning source, layer and revision per field, and the losing candidates">
+</div>
+<div>
+<h2>Colour by source</h2>
+<img class="ss-light" src="docs/assets/screenshots/map-source-light.png" alt="Map coloured by asserting source, with the edge inspector"><img class="ss-dark" src="docs/assets/screenshots/map-source-dark.png" alt="Map coloured by asserting source, with the edge inspector">
+</div>
+<div>
+<h2>Findings</h2>
+<img class="ss-light" src="docs/assets/screenshots/findings-light.png" alt="Findings: certificates, drift, conflicts, missing targets and available updates"><img class="ss-dark" src="docs/assets/screenshots/findings-dark.png" alt="Findings: certificates, drift, conflicts, missing targets and available updates">
+</div>
+</div>
+
+<p>Screenshots show the synthetic demo dataset. More in the <a href="/go-deed/guide/ui">web UI tour</a>.</p>
+
+</div>

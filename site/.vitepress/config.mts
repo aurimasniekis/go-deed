@@ -1,6 +1,27 @@
+import { cpSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
 
 const repo = 'https://github.com/aurimasniekis/go-deed';
+const base = '/go-deed/';
+
+// Screenshots live once, in docs/assets/screenshots (the README and docs/UI.md use them from there); the site serves a
+// copy from public/screenshots (git-ignored), refreshed on every dev start and build.
+cpSync(fileURLToPath(new URL('../../docs/assets/screenshots', import.meta.url)), fileURLToPath(new URL('../public/screenshots', import.meta.url)), {
+  recursive: true,
+});
+const screenshot = /(?:\.\.\/)*(?:docs\/)?assets\/screenshots\//g;
+
+// docs/*.md show screenshots as <picture> with a prefers-color-scheme source, which follows the OS; on the site the
+// light and dark images follow the theme toggle instead (theme/custom.css).
+function siteHtml(html: string): string {
+  return html
+    .replace(
+      /<picture>\s*<source media="\(prefers-color-scheme: dark\)" srcset="([^"]+)">\s*<img src="([^"]+)" alt="([^"]*)"[^>]*>\s*<\/picture>/g,
+      (_m, dark, light, alt) => `<img class="ss-light" src="${light}" alt="${alt}"><img class="ss-dark" src="${dark}" alt="${alt}">`,
+    )
+    .replace(screenshot, '/screenshots/');
+}
 
 // Engineering docs in ../docs mention each other as docs/FOO.md or FOO.md; on the site they are included into pages.
 const docPages: Record<string, string> = {
@@ -17,6 +38,7 @@ const docPages: Record<string, string> = {
   FINDINGS: '/guide/findings',
   ICONS: '/guide/icons',
   AGENT: '/guide/agent',
+  UI: '/guide/ui',
   INGEST_API: '/reference/ingest-api',
   VERSIONING: '/reference/versioning',
   COMPATIBILITY: '/reference/compatibility',
@@ -32,7 +54,7 @@ export default defineConfig({
     'A source-aware graph of your infrastructure, software, identities and operational relationships — declared with Terraform, imported from state, observed at runtime.',
   lang: 'en-US',
   // GitHub Pages project site: https://aurimasniekis.github.io/go-deed/
-  base: '/go-deed/',
+  base,
   cleanUrls: true,
   lastUpdated: false,
   // Engineering docs link to source files and to each other with repository-relative paths.
@@ -52,6 +74,16 @@ export default defineConfig({
         }
         return original(tokens, idx, options, env, self);
       };
+      for (const rule of ['html_block', 'html_inline'] as const) {
+        const render = md.renderer.rules[rule]!;
+        md.renderer.rules[rule] = (tokens, idx, options, env, self) => siteHtml(render(tokens, idx, options, env, self));
+      }
+      const image = md.renderer.rules.image!;
+      md.renderer.rules.image = (tokens, idx, options, env, self) => {
+        const src = tokens[idx].attrGet('src');
+        if (src) tokens[idx].attrSet('src', src.replace(screenshot, '/screenshots/'));
+        return image(tokens, idx, options, env, self);
+      };
     },
   },
   themeConfig: {
@@ -68,6 +100,7 @@ export default defineConfig({
         items: [
           { text: 'What is Deed?', link: '/guide/what-is-deed' },
           { text: 'Try it locally', link: '/guide/try-locally' },
+          { text: 'Web UI tour', link: '/guide/ui' },
           { text: 'Concepts', link: '/guide/concepts' },
           { text: 'Terraform provider', link: '/guide/terraform' },
           { text: 'Terraform state import', link: '/guide/terraform-import' },

@@ -4,13 +4,54 @@ The web UI is a single-page React application in `web/`, built into `internal/we
 binary (ADR-011). It talks only to the public `/api/v1` API and `/auth/*` routes; everything it can do, the API and
 CLI can do too.
 
-![Map: neighbourhood of a service with measured traffic labels, light theme](assets/screenshots/map-focus-light.png)
+**Map, focused on a service**
 
-| Dashboard (light)                                                 | Entity overview (dark)                                                      |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| ![Dashboard, light theme](assets/screenshots/dashboard-light.png) | ![Entity overview, dark theme](assets/screenshots/entity-overview-dark.png) |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-focus-dark.png">
+  <img src="assets/screenshots/map-focus-light.png" alt="Map: neighbourhood of a service, edges coloured by relationship type, measured traffic rates and the legend">
+</picture>
 
-![Inventory, dark theme](assets/screenshots/inventory-dark.png)
+**Map coloured by source, edge inspector open**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-source-dark.png">
+  <img src="assets/screenshots/map-source-light.png" alt="Map coloured by asserting source, with the edge inspector">
+</picture>
+
+**Dashboard**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/dashboard-dark.png">
+  <img src="assets/screenshots/dashboard-light.png" alt="Dashboard: entities, relationships, findings, alerts, health, freshness and source sync health">
+</picture>
+
+**Inventory**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/inventory-dark.png">
+  <img src="assets/screenshots/inventory-light.png" alt="Inventory: search, filters, sortable columns and saved views">
+</picture>
+
+**Entity overview**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/entity-overview-dark.png">
+  <img src="assets/screenshots/entity-overview-light.png" alt="Entity overview: identity, status dimensions, relations and links">
+</picture>
+
+**Provenance — "why does this value exist?"**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/entity-provenance-dark.png">
+  <img src="assets/screenshots/entity-provenance-light.png" alt="Entity provenance: winning source, layer and revision per field, and the losing candidates">
+</picture>
+
+**Findings**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/findings-dark.png">
+  <img src="assets/screenshots/findings-light.png" alt="Findings: certificates, drift, conflicts, missing targets and available updates">
+</picture>
 
 Screenshots are produced by the accessibility suite (`web/e2e/screenshots/`, every view in both themes) against
 synthetic seed data.
