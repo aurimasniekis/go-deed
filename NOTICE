@@ -8,11 +8,9 @@ Portions of this product are adapted from Porch (github.com/aurimasniekis/go-por
 Niekis and licensed under the Apache License, Version 2.0. Adapted files carry a provenance comment naming their
 origin ("Adapted from Porch …").
 
-Third-party icon sets bundled into the web UI (web/src/icons/generated/) are listed with their individual licenses in
-docs/ICONS.md and web/src/icons/generated/manifest.json:
+Third-party icon sets bundled into the web UI (curated named imports in web/src/components/icons.tsx; versions pinned
+in web/package.json), with their licenses also listed in docs/ICONS.md:
   - Simple Icons (https://simpleicons.org), CC0 1.0 Universal.
   - Tabler Icons (https://tabler.io/icons), MIT License, Copyright (c) 2020-2026 Paweł Kuna.
-  - theSVG brand icon collection, MIT License for the collection code; each icon carries its own license field and
-    only icons whose license permits redistribution are bundled (see docs/ICONS.md for the exact source and version).
 All product names, logos and brands are property of their respective owners. They are used for identification
 purposes only (nominative use) and do not imply endorsement.

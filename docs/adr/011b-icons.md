@@ -3,10 +3,15 @@
 - Icon reference format `pack:name` (`simple-icons:cloudflare`, `thesvg:proxmox`, `tabler:server`, `custom:<name>`).
 - Packs: **Simple Icons** (CC0), **Tabler** (MIT, generic fallback), **theSVG** (collection MIT; per-icon license
   field), **custom** (admin uploads).
-- `web/scripts/build-icons.mjs` bundles a curated subset into `web/src/icons/generated/` with a `manifest.json`
-  (pack, name, title, license, source URL, brand hex). Icons whose license is `Custom`, unknown, or no-derivatives
-  (e.g. CC BY-ND) are excluded unless explicitly allowlisted for unmodified use. `docs/ICONS.md` and NOTICE carry
-  attribution and a trademark / nominative-use disclaimer.
+- The web UI bundles a curated subset by named imports from pinned packages (`@tabler/icons-react`, `simple-icons`),
+  so the bundler keeps only the icons listed in `web/src/components/icons.tsx`; the package versions in
+  `web/package.json` are the manifest. `web/src/components/icons.test.ts` fails when a server-side reference (built-in
+  kinds, Terraform mappings, connectors, demo seed) is not in the bundle. No `Custom`, unknown or no-derivatives
+  (e.g. CC BY-ND) icons are bundled. `docs/ICONS.md` and NOTICE carry attribution and a trademark / nominative-use
+  disclaimer.
+- **Amendment (implementation):** the `thesvg` pack is accepted as a reference by the API but not bundled yet: no
+  pinned, per-icon-licensed package was adopted, and a `thesvg:` reference renders as the fallback cube. Upload the
+  logo as a `custom:` icon instead.
 - Kinds have default icons; entities override via `metadata.icon`; Terraform mappings assign icons
   (`cloudflare_*` → `simple-icons:cloudflare`).
 - Custom uploads: SVG only, ≤ 64 KiB, sanitized server-side with an element/attribute allowlist (no `script`,

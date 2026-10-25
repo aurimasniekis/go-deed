@@ -2,6 +2,7 @@ import {
   IconActivity,
   IconAlertOctagon,
   IconAlertTriangle,
+  IconApi,
   IconApps,
   IconArrowBigUpLines,
   IconArrowGuide,
@@ -10,6 +11,7 @@ import {
   IconBook,
   IconBox,
   IconBoxModel,
+  IconBrandAws,
   IconBrandGit,
   IconBrandTerraform,
   IconBug,
@@ -75,6 +77,7 @@ import {
 } from '@tabler/icons-react'
 import {
   siCloudflare,
+  siDigitalocean,
   siDocker,
   siGitea,
   siGithub,
@@ -83,8 +86,10 @@ import {
   siHetzner,
   siHomeassistant,
   siKubernetes,
+  siLetsencrypt,
   siNatsdotio,
   siPostgresql,
+  siPrometheus,
   siProxmox,
   siTerraform,
   siTraefikproxy,
@@ -102,6 +107,7 @@ const tabler: Record<string, Icon> = {
   activity: IconActivity,
   'alert-octagon': IconAlertOctagon,
   'alert-triangle': IconAlertTriangle,
+  api: IconApi,
   apps: IconApps,
   'arrow-big-up-lines': IconArrowBigUpLines,
   'arrow-guide': IconArrowGuide,
@@ -110,6 +116,7 @@ const tabler: Record<string, Icon> = {
   book: IconBook,
   box: IconBox,
   'box-model': IconBoxModel,
+  'brand-aws': IconBrandAws,
   'brand-git': IconBrandGit,
   'brand-terraform': IconBrandTerraform,
   bug: IconBug,
@@ -180,6 +187,7 @@ interface SimpleIcon {
 
 const simple: Record<string, SimpleIcon> = {
   cloudflare: siCloudflare,
+  digitalocean: siDigitalocean,
   docker: siDocker,
   gitea: siGitea,
   github: siGithub,
@@ -188,8 +196,10 @@ const simple: Record<string, SimpleIcon> = {
   hetzner: siHetzner,
   homeassistant: siHomeassistant,
   kubernetes: siKubernetes,
+  letsencrypt: siLetsencrypt,
   natsdotio: siNatsdotio,
   postgresql: siPostgresql,
+  prometheus: siPrometheus,
   proxmox: siProxmox,
   terraform: siTerraform,
   traefikproxy: siTraefikproxy,
@@ -293,4 +303,12 @@ export function RefIcon({
 /** Renders a Tabler icon by name (status vocabularies in lib/status.ts carry icon names). */
 export function NamedIcon({ name, size = 14, stroke = 1.8 }: { name: string; size?: number; stroke?: number }) {
   return createElement(tablerIcon(name), { size, stroke, 'aria-hidden': true, style: { flexShrink: 0 } })
+}
+
+/** Whether a `tabler:` or `simple-icons:` reference resolves to a bundled icon rather than the fallback cube. */
+export function isBundledIcon(ref: string): boolean {
+  const { pack, name } = parseIconRef(ref)
+  if (pack === 'tabler') return name in tabler || name === 'cube'
+  if (pack === 'simple-icons') return name in simple
+  return false
 }

@@ -15,7 +15,7 @@ kind's `icon`:
 |---|---|---|
 | `tabler` | generic UI icons, the fallback for kinds | `tabler:server`, `tabler:database`, `tabler:certificate` |
 | `simple-icons` | brand logos | `simple-icons:cloudflare`, `simple-icons:docker`, `simple-icons:grafana` |
-| `thesvg` | brand logos from the theSVG collection | `thesvg:proxmox` |
+| `thesvg` | reserved for the theSVG collection; accepted but not bundled yet (renders as the fallback) | `thesvg:proxmox` |
 | `custom` | SVGs uploaded to this installation | `custom:core-router` |
 
 An invalid reference is refused with `must be pack:name with pack tabler, simple-icons, thesvg or custom`. The API
@@ -28,10 +28,12 @@ Where icons come from:
   `hcloud_*` → `simple-icons:hetzner`, see `internal/tfimport/mappings/`); the GitHub connector and the Docker agent
   set `simple-icons:github` and `simple-icons:docker`.
 
-The `tabler`, `simple-icons` and `thesvg` packs are bundled into the web UI by the web build, which is not part of
-this checkout. Per ADR-011b the build bundles a curated subset and records each icon's pack, title, license, source
-URL and brand color in a manifest. Monochrome icons are tinted to follow the theme; brand colors are used only as
-accents.
+The web UI bundles a curated subset of Tabler (`@tabler/icons-react`) and Simple Icons (`simple-icons`) by named
+imports in `web/src/components/icons.tsx`, so only those icons ship; the pinned versions in `web/package.json` record
+the source. Simple Icons render from their path data as monochrome SVGs tinted with `currentColor`, so they follow
+the theme; brand colors are used only as accents. A reference to an icon that is not bundled renders as a neutral
+cube. `web/src/components/icons.test.ts` checks that every icon the server assigns (built-in kinds, Terraform
+mappings, connectors, demo seed) is bundled. To use another logo, upload it as a custom icon.
 
 ## Custom icons
 Installation owners and admins upload SVGs; every signed-in user can list and display them.
@@ -98,11 +100,9 @@ in the application's origin.
 |---|---|
 | Simple Icons (https://simpleicons.org) | CC0 1.0 Universal |
 | Tabler Icons (https://tabler.io/icons) | MIT License, Copyright (c) 2020-2026 Paweł Kuna |
-| theSVG brand icon collection | MIT for the collection; every icon carries its own license field |
 | custom | whatever the uploader has the right to use |
 
-Per ADR-011b, icons whose license is `Custom`, unknown, or no-derivatives (e.g. CC BY-ND) are excluded from the
-bundle unless explicitly allowlisted for unmodified use.
+No icon whose license is `Custom`, unknown, or no-derivatives (e.g. CC BY-ND) is bundled (ADR-011b).
 
 All product names, logos and brands are property of their respective owners. Deed uses them for identification
 only, to show which product an entity is (nominative use); this does not imply endorsement. A license on an icon
@@ -114,5 +114,4 @@ owner's guidelines allow this kind of use. See `NOTICE` for the attribution ship
 (scripts, event handlers, `foreignObject`, `javascript:` and external `href`/`url()`, `<style>`, `data:` images,
 `animate`/`set`) and rejection of DOCTYPEs, non-SVG roots, multiple roots, stylesheet processing instructions,
 excessive nesting and oversized input. `FuzzSanitize` checks that output is re-accepted unchanged and never contains
-active content (`make fuzz-smoke`). The bundled packs and their manifest are not in this checkout and could not be
-checked here.
+active content (`make fuzz-smoke`). `web/src/components/icons.test.ts` checks bundle coverage of server-side references.
