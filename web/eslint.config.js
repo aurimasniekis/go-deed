@@ -47,7 +47,6 @@ export default defineConfig([
     'e2e/screenshots',
     'e2e/.state',
     'public',
-    '.pnpmfile.cjs',
   ]),
   {
     files: ['**/*.{ts,tsx,js,mjs}'],

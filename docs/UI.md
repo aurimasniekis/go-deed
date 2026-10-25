@@ -27,6 +27,10 @@ synthetic seed data.
 | `make web-gen`                | Regenerates the typed API client; CI fails when it is stale                                                                      |
 | `make web-e2e`                | Playwright + axe against a freshly seeded server (run `make web-build` first; builds `bin/deed` unless `DEED_E2E_BINARY` is set) |
 
+- TypeScript 7 (the native compiler, installed as the `typescript-7` alias) type-checks the app. The `typescript`
+  package itself is TypeScript 6, because typescript-eslint and openapi-typescript need the JavaScript compiler API
+  that TypeScript 7 does not ship. No pnpm hooks are involved, so `package.json` + `pnpm-lock.yaml` alone install
+  reproducibly (the container build relies on that).
 - `make web-gen` (`pnpm gen:api`) regenerates `src/api/schema.gen.ts` from `api/openapi.json`; the client
   (`openapi-fetch`) is fully typed from it, so API drift fails `tsc`.
 - The dev proxy rewrites `Origin` to the backend's origin, because the server's CSRF check compares `Origin` with its
