@@ -36,12 +36,24 @@ pulse:
 | `pulse.source` | `deed` | CloudEvents source (`ce-source`) of Deed's events; a lowercase slug |
 | `pulse.publish` | `true` | run the outbox relay; when `false`, events stay in the outbox |
 | `pulse.ingest` | `true` | run the ingest consumer |
-| `pulse.ingest_filter` | `evt.deed.ingest.>` | subject filter of the ingest consumer; must start with `evt.` |
-| `pulse.ingest_durable` | `deed_ingest` | durable consumer name, `[a-z0-9_]{1,64}` |
+| `pulse.ingest_filter` | `evt.deed.ingest.>` | subject filter of the ingest consumer; must start with `evt.` and contain a wildcard, whose token names the publisher (see [Ingest consumer](#ingest-consumer)) |
+| `pulse.ingest_durable` | `deed_ingest` | durable consumer name, `^[a-z0-9][a-z0-9_]{0,47}$` (a Pulse durable grant name; the consumer is `<client-id>_<name>`) |
 | `retention.outbox` | `168h` | how long published and dead-lettered outbox rows are kept |
 | `retention.telemetry_minute` / `telemetry_hour` | `168h` / `2160h` | how long tail rollups are kept |
 
 Every key can be overridden with `DEED_PULSE_*` environment variables (`DEED_PULSE_URL`, …).
+
+**Pulse clients and grants.** Create Deed's client in Pulse (Clients page or `pulse clients create`) with:
+
+| Grant | For |
+|---|---|
+| `publish:evt.deed.>` | the outbox relay |
+| `subscribe:evt.>` | `pulse_tail` sources (narrow it to match the tails' `filter`) |
+| `durable` named `deed_ingest` on `evt.deed.ingest.>` | the ingest consumer (`pulse.ingest_durable`, `pulse.ingest_filter`) |
+
+An agent that feeds the push source with `pulse_source: billing` gets `publish:evt.deed.ingest.billing.>` and nothing
+else under `evt.deed.`. `pulse.ca_file` is Pulse's internal CA (System page, "Connect → Internal CA", or `connect.ca_cert`
+in `GET /api/admin/v1/system/info`) as long as the NATS listener serves the bootstrap certificate.
 
 Without `creds_file` (development mode only) Deed connects to an unauthenticated NATS, such as the one in
 `deploy/compose.dev.yaml`, and wraps it in the same Pulse client. Deed opens up to three named connections:
@@ -100,7 +112,11 @@ on its admin listener.
 | `max_subjects` | `2000` (10–20000) | subject-index nodes visited; hitting the cap makes the run partial |
 | `allow_cidrs` | — | private CIDRs the admin URL may resolve to (SSRF guard) |
 | `insecure_http` | `false` | allow `http://`, intended for a loopback SSH tunnel |
-| `include_internal_consumers` | `false` | also import pulsed's own consumers |
+| `include_internal_consumers` | `false` | also import pulsed's own durables (outbound webhook consumers `pulse_out_…`, flagged `internal`) |
+
+Only durable consumers are imported: ephemeral ones (the tail's, explorer sessions, pulsed's own rollup reader) are
+skipped. Stream and consumer settings are copied as Pulse reports them (`storage: File`, `retention: Limits`,
+`ack_policy: AckExplicit`).
 
 What it models:
 - the Pulse server as a `nats_system` (health `failed` when pulsed is not ready or NATS is disconnected);
@@ -122,6 +138,8 @@ those come from the tail.
 A tail source has no schedule: while `pulse.enabled` is on, Deed keeps one subscription per enabled `pulse_tail`
 source (re-checked every 30 seconds). The subscription is read-only and ephemeral (only new messages, no durable,
 no acks). Messages are counted per `(ce-source, subject template, ce-type)`; message bodies are never stored.
+A subscribe grant lets a client create ephemeral consumers but not delete them, so when a tail stops NATS logs a
+`Publish Violation` for `$JS.API.CONSUMER.DELETE.EVENTS.…` and removes the consumer after its inactivity threshold.
 
 | Config key | Default | Meaning |
 |---|---|---|
@@ -169,8 +187,11 @@ available over Pulse. Observations need a source in the `observation` layer.
 published on, for example, `evt.deed.ingest.billing.items` with type `deed.ingest.items.v1`.
 
 **Authorization.** An event is applied only when the source named by `source_id` exists, is enabled, uses the
-`push` provider, and its config `pulse_source` is set and equals the event's ce-source. Configure it when creating
-the source:
+`push` provider, and its config `pulse_source` is set and equals both the event's ce-source and the subject token at
+the first wildcard of `pulse.ingest_filter` (`billing` in `evt.deed.ingest.billing.items`). Pulse authenticates the
+subject, through the publisher's grants, but not ce-source: any client may set any ce-source. Binding the subject
+token is what keeps a client granted `publish:evt.deed.ingest.rogue.>` out of the `billing` source. `pulse_source`
+must therefore be a subject token (`[a-z0-9_-]+`). Configure it when creating the source:
 
 ```sh
 curl -s -X POST https://deed.example.com/api/v1/sources -H "Authorization: Bearer $DEED_TOKEN" \
@@ -178,7 +199,8 @@ curl -s -X POST https://deed.example.com/api/v1/sources -H "Authorization: Beare
   -d '{"project": "platform", "name": "billing-agent", "provider": "push", "config": {"pulse_source": "billing"}}'
 ```
 
-A Pulse client can therefore never write into a source that is not bound to its own ce-source. Events whose
+A Pulse client can therefore write only into sources bound to a subject token its grants allow it to publish on, so
+grant agents `publish:evt.deed.ingest.<pulse_source>.>` and never `evt.deed.ingest.>`. Events whose
 ce-source equals `pulse.source` (Deed's own outbox events, such as `evt.deed.ingest.snapshot.committed`) are skipped.
 Writes are audited with the source as actor.
 
@@ -217,7 +239,15 @@ A declared `publishes` or `subscribes_to` edge that the tail has not observed wi
 connection down for 10 minutes.
 
 ## Validation status
-`pulse_admin` is tested against fixtures shaped by Pulse's admin OpenAPI (`internal/pulseint/testdata`). The tail and
-ingest consumer are tested against a local `nats-server` with JetStream (started from `PATH`, or the server named by
-`DEED_TEST_NATS`; skipped when neither is available). Validation
-against a real pulsed is **pending**.
+`scripts/validate/pulse.sh` validates all four parts against a real pulsed built from source (`PULSE_DIR`, default
+`../pulse`; no Docker): `pulsed init`, nats-server in operator/JWT mode with TLS from Pulse's internal CA and
+`pulsed serve` on random loopback ports, Pulse clients created through the admin API (Deed, a publisher, a subscriber
+with a durable, two push agents), a viewer PAT for `pulse_admin`, and Deed connecting with its own `.creds`. It
+checks the declared grant and durable relationships, observed tail edges, ingest into a push source (and the refusal
+of a spoofed ce-source), Deed's outbox events with their CloudEvents headers and de-duplication by message ID. Results
+go to `$VAL_DIR/results.json`, with the admin API responses in `pulse-admin-responses.json`; secrets are generated in
+a 0700 work directory and removed afterwards. Last run: go-pulse `3b2712f`, nats-server 2.15.1, 10/10 checks passed.
+
+Unit and integration tests: `pulse_admin` against fixtures recorded from that run's response shapes
+(`internal/pulseint/testdata`); the tail and ingest consumer against a local `nats-server` with JetStream (started
+from `PATH`, or the server named by `DEED_TEST_NATS`; skipped when neither is available).
