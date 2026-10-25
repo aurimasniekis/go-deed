@@ -59,6 +59,52 @@
     6px 6px 0 0 var(--deed-border);
 }
 
+/* Level of detail (zoomed out, large maps): plain kind-coloured blocks; outlines are thick because they are seen at
+   a tenth of their size or less. */
+.deed-node-lod {
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.deed-node-lod[data-cluster] {
+  box-shadow:
+    10px 10px 0 0 var(--deed-border),
+    20px 20px 0 0 var(--deed-border);
+}
+
+.deed-node-lod[data-health='warning'] {
+  outline: 12px solid var(--mantine-color-yellow-filled);
+}
+
+.deed-node-lod[data-health='failed'] {
+  outline: 16px double var(--mantine-color-red-filled);
+}
+
+.deed-node-lod[data-root] {
+  outline: 16px solid var(--mantine-primary-color-filled);
+  outline-offset: 8px;
+}
+
+.deed-node-lod[data-selected] {
+  outline: 16px solid var(--deed-focus);
+  outline-offset: 8px;
+}
+
+.deed-node-lod[data-dimmed] {
+  opacity: 0.3;
+}
+
+.deed-lod-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: -1;
+}
+
 .deed-cluster-stack {
   display: flex;
   align-items: center;
@@ -138,7 +184,8 @@
   outline: none;
 }
 
-.deed-map .react-flow__node:focus-visible > .deed-node {
+.deed-map .react-flow__node:focus-visible > .deed-node,
+.deed-map .react-flow__node:focus-visible > .deed-node-lod {
   outline: 2px solid var(--deed-focus);
   outline-offset: 3px;
 }

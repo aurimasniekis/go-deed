@@ -184,6 +184,19 @@ describe('legend generation', () => {
     expect(reduced.notes.join(' ')).toContain('reduced motion')
   })
 
+  it('says what the zoomed-out drawing leaves out and keeps colours and strokes', () => {
+    const rates = new Map<string, RateInfo>([['rel_1', { status: 'measured', rate: 10, window: '15m', basis: 'b' }]])
+    const edges = [edge({}), edge({ id: 'rel_2', evidence: 'inferred', inferred: true })]
+    const full = buildLegend(edges, { ...opts, directionHint: true }, typeColor, (t) => t, nodes, NOW, rates)
+    const lod = buildLegend(edges, { ...opts, directionHint: true, lod: true }, typeColor, (t) => t, nodes, NOW, rates)
+    expect(lod.colors).toEqual(full.colors)
+    expect(lod.strokes).toEqual(full.strokes)
+    expect(lod.animations).toEqual([])
+    expect(lod.notes[0]).toContain('without arrowheads, labels or animation')
+    expect(lod.notes.join(' ')).toContain('measured rate')
+    expect(lod.notes.join(' ')).not.toContain('Arrowheads point')
+  })
+
   it('describes custom colours and health colour mode', () => {
     const custom = buildLegend(
       [edge({})],

@@ -28,12 +28,21 @@ export interface GroupNodeData extends Record<string, unknown> {
 export type EntityFlowNode = Node<EntityNodeData, 'entity'>
 export type ClusterFlowNode = Node<EntityNodeData, 'cluster'>
 export type GroupFlowNode = Node<GroupNodeData, 'group'>
+export type LodFlowNode = Node<EntityNodeData, 'lod'>
 
 export const NODE_SIZE = {
   detailed: { width: 224, height: 66 },
   compact: { width: 176, height: 38 },
   cluster: { width: 210, height: 58 },
 }
+
+/**
+ * Level of detail (docs/UI.md § Performance): a map with at least `minNodes` nodes, zoomed out below `enter`, draws each
+ * entity or cluster as a plain block in its kind colour (LodNode) and its relationships as straight lines in one layer
+ * (LodEdges) — card text is unreadable that far out, and thousands of cards and edge components are what made panning
+ * slow. Zooming back in above `leave` restores cards and edges; the gap between the two avoids flapping.
+ */
+export const LOD = { minNodes: 200, enter: 0.4, leave: 0.45 }
 
 const toneVar: Record<string, string> = {
   green: 'var(--mantine-color-green-filled)',
@@ -194,4 +203,29 @@ export const GroupNode = memo(function GroupNode({ data }: NodeProps<GroupFlowNo
   )
 })
 
-export const nodeTypes = { entity: EntityNode, cluster: ClusterNode, group: GroupNode }
+/**
+ * Level-of-detail node: one block in the kind colour, an outline for failed or warning health, a stack for clusters.
+ * No text, icons or handles (edges are drawn by LodEdges while it is shown); the accessible name stays on the node
+ * wrapper (ariaLabel) and the title gives the name on hover.
+ */
+export const LodNode = memo(function LodNode({ data, selected }: NodeProps<LodFlowNode>) {
+  const n = data.node
+  const size = n.cluster ? NODE_SIZE.cluster : data.compact ? NODE_SIZE.compact : NODE_SIZE.detailed
+  return (
+    <div
+      className="deed-node-lod"
+      data-selected={selected || undefined}
+      data-root={n.root || undefined}
+      data-dimmed={data.dimmed || undefined}
+      data-health={n.health}
+      data-cluster={n.cluster ? true : undefined}
+      style={{ width: size.width, height: size.height, background: data.kindColor }}
+      title={`${n.cluster ? data.kindTitle : n.redacted ? 'restricted' : (n.displayName ?? n.name)} · health ${n.health}`}
+      {...(n.cluster
+        ? { 'data-testid': 'map-cluster', 'data-cluster-key': n.cluster.key }
+        : { 'data-testid': 'map-node', 'data-entity-id': n.id })}
+    />
+  )
+})
+
+export const nodeTypes = { entity: EntityNode, cluster: ClusterNode, group: GroupNode, lod: LodNode }

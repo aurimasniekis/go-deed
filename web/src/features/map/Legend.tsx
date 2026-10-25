@@ -29,10 +29,13 @@ export function MapLegend({
   legend,
   onClose,
   showNodes,
+  lod = false,
 }: {
   legend: LegendModel
   onClose: () => void
   showNodes: boolean
+  /** The simplified zoomed-out drawing is on screen (nodes as blocks). */
+  lod?: boolean
 }) {
   return (
     <div className="deed-panel" style={{ width: 260 }} data-testid="map-legend" role="region" aria-label="Map legend">
@@ -100,7 +103,19 @@ export function MapLegend({
               ))}
             </Stack>
           )}
-          {showNodes && (
+          {showNodes && lod && (
+            <Stack gap={3} data-testid="map-legend-lod">
+              <Text size="xs" fw={600}>
+                Nodes (zoomed out)
+              </Text>
+              <Text size="xs">
+                One block per entity in its kind colour; stacked block: cluster. Thick outline: focus (indigo, set
+                apart), failed health (red, double), warning (yellow). Names, freshness and findings show when you zoom
+                in.
+              </Text>
+            </Stack>
+          )}
+          {showNodes && !lod && (
             <Stack gap={3}>
               <Text size="xs" fw={600}>
                 Nodes
