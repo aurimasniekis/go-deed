@@ -6240,7 +6240,7 @@
         "operationId": "list-alerts",
         "parameters": [
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "state",
             "schema": {
@@ -7321,7 +7321,7 @@
         "operationId": "get-dashboard",
         "parameters": [
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "project",
             "schema": {
@@ -7399,7 +7399,7 @@
           },
           {
             "description": "Project IDs or names (repeat or comma-separate).",
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "project",
             "schema": {
@@ -7411,7 +7411,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "kind",
             "schema": {
@@ -7433,7 +7433,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "environment",
             "schema": {
@@ -7453,7 +7453,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "health",
             "schema": {
@@ -7470,7 +7470,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "freshness",
             "schema": {
@@ -7487,7 +7487,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "lifecycle",
             "schema": {
@@ -7499,7 +7499,7 @@
           },
           {
             "description": "key=value; repeat for AND.",
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "label",
             "schema": {
@@ -7569,7 +7569,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "id",
             "schema": {
@@ -8609,7 +8609,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "type",
             "schema": {
@@ -8620,7 +8620,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "severity",
             "schema": {
@@ -8636,7 +8636,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "class",
             "schema": {
@@ -9001,7 +9001,7 @@
         "parameters": [
           {
             "description": "Entity IDs to start from (repeat).",
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "root",
             "required": true,
@@ -9042,7 +9042,7 @@
           },
           {
             "description": "Relationship types to follow.",
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "type",
             "schema": {
@@ -9055,7 +9055,7 @@
           },
           {
             "description": "Only include nodes of these kinds (roots always included).",
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "kind",
             "schema": {
@@ -9067,7 +9067,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "evidence",
             "schema": {
@@ -9147,7 +9147,7 @@
         "operationId": "graph-overview",
         "parameters": [
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "project",
             "schema": {
@@ -9264,7 +9264,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "type",
             "schema": {
@@ -11301,7 +11301,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "project",
             "schema": {
@@ -11336,7 +11336,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "type",
             "schema": {
@@ -11356,7 +11356,7 @@
             }
           },
           {
-            "explode": false,
+            "explode": true,
             "in": "query",
             "name": "evidence",
             "schema": {

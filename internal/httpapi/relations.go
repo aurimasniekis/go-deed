@@ -54,12 +54,12 @@ type putAssertionInput struct {
 
 type listRelationsInput struct {
 	Pagination
-	Project     []string `query:"project"`
+	Project     []string `query:"project,explode"`
 	Entity      string   `query:"entity" maxLength:"64"`
 	Direction   string   `query:"direction" enum:"out,in,both," default:"both"`
-	Type        []string `query:"type"`
+	Type        []string `query:"type,explode"`
 	Source      string   `query:"source" maxLength:"64"`
-	Evidence    []string `query:"evidence" enum:"declared,structural,observed,inferred"`
+	Evidence    []string `query:"evidence,explode" enum:"declared,structural,observed,inferred"`
 	IncludeDead bool     `query:"include_removed"`
 }
 
@@ -137,7 +137,7 @@ func registerRelations(api huma.API, d *Deps) {
 				return nil, d.Fail("list-relations", err)
 			}
 			f := catalog.RelationFilter{ProjectIDs: readable, EntityID: in.Entity, Direction: in.Direction, Types: splitList(in.Type),
-				SourceID: in.Source, Evidence: in.Evidence, IncludeDead: in.IncludeDead, Limit: in.Limit, Cursor: in.Cursor}
+				SourceID: in.Source, Evidence: splitList(in.Evidence), IncludeDead: in.IncludeDead, Limit: in.Limit, Cursor: in.Cursor}
 			if ps := splitList(in.Project); len(ps) > 0 {
 				var ids []string
 				for _, ref := range ps {

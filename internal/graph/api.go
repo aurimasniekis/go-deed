@@ -12,12 +12,12 @@ import (
 )
 
 type neighborhoodInput struct {
-	Root         []string `query:"root" required:"true" maxItems:"50" doc:"Entity IDs to start from (repeat)."`
+	Root         []string `query:"root,explode" required:"true" maxItems:"50" doc:"Entity IDs to start from (repeat)."`
 	Depth        int      `query:"depth" minimum:"1" maximum:"20" default:"2"`
 	Direction    string   `query:"direction" enum:"out,in,both" default:"both"`
-	Type         []string `query:"type" doc:"Relationship types to follow."`
-	Kind         []string `query:"kind" doc:"Only include nodes of these kinds (roots always included)."`
-	Evidence     []string `query:"evidence" enum:"declared,structural,observed,inferred"`
+	Type         []string `query:"type,explode" doc:"Relationship types to follow."`
+	Kind         []string `query:"kind,explode" doc:"Only include nodes of these kinds (roots always included)."`
+	Evidence     []string `query:"evidence,explode" enum:"declared,structural,observed,inferred"`
 	MaxNodes     int      `query:"max_nodes" minimum:"1" maximum:"20000" default:"500"`
 	IncludeStale bool     `query:"include_stale" doc:"Keep observed relationships not seen for 7 days."`
 }
@@ -36,7 +36,7 @@ type pathInput struct {
 	To       string   `query:"to" required:"true" maxLength:"64"`
 	MaxDepth int      `query:"max_depth" minimum:"1" maximum:"20" default:"6"`
 	Directed bool     `query:"directed"`
-	Type     []string `query:"type"`
+	Type     []string `query:"type,explode"`
 }
 
 type impactInput struct {
@@ -50,7 +50,7 @@ type impactOutput struct {
 }
 
 type overviewInput struct {
-	Project []string `query:"project"`
+	Project []string `query:"project,explode"`
 	GroupBy string   `query:"group_by" enum:"project,kind,environment,owner" default:"kind"`
 	Sources bool     `query:"sources" doc:"Also list the asserting sources of each bundled edge (one more aggregate over the catalog; off by default)."`
 }

@@ -38,9 +38,9 @@ type API struct {
 type findingsInput struct {
 	Project  string   `query:"project" maxLength:"64"`
 	Entity   string   `query:"entity" maxLength:"64"`
-	Type     []string `query:"type"`
-	Severity []string `query:"severity" enum:"critical,warning,info"`
-	Class    []string `query:"class" enum:"confirmed,warning,unknown,stale,not_applicable"`
+	Type     []string `query:"type,explode"`
+	Severity []string `query:"severity,explode" enum:"critical,warning,info"`
+	Class    []string `query:"class,explode" enum:"confirmed,warning,unknown,stale,not_applicable"`
 	State    string   `query:"state" enum:"open,closed,all" default:"open"`
 	Limit    int      `query:"limit" minimum:"1" maximum:"1000" default:"200"`
 }
@@ -104,6 +104,12 @@ func (a *API) List(ctx context.Context, readable []string, installation bool, in
 		args = append(args, in.Entity)
 	}
 	add := func(col string, vals []string) {
+		// Repeated parameters (explode) or one comma-separated value: both are accepted.
+		var split []string
+		for _, v := range vals {
+			split = append(split, strings.Split(v, ",")...)
+		}
+		vals = split
 		if len(vals) == 0 {
 			return
 		}
@@ -155,7 +161,7 @@ func (a *API) List(ctx context.Context, readable []string, installation bool, in
 }
 
 type alertsInput struct {
-	State []string `query:"state" enum:"pending,firing,suppressed,resolved"`
+	State []string `query:"state,explode" enum:"pending,firing,suppressed,resolved"`
 	Limit int      `query:"limit" minimum:"1" maximum:"500" default:"200"`
 }
 
@@ -229,7 +235,7 @@ type SourceHealth struct {
 }
 
 type dashboardInput struct {
-	Project []string `query:"project"`
+	Project []string `query:"project,explode"`
 }
 
 type dashboardOutput struct {

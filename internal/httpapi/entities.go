@@ -77,21 +77,21 @@ type deleteDeclarationInput struct {
 
 type listEntitiesInput struct {
 	Pagination
-	Project           []string `query:"project" doc:"Project IDs or names (repeat or comma-separate)."`
-	Kind              []string `query:"kind"`
+	Project           []string `query:"project,explode" doc:"Project IDs or names (repeat or comma-separate)."`
+	Kind              []string `query:"kind,explode"`
 	Q                 string   `query:"q" maxLength:"256" doc:"Full-text search (names, descriptions, labels, spec values, external IDs)."`
-	Environment       []string `query:"environment"`
+	Environment       []string `query:"environment,explode"`
 	Owner             string   `query:"owner" maxLength:"64"`
-	Health            []string `query:"health" enum:"ok,warning,failed,unknown"`
-	Freshness         []string `query:"freshness" enum:"fresh,aging,stale,unknown"`
-	Lifecycle         []string `query:"lifecycle"`
-	Label             []string `query:"label" doc:"key=value; repeat for AND."`
+	Health            []string `query:"health,explode" enum:"ok,warning,failed,unknown"`
+	Freshness         []string `query:"freshness,explode" enum:"fresh,aging,stale,unknown"`
+	Lifecycle         []string `query:"lifecycle,explode"`
+	Label             []string `query:"label,explode" doc:"key=value; repeat for AND."`
 	Source            string   `query:"source" maxLength:"64" doc:"Source ID: entities with a live facet from it."`
 	Declared          string   `query:"declared" enum:"true,false," doc:"Only declared or undeclared (observed-only) entities."`
 	Valid             string   `query:"valid" enum:"true,false,"`
 	IncludeTombstoned bool     `query:"include_tombstoned"`
 	Sort              string   `query:"sort" maxLength:"32" doc:"name, kind, updated_at, created_at, health, freshness, environment, display_name, last_seen_at; prefix - for descending."`
-	IDs               []string `query:"id" maxItems:"500"`
+	IDs               []string `query:"id,explode" maxItems:"500"`
 }
 
 type entityPageOutput struct {
@@ -276,7 +276,7 @@ func registerEntities(api huma.API, d *Deps) {
 			}
 			f := catalog.EntityFilter{Kinds: splitList(in.Kind), Query: in.Q, Environment: splitList(in.Environment), Owner: in.Owner,
 				Health: in.Health, Freshness: in.Freshness, Lifecycle: splitList(in.Lifecycle), SourceID: in.Source, IncludeTombstoned: in.IncludeTombstoned,
-				Sort: in.Sort, Limit: in.Limit, Cursor: in.Cursor, IDs: in.IDs, Labels: map[string]string{}}
+				Sort: in.Sort, Limit: in.Limit, Cursor: in.Cursor, IDs: splitList(in.IDs), Labels: map[string]string{}}
 			for _, l := range in.Label {
 				k, v, ok := strings.Cut(l, "=")
 				if !ok {
