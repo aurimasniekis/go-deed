@@ -167,6 +167,28 @@ least-privilege reader with `read` on two index patterns). Run at go-deed `52121
   connectivity test (403 on `GET /`) and raised an unreachable finding; a Mimir 401 without a tenant read as bad
   credentials.
 
+### Cloudflare origin shape — `scripts/validate/origin.sh` (17/17 PASS)
+The production container image (`deed:local` at go-deed `5174b97`), five hardened production-mode instances on one
+Docker network behind an nginx edge standing in for Cloudflare, with throwaway certificates (origin root,
+intermediate, `deed.example.com` leaf; an origin-pull CA and client certificate; a rogue CA).
+- **Authenticated Origin Pulls:** no client certificate, a certificate from another CA, or one without client-auth
+  usage are refused; the origin-pull certificate is accepted on TLS 1.2 and 1.3; TLS 1.0/1.1 refused; leaf +
+  intermediate served; HSTS and security headers present; the edge with full verification succeeds and direct
+  clients are refused.
+- **Client IP:** a trusted edge's forwarded address is honoured and spoofed headers are not; an untrusted hop's
+  headers are ignored; `CF-Connecting-IP` counts only from a hop in the Cloudflare ranges even with
+  `proxy.cloudflare: true`; login throttling keys on the real client and cannot be evaded by spoofing.
+- **Firewall docs:** the nftables ruleset passes `nft -c` and its sets equal Deed's built-in Cloudflare ranges; the
+  UFW snippet runs under `ufw --dry-run`; the ruleset loaded into the origin's network namespace blocks direct
+  access to 443 and 9464 while the edge still works.
+- **Found and fixed (docs):** the minimal production config in DEPLOYMENT.md listened behind a local proxy without
+  `trusted_proxies`, so every visitor resolved to 127.0.0.1 (one client's failed logins throttled everyone); the
+  Tunnel section wrongly said cloudflared's `CF-Connecting-IP` is honoured; Compose deployments must trust the Docker
+  network gateway.
+- **Only a real Cloudflare zone can show:** requests from the real ranges, Cloudflare's own header handling and
+  origin-pull certificate, Full (strict) with an Origin CA certificate, cloudflared's `X-Forwarded-For`, edge caching,
+  SSE through the 100 s proxy timeout, and the firewall on a real host (listed in `docs/CLOUDFLARE.md`).
+
 ### endoflife.date — `TestLiveEndOfLife` (PASS)
 `DEED_TEST_EOL_URL=https://endoflife.date go test -run TestLiveEndOfLife ./internal/versions/` runs the version
 checker against the live API: PostgreSQL 12.1 → end of life (cycle 12, latest 12.22), MySQL 5.7.30 → end of life
@@ -185,5 +207,5 @@ checker against the live API: PostgreSQL 12.1 → end of life (cycle 12, latest 
 - Docker image build and `scripts/container-smoke.sh` (non-root, KEK permission refusal, healthcheck, Docker health,
   graceful SIGTERM): PASS locally at `5d026c3` and in CI.
 - Real-service validation **pending**: production deployments of Pulse, Porch, HallPass, Mimir and OpenSearch (only
-  local runs above), GitHub Enterprise Server and private repositories, Cloudflare in front of a VPS, S3 providers
-  other than MinIO.
+  local runs above), GitHub Enterprise Server and private repositories, a real Cloudflare zone in front of a VPS (the origin shape is
+  validated locally above), S3 providers other than MinIO.
