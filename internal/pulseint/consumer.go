@@ -38,6 +38,9 @@ type Consumer struct {
 	Ingest  *ingest.Service
 	Metrics *metrics.Metrics
 	Log     *slog.Logger
+	// Self is Deed's own Pulse source: its outbox notifications (evt.deed.ingest.snapshot_committed, …) share the
+	// subject space and are skipped.
+	Self string
 }
 
 // ErrNotAllowed is terminal: the publisher may not write into the source.
@@ -46,6 +49,9 @@ var ErrNotAllowed = errors.New("publisher is not allowed to write into this sour
 // Handle processes one event. Validation and authorization failures are terminal (never redelivered); storage
 // failures are retried by Pulse with backoff.
 func (c *Consumer) Handle(ctx context.Context, e pulse.Event) error {
+	if c.Self != "" && e.Source == c.Self {
+		return nil
+	}
 	err := c.handle(ctx, e)
 	switch {
 	case err == nil:

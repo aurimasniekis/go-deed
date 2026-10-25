@@ -151,9 +151,12 @@ func (p *PulseRollups) Query(ctx context.Context, _ Conn, qq Query) (*TelemetryD
 	}
 	window := qq.End.Sub(qq.Start)
 	gran, size := granularityFor(window)
-	// The current bucket is still filling: measure complete buckets only.
+	// Scalars include the current (partial) bucket; time series show complete buckets only.
 	end := p.Clock.Now().Truncate(size)
-	start := end.Add(-window)
+	if qq.Shape != ShapeTimeseries {
+		end = p.Clock.Now().Add(time.Microsecond)
+	}
+	start := end.Add(-window).Truncate(size)
 	rs, err := Rollups(ctx, p.Store, gran, start, end, nil)
 	if err != nil {
 		return nil, err

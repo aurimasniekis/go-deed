@@ -26,6 +26,7 @@ func runImportTerraform(ctx context.Context, args []string, stdout, stderr io.Wr
 	partial := fs.Bool("partial", false, "upsert only; never remove resources missing from this state")
 	allowMass := fs.Bool("allow-mass-removal", false, "allow a commit that removes more than the source's guard")
 	caFile := fs.String("ca-file", os.Getenv("DEED_CA_FILE"), "extra CA bundle (PEM)")
+	asJSON := fs.Bool("json", false, "print the server's JSON response (result summary and diagnostics)")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
@@ -104,6 +105,10 @@ func runImportTerraform(ctx context.Context, args []string, stdout, stderr io.Wr
 	_ = json.Unmarshal(data, &out)
 	if resp.StatusCode != http.StatusOK {
 		return &exitError{code: 1, err: fmt.Errorf("%s: %s (%s)", resp.Status, out.Detail, out.Code)}
+	}
+	if *asJSON {
+		_, err := stdout.Write(append(data, '\n'))
+		return err
 	}
 	mode := "imported"
 	if out.Result != nil && out.Result.DryRun {

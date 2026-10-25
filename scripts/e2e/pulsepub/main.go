@@ -71,7 +71,7 @@ func run() error {
 		fmt.Printf("published %d %s as %s\n", *n, *typ, *source)
 		return nil
 	case "ingest":
-		b, err := os.ReadFile(*file)
+		b, err := os.ReadFile(*file) //nolint:gosec // operator-chosen fixture path
 		if err != nil {
 			return err
 		}

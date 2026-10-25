@@ -67,7 +67,8 @@ func (s *Service) EdgeRates(ctx context.Context, rels []*catalog.Relation, windo
 	rollups := map[string][]Rollup{}
 	now := s.Clock.Now()
 	gran, size := granularityFor(w)
-	end := now.Truncate(size)
+	// The current (partial) bucket counts too: rates are messages in the last window divided by the window.
+	end := now.Add(time.Microsecond)
 	pulseFor := func(projectID string) ([]Rollup, bool, error) {
 		if rs, ok := rollups[projectID]; ok {
 			return rs, rs != nil, nil
@@ -86,7 +87,7 @@ func (s *Service) EdgeRates(ctx context.Context, rels []*catalog.Relation, windo
 			rollups[projectID] = nil
 			return nil, false, nil
 		}
-		rs, err := Rollups(ctx, s.Store.Store, gran, end.Add(-w), end, tails)
+		rs, err := Rollups(ctx, s.Store.Store, gran, now.Add(-w).Truncate(size), end, tails)
 		if err != nil {
 			return nil, false, err
 		}

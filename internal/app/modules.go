@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aurimasniekis/go-pulse/pkg/pulse"
+	"github.com/nats-io/nats.go"
 
 	"github.com/aurimasniekis/go-deed/internal/events"
 )
@@ -80,14 +81,27 @@ func (a *App) connectPulse(ctx context.Context, conn string) *pulse.Client {
 	p := a.Cfg.Pulse
 	log := a.Log.With("component", "pulse", "conn", conn)
 	for {
-		opts := []pulse.Option{pulse.WithSource(p.Source), pulse.WithName("deed-" + conn)}
-		if p.CredsFile != "" {
-			opts = append(opts, pulse.WithCredsFile(p.CredsFile))
+		var c *pulse.Client
+		var err error
+		if p.CredsFile == "" {
+			// Development only (validated): a local NATS without authentication, wrapped by the same Pulse client.
+			var nc *nats.Conn
+			if nc, err = nats.Connect(p.URL, nats.Name("deed-"+conn), nats.MaxReconnects(-1)); err == nil {
+				if c, err = pulse.New(nc, p.Source); err != nil {
+					nc.Close()
+				} else {
+					a.devMu.Lock()
+					a.devConns = append(a.devConns, nc)
+					a.devMu.Unlock()
+				}
+			}
+		} else {
+			opts := []pulse.Option{pulse.WithCredsFile(p.CredsFile), pulse.WithSource(p.Source), pulse.WithName("deed-" + conn)}
+			if p.CAFile != "" {
+				opts = append(opts, pulse.WithCAFile(p.CAFile))
+			}
+			c, err = pulse.Connect(p.URL, opts...)
 		}
-		if p.CAFile != "" {
-			opts = append(opts, pulse.WithCAFile(p.CAFile))
-		}
-		c, err := pulse.Connect(p.URL, opts...)
 		if err == nil {
 			a.Metrics.PulseConnected(conn, true)
 			log.Info("connected to pulse", "event.action", "pulse.connect", "event.outcome", "success")

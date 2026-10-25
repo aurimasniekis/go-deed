@@ -104,7 +104,7 @@ func (a *App) initExtensions(ctx context.Context) error {
 			}
 		})
 		if cfg.Pulse.Ingest {
-			cons := &pulseint.Consumer{Catalog: a.Catalog, Ingest: a.Ingest, Metrics: a.Metrics, Log: a.Log.With("component", "pulse_ingest")}
+			cons := &pulseint.Consumer{Catalog: a.Catalog, Ingest: a.Ingest, Metrics: a.Metrics, Log: a.Log.With("component", "pulse_ingest"), Self: cfg.Pulse.Source}
 			a.addLoop("pulse_ingest", func(ctx context.Context) {
 				for ctx.Err() == nil {
 					c := a.connectPulse(ctx, "ingest")

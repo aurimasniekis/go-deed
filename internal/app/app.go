@@ -12,9 +12,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/nats-io/nats.go"
 
 	"github.com/aurimasniekis/go-deed/internal/alerts"
 	"github.com/aurimasniekis/go-deed/internal/audit"
@@ -76,8 +78,11 @@ type App struct {
 
 	auditFile io.Closer
 	loops     []loop
-	apiExt    []func(huma.API, *httpapi.Deps)
-	rawExt    []func(*http.ServeMux, *httpapi.Deps)
+	// devConns are NATS connections opened without credentials in development mode (closed by Close).
+	devConns []*nats.Conn
+	devMu    sync.Mutex
+	apiExt   []func(huma.API, *httpapi.Deps)
+	rawExt   []func(*http.ServeMux, *httpapi.Deps)
 }
 
 // Module is an optional subsystem wired into the app.
@@ -254,6 +259,12 @@ func (a *App) Ready(ctx context.Context) error {
 // Close releases the data directory.
 func (a *App) Close() error {
 	var errs []error
+	a.devMu.Lock()
+	for _, nc := range a.devConns {
+		nc.Close()
+	}
+	a.devConns = nil
+	a.devMu.Unlock()
 	for _, m := range a.Modules {
 		if c, ok := m.(io.Closer); ok {
 			errs = append(errs, c.Close())
