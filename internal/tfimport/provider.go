@@ -96,7 +96,7 @@ func (p *Provider) Describe() sources.Descriptor {
 		SecretFields: []string{"s3_access_key_id", "s3_secret_access_key", "http_username", "http_password", "http_token"},
 		Capabilities: sources.Capabilities{Pull: true, Push: true, Snapshot: true}, Kinds: kinds, RelTypes: []string{"contains", "resolves_to", "runs_on",
 			"stored_in", "member_of", "depends_on"}, DefaultSchedule: 900, Docs: "docs/TERRAFORM_IMPORT.md",
-		Verified: "redacted state fixtures (v4 and show-json) with planted secrets; S3 reader against local MinIO; HTTP backend reader against a test server; push via CLI"}
+		Verified: "redacted state fixtures (v4 and show-json) with planted secrets; S3 reader against local MinIO, SeaweedFS, Garage and Versity S3 Gateway; HTTP backend reader against a test server; push via CLI"}
 }
 
 func parseConfig(raw json.RawMessage) (*Config, error) {
@@ -238,6 +238,17 @@ func s3Error(err error) error {
 		return apperr.New(apperr.CodeNotFound, "bucket not found")
 	case "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch":
 		return apperr.New(apperr.CodeForbidden, "access to the state object was denied (check the read-only credentials)")
+	case "AuthorizationHeaderMalformed", "InvalidRegion":
+		return apperr.New(apperr.CodeInvalid, "the S3 server rejected the request region (check s3.region: leave it empty to discover it, or set the region the server expects)")
+	}
+	if er.StatusCode >= 400 {
+		// An S3 answer, not a network failure. HEAD answers carry no error document, so a 400 is usually a region
+		// mismatch (Garage answers one to a wrong signature scope).
+		if er.StatusCode == http.StatusBadRequest {
+			return apperr.New(apperr.CodeInvalid, "the S3 server answered 400 Bad Request (check s3.region: leave it empty to discover it, "+
+				"or set the region the server expects; and s3.lookup)")
+		}
+		return apperr.New(apperr.CodeUnavailable, "the S3 server answered %d %s", er.StatusCode, http.StatusText(er.StatusCode))
 	}
 	return fmt.Errorf("s3: %w", err)
 }
