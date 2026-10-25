@@ -1,6 +1,6 @@
 /**
- * Force and radial layouts off the main thread (the layered layout runs in ELK's own worker, see layout.ts). Runs only
- * when the graph's topology changes.
+ * Force, radial and large ungrouped layered layouts off the main thread (other layered layouts run in ELK's own worker,
+ * see layout.ts). Runs only when the graph's topology changes.
  */
 import {
   forceCollide,
@@ -11,7 +11,9 @@ import {
   forceY,
   type SimulationNodeDatum,
 } from 'd3-force'
+import { fastLayered } from './layered'
 import {
+  finishLayered,
   LARGE_LAYOUT,
   foldLeaves,
   groupBounds,
@@ -172,6 +174,10 @@ const scope = self as unknown as WorkerScope
 scope.onmessage = (ev) => {
   const req = ev.data
   const t0 = performance.now()
+  if (req.algorithm === 'layered') {
+    scope.postMessage({ id: req.id, ...finishLayered(req, fastLayered(req), {}), ms: performance.now() - t0 })
+    return
+  }
   let positions = req.algorithm === 'radial' ? radialLayout(req) : forceLayout(req)
   positions = { ...positions, ...req.pinned }
   scope.postMessage({ id: req.id, positions, groups: groupBounds(req, positions), ms: performance.now() - t0 })

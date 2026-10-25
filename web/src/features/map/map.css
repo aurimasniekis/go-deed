@@ -116,6 +116,35 @@
 
 /* Level of detail (zoomed out, large maps): plain kind-coloured blocks; outlines are thick because they are seen at
    a tenth of their size or less. */
+/* Connection points React Flow measures (nodes.tsx, Ports), where its stylesheet puts a handle; never drawn. */
+.deed-port {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.deed-port-left {
+  left: -3px;
+  top: calc(50% - 3px);
+}
+
+.deed-port-right {
+  left: calc(100% - 3px);
+  top: calc(50% - 3px);
+}
+
+.deed-port-top {
+  left: calc(50% - 3px);
+  top: -3px;
+}
+
+.deed-port-bottom {
+  left: calc(50% - 3px);
+  top: calc(100% - 3px);
+}
+
 .deed-node-lod {
   border-radius: 6px;
   cursor: pointer;

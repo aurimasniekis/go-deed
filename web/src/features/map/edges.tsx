@@ -14,6 +14,7 @@ import {
 } from '@xyflow/react'
 import { memo, useMemo, type CSSProperties } from 'react'
 import type { EdgeVisual, Routing } from './edgeStyle'
+import { useDrawnEdges } from './lodSwap'
 import type { MapEdge } from './types'
 
 export interface DeedEdgeData extends Record<string, unknown> {
@@ -146,12 +147,15 @@ interface LodStroke {
 }
 
 /**
- * Level-of-detail edges (see LOD in nodes.tsx): every relationship as a straight centre-to-centre line, batched into one
- * path per colour, stroke and opacity inside a single SVG in the viewport — no per-edge components, markers, labels,
- * animation or hit areas, so panning costs no React work. Colour and evidence stroke stay as in the full drawing (the
- * legend still applies); strokes keep their screen width at any zoom. Drawn under the nodes.
+ * Level-of-detail edges (see LOD in nodes.tsx): every relationship not drawn as a full edge right now (lodSwap.ts) as a
+ * straight centre-to-centre line, batched into one path per colour, stroke and opacity inside a single SVG in the
+ * viewport — no per-edge components, markers, labels, animation or hit areas, so panning costs no React work. Colour
+ * and evidence stroke stay as in the full drawing (the legend still applies); strokes keep their screen width at any
+ * zoom. Drawn under the nodes.
  */
-export const LodEdges = memo(function LodEdges({ edges, nodes }: { edges: DeedFlowEdge[]; nodes: Node[] }) {
+export const LodEdges = memo(function LodEdges({ edges: all, nodes }: { edges: DeedFlowEdge[]; nodes: Node[] }) {
+  const drawn = useDrawnEdges()
+  const edges = useMemo(() => (drawn === 'all' ? [] : all.filter((e) => !drawn.has(e.id))), [all, drawn])
   const strokes = useMemo(() => {
     const centre = new Map<string, string>()
     for (const n of nodes) {
@@ -180,6 +184,7 @@ export const LodEdges = memo(function LodEdges({ edges, nodes }: { edges: DeedFl
     }
     return [...out.entries()].map(([key, s]) => ({ key, ...s, path: s.d.join('') }))
   }, [edges, nodes])
+  if (strokes.length === 0) return null
   return (
     <ViewportPortal>
       <svg className="deed-lod-edges" aria-hidden data-testid="map-lod-edges">

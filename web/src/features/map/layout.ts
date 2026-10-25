@@ -1,18 +1,19 @@
 import ELK, { type ElkExtendedEdge, type ElkNode } from 'elkjs/lib/elk-api'
 import elkWorkerUrl from 'elkjs/lib/elk-worker.min.js?worker&url'
+import { FAST_LAYERED_MIN } from './layered'
 import {
+  finishLayered,
   GROUP_PADDING,
-  groupBounds,
   LARGE_LAYOUT,
   LayoutCache,
-  wrapLayers,
   type LayoutRequest,
   type LayoutResult,
 } from './layoutTypes'
 
 /**
  * Layout off the main thread. Layered layouts use ELK (elkjs) in ELK's own Web Worker (elk-worker.min.js, a separate
- * same-origin asset, so the CSP's script-src 'self' allows it); force and radial layouts use our layout.worker.ts.
+ * same-origin asset, so the CSP's script-src 'self' allows it); force, radial and large ungrouped layered layouts
+ * (fastLayered, above FAST_LAYERED_MIN nodes) use our layout.worker.ts.
  */
 let elk: InstanceType<typeof ELK> | null = null
 let worker: Worker | null = null
@@ -38,7 +39,7 @@ function getWorker() {
 
 async function layered(req: LayoutRequest): Promise<LayoutResult> {
   const t0 = performance.now()
-  const big = req.nodes.length > 600
+  const big = req.nodes.length > FAST_LAYERED_MIN
   const groupNodes = new Map<string, ElkNode>(
     req.groups.map((g) => [
       g.id,
@@ -95,22 +96,7 @@ async function layered(req: LayoutRequest): Promise<LayoutResult> {
     }
   }
   walk(out, 0, 0)
-  // Hubs with hundreds of neighbours make one enormous layer; wrap it into columns (ungrouped layouts only).
-  const maxPerLayer = Math.max(30, Math.ceil(Math.sqrt(req.nodes.length) * 1.2))
-  const wrapped =
-    req.groups.length === 0 && req.nodes.length > maxPerLayer
-      ? wrapLayers(positions, new Map(req.nodes.map((n) => [n.id, n])), req.direction, maxPerLayer)
-      : positions
-  Object.assign(positions, wrapped)
-  // Pinned (dragged or saved) positions win; their groups grow around them.
-  const merged = { ...positions, ...req.pinned }
-  const hasPins = Object.keys(req.pinned).length > 0
-  return {
-    id: req.id,
-    positions: merged,
-    groups: hasPins ? groupBounds(req, merged) : groups,
-    ms: performance.now() - t0,
-  }
+  return { id: req.id, ...finishLayered(req, positions, groups), ms: performance.now() - t0 }
 }
 
 /**
@@ -133,7 +119,8 @@ export function warmLayout() {
 
 export function runLayout(req: Omit<LayoutRequest, 'id'>): Promise<LayoutResult> {
   const id = ++seq
-  if (req.algorithm === 'layered') return layered({ ...req, id })
+  if (req.algorithm === 'layered' && (req.groups.length > 0 || req.nodes.length <= FAST_LAYERED_MIN))
+    return layered({ ...req, id })
   return new Promise((resolve) => {
     pending.set(id, resolve)
     getWorker().postMessage({ ...req, id })
