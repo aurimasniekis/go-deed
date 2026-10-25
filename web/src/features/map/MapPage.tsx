@@ -43,12 +43,12 @@ import {
   useNodesState,
   useReactFlow,
   useStoreApi,
-  useUpdateNodeInternals,
   type Edge,
   type Node,
   type FitViewOptions,
+  type ReactFlowProps,
 } from '@xyflow/react'
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { isInstallationAdmin, useMe } from '@/api/auth'
 import { api, unwrap, type View } from '@/api/client'
 import { keys, useKinds, useProjects, useRelTypes, useSources } from '@/api/queries'
@@ -58,12 +58,23 @@ import { SavedViewsMenu } from '@/features/views/SavedViews'
 import { useProjectFilter, useTitle } from '@/lib/appStore'
 import { humanize, plural } from '@/lib/format'
 import { compact, decodeList, encodeList, validateMapSearch, type MapSearch } from '@/lib/urlState'
+import { flushSync } from 'react-dom'
 import { buildLegend, edgeVisual, sourceColor, sourcePalette } from './edgeStyle'
 import { edgeTypes, LodEdges, type DeedFlowEdge } from './edges'
 import { EdgeInspector, NodeInspector, type InspectorActions } from './Inspector'
 import { layoutCache, runLayout, warmLayout } from './layout'
 import type { LayoutResult } from './layoutTypes'
 import { MapLegend } from './Legend'
+import {
+  ALL_DETAIL,
+  DetailContext,
+  DetailStore,
+  lodStep,
+  NO_DETAIL,
+  settled,
+  STEP_BUDGET,
+  useDrawnEdges,
+} from './lodSwap'
 import {
   mapStore,
   pinPosition,
@@ -128,6 +139,33 @@ interface Patch {
 
 const NO_EDGES: Edge[] = []
 
+/**
+ * React Flow with the edges the current drawing shows in full (lodSwap.ts): during a level-of-detail swap only this
+ * component re-renders per step, with the same props apart from the edge list.
+ */
+function DetailFlow({ allEdges, ...props }: ReactFlowProps & { allEdges: Edge[] }) {
+  const ids = useDrawnEdges()
+  const edges = useMemo(
+    () => (ids === 'all' ? allEdges : ids.size === 0 ? NO_EDGES : allEdges.filter((e) => ids.has(e.id))),
+    [allEdges, ids],
+  )
+  return <ReactFlow {...props} edges={edges} />
+}
+
+/** Runs `fn` once the browser is idle (after 500 ms where there is no requestIdleCallback, as in Safari); returns a cancel. */
+function whenIdle(fn: () => void): () => void {
+  if (!('requestIdleCallback' in window)) {
+    const t = setTimeout(fn, 500)
+    return () => {
+      clearTimeout(t)
+    }
+  }
+  const id = requestIdleCallback(fn, { timeout: 2000 })
+  return () => {
+    cancelIdleCallback(id)
+  }
+}
+
 /** Fit padding that keeps nodes clear of the legend panel (bottom-left) when it is open. */
 function fitPadding(): NonNullable<FitViewOptions['padding']> {
   return mapStore.state.legendOpen
@@ -171,6 +209,19 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   // Subscribing to the store directly re-renders the map only when the threshold is crossed, not on every zoom step.
   const flowStore = useStoreApi()
   const [zoomedOut, setZoomedOut] = useState(false)
+  // What is drawn in detail right now; it follows the zoom over a few frames (lodSwap.ts).
+  const [detail] = useState(() => new DetailStore())
+  // The legend and status bar describe the simplified drawing while any of it is on screen. They follow the swap in a
+  // transition, so re-rendering the page never lengthens a swap step.
+  const [complete, setComplete] = useState(true)
+  useEffect(
+    () =>
+      detail.subscribe(() => {
+        const c = settled(detail.drawn, true)
+        startTransition(() => setComplete(c))
+      }),
+    [detail],
+  )
   useEffect(
     () =>
       flowStore.subscribe((s) => {
@@ -284,7 +335,9 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           // diagnostics only
         }
         // Large graphs: jump to the fitted viewport before the first render, so a drawing that will be shown zoomed
-        // out mounts as level-of-detail blocks straight away instead of as cards first (the animated fit follows).
+        // out mounts as level-of-detail blocks straight away instead of as cards first (the animated fit follows). A
+        // new drawing starts complete; only later zooming swaps it in steps.
+        let blocks = false
         if (nodes.length >= LOD.minNodes) {
           const { width, height, minZoom } = flowStore.getState()
           let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
@@ -308,9 +361,13 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
             )
             void rf.setViewport(vp)
             // Urgent, in the same batch as the layout (the store subscription only schedules a transition).
-            setZoomedOut(vp.zoom < LOD.enter)
+            blocks = vp.zoom < LOD.enter
+            setZoomedOut(blocks)
           }
         }
+        detail.setPorts(!blocks)
+        detail.set(blocks ? NO_DETAIL : ALL_DETAIL)
+        setComplete(!blocks)
         setLayout({ ...r, sig: signature })
       })
       .catch((err: unknown) => {
@@ -358,8 +415,19 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const edgeIds = useMemo(() => [...view.model.edges.keys()], [view.model])
   const traffic = useEdgeRates(edgeIds, style.traffic)
 
-  const lod = zoomedOut && view.model.nodes.size >= LOD.minNodes
-
+  const big = view.model.nodes.size >= LOD.minNodes
+  const lod = zoomedOut && big
+  const lodShown = lod || !complete
+  // Setting up dragging costs ~15 ms per 2,000 mounted nodes, and dragging a block is never useful: a drawing that
+  // opens zoomed out mounts its blocks without it and turns it on once the browser is idle (switching it on or off
+  // while zooming would add that cost to a swap step).
+  const [dragSig, setDragSig] = useState('')
+  useEffect(() => {
+    if (layout?.sig !== signature || dragSig === signature) return
+    return whenIdle(() => {
+      setDragSig(signature)
+    })
+  }, [layout?.sig, signature, dragSig])
   const built = useMemo(() => {
     if (layout?.sig !== signature) return { nodes: [] as Node[], edges: [] as Edge[] }
     const hp =
@@ -408,7 +476,6 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           sourcePos: hp.source,
           targetPos: hp.target,
           dimmed: !!neighbourSet && !neighbourSet.has(n.id),
-          lod: false,
         },
         ariaLabel: `${n.cluster ? 'Cluster' : (k?.title ?? n.kind)} ${n.displayName ?? n.name}, health ${n.health}, freshness ${n.freshness}`,
       }
@@ -474,40 +541,131 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     projectName,
   ])
 
-  // Level of detail only swaps how nodes draw (crossing the threshold must not rebuild every node and edge).
-  const shownNodes = useMemo(
-    () =>
-      lod
-        ? built.nodes.map((n) =>
-            n.type === 'group'
-              ? n
-              : // Dragging a block in the zoomed-out overview is never useful, and skips the drag set-up per node.
-                { ...n, draggable: false, data: { ...(n.data as EntityNodeData), lod: true } },
-          )
-        : built.nodes,
-    [built.nodes, lod],
-  )
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  // A node object without `measured` makes React Flow forget the node's size and connection points and measure it
+  // again, and draw none of its edges until then — never, for nodes outside the view, which React Flow does not mount.
+  // A node that keeps its size, type and port sides keeps its measurements; one that did not change keeps its object.
+  const synced = useRef(new WeakMap<Node, Node>())
   useEffect(() => {
-    setNodes(shownNodes)
-  }, [shownNodes, setNodes])
+    setNodes((prev) => {
+      const before = new Map(prev.map((n) => [n.id, n]))
+      return built.nodes.map((n) => {
+        const p = before.get(n.id)
+        if (!p) return n
+        if (synced.current.get(p) === n) return p
+        const m = p.measured
+        const pd = p.data as Partial<EntityNodeData>
+        const nd = n.data as Partial<EntityNodeData>
+        if (
+          !m ||
+          m.width !== n.width ||
+          m.height !== n.height ||
+          p.type !== n.type ||
+          pd.sourcePos !== nd.sourcePos ||
+          pd.targetPos !== nd.targetPos
+        )
+          return n
+        const out = { ...n, measured: m }
+        synced.current.set(out, n)
+        return out
+      })
+    })
+  }, [built.nodes, setNodes])
 
-  // Blocks have no handles, so nodes that stay mounted when cards come back are re-measured, all in one batch, once
-  // the cards are on screen (newly mounted nodes are measured by React Flow itself).
-  const updateNodeInternals = useUpdateNodeInternals()
-  const remeasure = useRef(false)
+  const nodesRef = useRef(nodes)
+  useLayoutEffect(() => {
+    nodesRef.current = nodes
+  }, [nodes])
+
+  // Blocks of a drawing that opens zoomed out also mount without their connection points (DetailStore.ports). Once the
+  // browser is idle — or before the first swap step towards cards, whichever comes first — they get them and every
+  // mounted node is measured again in one batch. Nodes React Flow has not mounted (outside the view) would keep the
+  // measurement without connection points, and their edges would never be drawn: without `measured` React Flow mounts
+  // them once to measure them again, a few hundred per idle period.
+  const portsPending = useRef<string[]>([])
+  const ensurePorts = useCallback(() => {
+    if (detail.ports) return
+    flushSync(() => {
+      detail.setPorts(true)
+    })
+    const s = flowStore.getState()
+    const updates: Parameters<typeof s.updateNodeInternals>[0] = new Map()
+    s.domNode?.querySelectorAll<HTMLDivElement>('.react-flow__node[data-id]').forEach((el) => {
+      const id = el.dataset.id
+      if (id) updates.set(id, { id, nodeElement: el, force: true })
+    })
+    s.updateNodeInternals(updates)
+    portsPending.current = nodesRef.current.filter((n) => n.type !== 'group' && !updates.has(n.id)).map((n) => n.id)
+  }, [detail, flowStore])
   useEffect(() => {
-    if (lod) remeasure.current = true
-  }, [lod])
+    if (layout?.sig !== signature) return
+    let cancel = whenIdle(function next() {
+      ensurePorts()
+      const batch = new Set(portsPending.current.splice(0, 300))
+      if (batch.size === 0) return
+      setNodes((prev) =>
+        prev.map((n) => {
+          if (!batch.has(n.id)) return n
+          const { measured: _, ...rest } = n
+          return rest
+        }),
+      )
+      cancel = whenIdle(next)
+    })
+    return () => {
+      cancel()
+      portsPending.current = []
+    }
+  }, [layout?.sig, signature, ensurePorts, setNodes])
+
+  // Swap between blocks and cards in steps, one per frame (lodSwap.ts), outside React state: a step updates the detail
+  // store, which re-renders only the nodes it swaps, the flow's edge list and LodEdges. Each direction's budget adapts
+  // to how long the previous step's frame took, and is kept for the next swap.
+  const stepBudget = useRef({ ...STEP_BUDGET })
   useEffect(() => {
-    const first = nodes.find((n) => n.type !== 'group')
-    if (!remeasure.current || !first || (first.data as EntityNodeData).lod) return
-    remeasure.current = false
-    const mounted = [...document.querySelectorAll('.deed-map .react-flow__node[data-id]')].map(
-      (el) => el.getAttribute('data-id') ?? '',
-    )
-    updateNodeInternals(mounted)
-  }, [nodes, updateNodeInternals])
+    if (!big) {
+      detail.set(ALL_DETAIL)
+      return
+    }
+    const toDetail = !lod
+    const key = toDetail ? 'toDetail' : 'toBlocks'
+    let raf = 0
+    let last = 0
+    const step = (t: number) => {
+      if (settled(detail.drawn, toDetail)) return
+      if (toDetail) ensurePorts()
+      if (last > 0) {
+        const took = t - last
+        const b = stepBudget.current[key]
+        stepBudget.current[key] = took > 40 ? Math.max(8, b * 0.6) : took < 24 ? Math.min(2000, b * 1.5) : b
+      }
+      last = t
+      const s = flowStore.getState()
+      const [tx, ty, z] = s.transform
+      const all = nodesRef.current
+      detail.set(
+        lodStep({
+          drawn: detail.drawn,
+          toDetail,
+          nodes: all
+            .filter((n) => n.type !== 'group')
+            .map((n) => ({ id: n.id, x: n.position.x, y: n.position.y, width: n.width ?? 0, height: n.height ?? 0 })),
+          edges: built.edges,
+          // React Flow mounts only what is in view above 400 nodes (onlyRenderVisibleElements below).
+          view:
+            all.length > 400 && z > 0
+              ? { x0: -tx / z, y0: -ty / z, x1: (s.width - tx) / z, y1: (s.height - ty) / z }
+              : null,
+          budget: stepBudget.current[key],
+        }),
+      )
+      raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => {
+      cancelAnimationFrame(raf)
+    }
+  }, [lod, big, built.edges, detail, flowStore, ensurePorts])
 
   // Fit the view when the topology changes; record render timings for the budget measurements.
   const lastFit = useRef('')
@@ -688,7 +846,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           directionHint: style.directionHint,
           traffic: style.traffic,
           reducedMotion: reduced,
-          lod,
+          lod: lodShown,
         },
         typeColor,
         typeTitle,
@@ -696,7 +854,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         now,
         traffic.rates,
       ),
-    [view.model, style, reduced, lod, typeColor, typeTitle, traffic.rates, now, sourceColors, projectName],
+    [view.model, style, reduced, lodShown, typeColor, typeTitle, traffic.rates, now, sourceColors, projectName],
   )
 
   // Breadcrumb names for the exploration trail.
@@ -966,150 +1124,159 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         ) : (
           // The map container takes focus for its keyboard model (arrows, Enter, Esc); role="application" tells screen
           // readers that keys go to the widget.
-          <div
-            className="deed-map"
-            style={{ position: 'absolute', inset: 0 }}
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="application"
-            aria-roledescription="relationship map"
-            aria-label="Relationship map. Arrow keys move between neighbours, Enter expands, Escape clears the selection, f fits the view. The same data is available as a table from the Table button."
-            data-testid="map-canvas"
-            data-layout-ready={layout?.sig === signature ? 'true' : 'false'}
-          >
-            <ReactFlow
-              nodes={nodes}
-              edges={lod ? NO_EDGES : built.edges}
-              onNodesChange={onNodesChange}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
-              colorMode={scheme}
-              minZoom={0.05}
-              maxZoom={2}
-              onlyRenderVisibleElements={nodes.length > 400}
-              disableKeyboardA11y
-              deleteKeyCode={null}
-              selectionKeyCode={null}
-              multiSelectionKeyCode={null}
-              nodesConnectable={false}
-              elevateEdgesOnSelect
-              proOptions={{ hideAttribution: false }}
-              onNodeClick={(_, n) => {
-                const mn = view.model.nodes.get(n.id)
-                setSelectedEdge(null)
-                if (!mn) return
-                if (mn.cluster) {
-                  setSelected(n.id)
-                  expandNode(mn)
-                } else setSelected(n.id)
-              }}
-              onNodeDoubleClick={(_, n) => {
-                const mn = view.model.nodes.get(n.id)
-                if (mn && !mn.cluster) expandNode(mn)
-              }}
-              onEdgeClick={(_, e) => {
-                setSelected(null)
-                setSelectedEdge(e.id)
-              }}
-              onPaneClick={() => {
-                setSelected(null)
-                setSelectedEdge(null)
-              }}
-              onNodeDragStop={(_, n) => {
-                if (n.type !== 'group') pinPosition(n.id, n.position)
-              }}
+          <DetailContext.Provider value={detail}>
+            <div
+              className="deed-map"
+              style={{ position: 'absolute', inset: 0 }}
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+              tabIndex={0}
+              role="application"
+              aria-roledescription="relationship map"
+              aria-label="Relationship map. Arrow keys move between neighbours, Enter expands, Escape clears the selection, f fits the view. The same data is available as a table from the Table button."
+              data-testid="map-canvas"
+              data-layout-ready={layout?.sig === signature ? 'true' : 'false'}
             >
-              <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-              {lod && <LodEdges edges={built.edges as DeedFlowEdge[]} nodes={nodes} />}
-              <Controls showInteractive={false} showFitView={false} position="bottom-right" aria-label="Zoom controls">
-                <Tooltip label="Fit view (f)">
-                  <button
-                    type="button"
-                    className="react-flow__controls-button"
-                    onClick={() => void rf.fitView({ padding: fitPadding() })}
-                    aria-label="Fit view"
-                  >
-                    <IconArrowsMaximize size={12} />
-                  </button>
-                </Tooltip>
-              </Controls>
-              {style.minimap && (
-                <MiniMap
+              <DetailFlow
+                nodes={nodes}
+                allEdges={built.edges}
+                onNodesChange={onNodesChange}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                colorMode={scheme}
+                minZoom={0.05}
+                maxZoom={2}
+                onlyRenderVisibleElements={nodes.length > 400}
+                // Blocks of a drawing that opens zoomed out mount without drag set-up (see dragSig).
+                nodesDraggable={dragSig === signature || !lod}
+                disableKeyboardA11y
+                deleteKeyCode={null}
+                selectionKeyCode={null}
+                multiSelectionKeyCode={null}
+                nodesConnectable={false}
+                elevateEdgesOnSelect
+                proOptions={{ hideAttribution: false }}
+                onNodeClick={(_, n) => {
+                  const mn = view.model.nodes.get(n.id)
+                  setSelectedEdge(null)
+                  if (!mn) return
+                  if (mn.cluster) {
+                    setSelected(n.id)
+                    expandNode(mn)
+                  } else setSelected(n.id)
+                }}
+                onNodeDoubleClick={(_, n) => {
+                  const mn = view.model.nodes.get(n.id)
+                  if (mn && !mn.cluster) expandNode(mn)
+                }}
+                onEdgeClick={(_, e) => {
+                  setSelected(null)
+                  setSelectedEdge(e.id)
+                }}
+                onPaneClick={() => {
+                  setSelected(null)
+                  setSelectedEdge(null)
+                }}
+                onNodeDragStop={(_, n) => {
+                  if (n.type !== 'group') pinPosition(n.id, n.position)
+                }}
+              >
+                <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
+                {big && <LodEdges edges={built.edges as DeedFlowEdge[]} nodes={nodes} />}
+                <Controls
+                  showInteractive={false}
+                  showFitView={false}
                   position="bottom-right"
-                  style={{ marginRight: 52 }}
-                  pannable
-                  zoomable
-                  ariaLabel="Minimap"
-                  nodeColor={(n) =>
-                    n.type === 'group' ? 'transparent' : (n.data as EntityNodeData).kindColor || '#adb5bd'
-                  }
-                  nodeStrokeWidth={2}
-                  maskColor={scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(240,242,245,0.6)'}
-                />
-              )}
-              <Panel position="top-left">
-                {pathOpen && (
-                  <PathFinder
-                    key={`${search.from ?? ''}>${search.to ?? ''}`}
-                    search={search}
-                    onFind={(from, to, depth, directed) =>
-                      go({ mode: 'path', from, to, depth, focus: undefined, ...(directed ? {} : {}) })
+                  aria-label="Zoom controls"
+                >
+                  <Tooltip label="Fit view (f)">
+                    <button
+                      type="button"
+                      className="react-flow__controls-button"
+                      onClick={() => void rf.fitView({ padding: fitPadding() })}
+                      aria-label="Fit view"
+                    >
+                      <IconArrowsMaximize size={12} />
+                    </button>
+                  </Tooltip>
+                </Controls>
+                {style.minimap && (
+                  <MiniMap
+                    position="bottom-right"
+                    style={{ marginRight: 52 }}
+                    pannable
+                    zoomable
+                    ariaLabel="Minimap"
+                    nodeColor={(n) =>
+                      n.type === 'group' ? 'transparent' : (n.data as EntityNodeData).kindColor || '#adb5bd'
                     }
-                    onClose={() => setPanel('pathOpen', false)}
+                    nodeStrokeWidth={2}
+                    maskColor={scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(240,242,245,0.6)'}
                   />
                 )}
-              </Panel>
-              <Panel position="bottom-left">
-                {legendOpen ? (
-                  <MapLegend legend={legend} onClose={() => setPanel('legendOpen', false)} showNodes lod={lod} />
-                ) : (
-                  <Button size="xs" variant="default" onClick={() => setPanel('legendOpen', true)}>
-                    Show legend (l)
-                  </Button>
-                )}
-              </Panel>
-              <Panel position="top-right" style={{ maxHeight: 'calc(100% - 30px)', display: 'flex' }}>
-                {selNode ? (
-                  <NodeInspector
-                    node={patches.get(selNode.id) ? { ...selNode, ...patches.get(selNode.id) } : selNode}
-                    model={view.model}
-                    kindTitle={kindMap.get(selNode.kind)?.title ?? humanize(selNode.cluster?.value ?? selNode.kind)}
-                    kindIcon={
-                      kindMap.get(selNode.cluster?.groupBy === 'kind' ? selNode.cluster.value : selNode.kind)?.icon ??
-                      'tabler:cube'
-                    }
-                    typeTitle={typeTitle}
-                    actions={actions}
-                    onClose={() => setSelected(null)}
-                  />
-                ) : selEdge ? (
-                  <EdgeInspector
-                    edge={selEdge}
-                    model={view.model}
-                    typeTitle={typeTitle}
-                    sourceColor={colorOfSource}
-                    projectName={projectName}
-                    onClose={() => setSelectedEdge(null)}
-                  />
-                ) : null}
-              </Panel>
-              <Panel position="top-center">
-                {(loading || data.expanding) && (
-                  <Group gap={6} className="deed-panel" px="sm" py={4}>
-                    <Loader size="xs" />
-                    <Text size="xs">
-                      {data.base.isPending ? 'Loading graph…' : data.expanding ? 'Expanding…' : 'Laying out…'}
-                    </Text>
-                  </Group>
-                )}
-                {layoutError?.sig === signature && (
-                  <Alert color="red" py={4}>
-                    Layout failed: {layoutError.message}
-                  </Alert>
-                )}
-              </Panel>
-            </ReactFlow>
-          </div>
+                <Panel position="top-left">
+                  {pathOpen && (
+                    <PathFinder
+                      key={`${search.from ?? ''}>${search.to ?? ''}`}
+                      search={search}
+                      onFind={(from, to, depth, directed) =>
+                        go({ mode: 'path', from, to, depth, focus: undefined, ...(directed ? {} : {}) })
+                      }
+                      onClose={() => setPanel('pathOpen', false)}
+                    />
+                  )}
+                </Panel>
+                <Panel position="bottom-left">
+                  {legendOpen ? (
+                    <MapLegend legend={legend} onClose={() => setPanel('legendOpen', false)} showNodes lod={lodShown} />
+                  ) : (
+                    <Button size="xs" variant="default" onClick={() => setPanel('legendOpen', true)}>
+                      Show legend (l)
+                    </Button>
+                  )}
+                </Panel>
+                <Panel position="top-right" style={{ maxHeight: 'calc(100% - 30px)', display: 'flex' }}>
+                  {selNode ? (
+                    <NodeInspector
+                      node={patches.get(selNode.id) ? { ...selNode, ...patches.get(selNode.id) } : selNode}
+                      model={view.model}
+                      kindTitle={kindMap.get(selNode.kind)?.title ?? humanize(selNode.cluster?.value ?? selNode.kind)}
+                      kindIcon={
+                        kindMap.get(selNode.cluster?.groupBy === 'kind' ? selNode.cluster.value : selNode.kind)?.icon ??
+                        'tabler:cube'
+                      }
+                      typeTitle={typeTitle}
+                      actions={actions}
+                      onClose={() => setSelected(null)}
+                    />
+                  ) : selEdge ? (
+                    <EdgeInspector
+                      edge={selEdge}
+                      model={view.model}
+                      typeTitle={typeTitle}
+                      sourceColor={colorOfSource}
+                      projectName={projectName}
+                      onClose={() => setSelectedEdge(null)}
+                    />
+                  ) : null}
+                </Panel>
+                <Panel position="top-center">
+                  {(loading || data.expanding) && (
+                    <Group gap={6} className="deed-panel" px="sm" py={4}>
+                      <Loader size="xs" />
+                      <Text size="xs">
+                        {data.base.isPending ? 'Loading graph…' : data.expanding ? 'Expanding…' : 'Laying out…'}
+                      </Text>
+                    </Group>
+                  )}
+                  {layoutError?.sig === signature && (
+                    <Alert color="red" py={4}>
+                      Layout failed: {layoutError.message}
+                    </Alert>
+                  )}
+                </Panel>
+              </DetailFlow>
+            </div>
+          </DetailContext.Provider>
         )}
       </Box>
       <Group
@@ -1128,7 +1295,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
             ? ` · traffic: ${traffic.measured} measured edge${traffic.measured === 1 ? '' : 's'}${traffic.stream === 'live' ? ' (live)' : ''}`
             : ''}
         </Text>
-        {lod && (
+        {lodShown && (
           <Text size="xs" c="dimmed" data-testid="map-lod-note">
             Simplified drawing while zoomed out — zoom in for names, arrowheads and labels
           </Text>

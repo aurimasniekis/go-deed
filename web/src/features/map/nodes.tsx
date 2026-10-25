@@ -1,9 +1,10 @@
 import { ActionIcon, Group, Text, Tooltip } from '@mantine/core'
 import { IconAlertTriangle, IconChevronDown, IconLock, IconStack2 } from '@tabler/icons-react'
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
+import type { Node, NodeProps, Position } from '@xyflow/react'
 import { memo } from 'react'
 import { NamedIcon, RefIcon } from '@/components/icons'
 import { freshnessMeta, healthMeta } from '@/lib/status'
+import { useCard, usePorts } from './lodSwap'
 import { toggleCollapsed } from './mapStore'
 import type { MapNode } from './types'
 
@@ -17,8 +18,6 @@ export interface EntityNodeData extends Record<string, unknown> {
   sourcePos: Position
   targetPos: Position
   dimmed: boolean
-  /** Draw the level-of-detail block instead of the card (see LOD). */
-  lod: boolean
 }
 
 export interface GroupNodeData extends Record<string, unknown> {
@@ -41,7 +40,8 @@ export const NODE_SIZE = {
  * Level of detail (docs/UI.md § Performance): a map with at least `minNodes` nodes, zoomed out below `enter`, draws each
  * entity or cluster as a plain block in its kind colour (LodBlock) and its relationships as straight lines in one layer
  * (LodEdges) — card text is unreadable that far out, and thousands of cards and edge components are what made panning
- * slow. Zooming back in above `leave` restores cards and edges; the gap between the two avoids flapping.
+ * slow. Zooming back in above `leave` restores cards and edges; the gap between the two avoids flapping. Either way the
+ * swap is spread over a few frames (lodSwap.ts).
  */
 export const LOD = { minNodes: 200, enter: 0.4, leave: 0.45 }
 
@@ -69,23 +69,30 @@ function StatusChip({ meta, prefix }: { meta: { label: string; tone: string; ico
   )
 }
 
-function Handles({ sourcePos, targetPos }: { sourcePos: Position; targetPos: Position }) {
+/**
+ * A node's connection points for React Flow, which finds them by class (`source`, `target`) and side
+ * (`data-handlepos`) when it measures a node. Plain hidden elements placed where React Flow's stylesheet puts a handle
+ * (6 px square, centred on the middle of the side) instead of Handle components: those subscribe to the flow store, so
+ * thousands of them slowed every pan and zoom frame. Blocks and cards both render them, so a node measures the same
+ * either way: swapping one for the other (lodSwap.ts) needs no re-measuring, and edges attach to blocks too.
+ */
+function Ports({ sourcePos, targetPos }: { sourcePos: Position; targetPos: Position }) {
   return (
     <>
-      <Handle type="target" position={targetPos} isConnectable={false} style={{ opacity: 0, width: 6, height: 6 }} />
-      <Handle type="source" position={sourcePos} isConnectable={false} style={{ opacity: 0, width: 6, height: 6 }} />
+      <div className={`deed-port deed-port-${targetPos} target`} data-handlepos={targetPos} />
+      <div className={`deed-port deed-port-${sourcePos} source`} data-handlepos={sourcePos} />
     </>
   )
 }
 
 /**
  * Level-of-detail drawing of an entity or cluster node: one block in the kind colour, an outline for failed or warning
- * health, a stack for clusters. No text, icons or handles (edges are drawn by LodEdges while it is shown); the
- * accessible name stays on the node wrapper (ariaLabel) and the title gives the name on hover. The node keeps its type
- * — changing it would make React Flow re-measure every node one store update at a time, which took seconds at 2,000
- * nodes — and MapPage re-measures the handles in one batch when cards come back.
+ * health, a stack for clusters. No text or icons; the accessible name stays on the node wrapper (ariaLabel) and the
+ * title gives the name on hover. The node keeps its type — changing it would make React Flow re-measure every node one
+ * store update at a time, which took seconds at 2,000 nodes — and its size and connection points (Ports).
  */
 function LodBlock({ data, selected }: { data: EntityNodeData; selected: boolean }) {
+  const ports = usePorts()
   const n = data.node
   const size = n.cluster ? NODE_SIZE.cluster : data.compact ? NODE_SIZE.compact : NODE_SIZE.detailed
   return (
@@ -101,13 +108,16 @@ function LodBlock({ data, selected }: { data: EntityNodeData; selected: boolean 
       {...(n.cluster
         ? { 'data-testid': 'map-cluster', 'data-cluster-key': n.cluster.key }
         : { 'data-testid': 'map-node', 'data-entity-id': n.id })}
-    />
+    >
+      {ports && <Ports sourcePos={data.sourcePos} targetPos={data.targetPos} />}
+    </div>
   )
 }
 
 /** Entity card: kind icon and colour, name, kind, health and freshness badges, findings count. */
-export const EntityNode = memo(function EntityNode({ data, selected }: NodeProps<EntityFlowNode>) {
-  if (data.lod) return <LodBlock data={data} selected={selected} />
+export const EntityNode = memo(function EntityNode({ id, data, selected }: NodeProps<EntityFlowNode>) {
+  const card = useCard(id)
+  if (!card) return <LodBlock data={data} selected={selected} />
   const n = data.node
   const h = healthMeta(n.health)
   const f = freshnessMeta(n.freshness)
@@ -123,7 +133,7 @@ export const EntityNode = memo(function EntityNode({ data, selected }: NodeProps
       data-testid="map-node"
       data-entity-id={n.id}
     >
-      <Handles sourcePos={data.sourcePos} targetPos={data.targetPos} />
+      <Ports sourcePos={data.sourcePos} targetPos={data.targetPos} />
       <div className="deed-node-row">
         {n.redacted ? (
           <IconLock size={data.iconSize} aria-hidden />
@@ -167,8 +177,9 @@ export const EntityNode = memo(function EntityNode({ data, selected }: NodeProps
 })
 
 /** Server cluster (overview group or high-degree fan) or a collapsed visual group: expands on click/Enter. */
-export const ClusterNode = memo(function ClusterNode({ data, selected }: NodeProps<ClusterFlowNode>) {
-  if (data.lod) return <LodBlock data={data} selected={selected} />
+export const ClusterNode = memo(function ClusterNode({ id, data, selected }: NodeProps<ClusterFlowNode>) {
+  const card = useCard(id)
+  if (!card) return <LodBlock data={data} selected={selected} />
   const n = data.node
   const h = healthMeta(n.health)
   const c = n.cluster
@@ -182,7 +193,7 @@ export const ClusterNode = memo(function ClusterNode({ data, selected }: NodePro
       data-testid="map-cluster"
       data-cluster-key={c?.key}
     >
-      <Handles sourcePos={data.sourcePos} targetPos={data.targetPos} />
+      <Ports sourcePos={data.sourcePos} targetPos={data.targetPos} />
       <div className="deed-node-row" style={{ paddingInline: 10 }}>
         <div className="deed-cluster-stack" aria-hidden>
           {isGroup ? <IconStack2 size={data.iconSize} /> : <RefIcon iconRef={data.kindIcon} size={data.iconSize} />}
