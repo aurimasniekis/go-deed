@@ -337,6 +337,14 @@ export async function seedCatalog(
     { ...core, labels: { team: 'billing' }, links: links('https://github.com/example/billing-api') },
     {},
   )
+  // Releases of billing-api: version intelligence compares the deployed service with the newest non-prerelease one.
+  for (const [tag, prerelease] of [
+    ['v2.4.0', false],
+    ['v2.5.0', false],
+    ['v2.6.0-rc.1', true],
+  ] as const) {
+    await declare('home', 'release', `billing-api-${tag}`, { ...core }, { tag, name: tag, prerelease })
+  }
 
   await declare('home', 'nats_system', 'nats-main', { ...core, displayName: 'NATS (main)' }, {})
   await declare('home', 'nats_stream', 'orders', { ...core, displayName: 'ORDERS' }, {})
@@ -392,6 +400,9 @@ export async function seedCatalog(
   await relate('carried_on', 'event_contract/order-created-v1', 'nats_subject/orders.created')
   await relate('carried_on', 'event_contract/invoice-issued-v1', 'nats_subject/billing.invoice.issued')
   await relate('deployed_from', 'service/billing-api', 'repository/billing-api')
+  for (const tag of ['v2.4.0', 'v2.5.0', 'v2.6.0-rc.1']) {
+    await relate('contains', 'repository/billing-api', `release/billing-api-${tag}`)
+  }
   await relate('resolves_to', 'dns_record/grafana.example-home.net', 'server/srv-hel1-01')
   await relate('resolves_to', 'dns_record/api.example-home.net', 'server/srv-hel1-01')
   await relate('resolves_to', 'dns_record/git.example-home.net', 'server/srv-hel1-01')

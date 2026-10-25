@@ -40,7 +40,9 @@ export default async function globalSetup() {
       }),
       { mode: 0o600 },
     )
-    // Findings are evaluated every two minutes; the flows below start from them.
+    // Version checks run every 12 h and findings every two minutes; the flows below start from both.
+    await session.request('POST', '/versions/check')
+    await session.request('POST', '/findings/evaluate')
     const deadline = Date.now() + 180_000
     for (;;) {
       const f = await session.get<unknown[]>('/findings?limit=5')

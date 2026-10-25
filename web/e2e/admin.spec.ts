@@ -84,3 +84,39 @@ test('saved views: save the inventory state and re-open it', async ({ page }) =>
   await page.getByRole('menuitem', { name: /Unhealthy containers/ }).click()
   await expect(page).toHaveURL(/health=failed%2Cwarning|health=failed,warning/)
 })
+
+test('versions: re-check shows the newer catalog release', async ({ page }) => {
+  await page.goto('/versions')
+  await ready(page)
+  await page.getByTestId('recheck-versions').click()
+  await expect(page.getByText(/Checked \d+ entities/)).toBeVisible()
+  const row = page.getByTestId('versions-table').getByRole('row', { name: /billing-api/ })
+  await expect(row).toContainText('Update available')
+  await expect(row).toContainText('v2.5.0')
+  await page.getByTestId('version-count-update_available').click()
+  await expect(page).toHaveURL(/status=update_available/)
+  await expect(page.getByTestId('versions-table').getByRole('row')).toHaveCount(2)
+})
+
+test('icons: upload a monochrome SVG and use its reference', async ({ page }) => {
+  await page.goto('/settings/icons')
+  await ready(page)
+  await page.getByTestId('upload-icon').click()
+  await page.getByTestId('icon-name').fill('e2e-rack')
+  await page
+    .getByTestId('icon-svg')
+    .fill(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" fill="currentColor"/></svg>',
+    )
+  await page.getByTestId('icon-save').click()
+  const card = page.getByTestId('icon-e2e-rack')
+  await expect(card).toContainText('custom:e2e-rack')
+  await expect(card).toContainText('tinted')
+})
+
+test('findings: owners can re-evaluate now', async ({ page }) => {
+  await page.goto('/findings')
+  await ready(page)
+  await page.getByTestId('evaluate-findings').click()
+  await expect(page.getByText('Findings and alerts re-evaluated')).toBeVisible()
+})
