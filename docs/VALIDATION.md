@@ -5,8 +5,8 @@ stand-in rather than the real external system.
 
 ## Spec §18 end-to-end scenario — `scripts/e2e.sh`
 
-Run 2026-10-25T00:40:56Z (finished) on macOS 15 (Apple Silicon), Docker Desktop 29.8, Go 1.27.3, Terraform 1.11.4,
-Python 3. go-deed at `0487244155d1` (web UI merged), terraform-provider-deed at `d7fbc7b8a322`
+Run 2026-10-25T02:25:30Z (finished) on macOS 15 (Apple Silicon), Docker Desktop 29.8, Go 1.27.3, Terraform 1.11.4,
+Python 3. go-deed at `ccd2ed048a76`, terraform-provider-deed at `c544e19e9e33`
 built from source and installed with `dev_overrides`. Dependencies from `deploy/compose.dev.yaml`: NATS 2.15.1 (JetStream),
 MinIO (Chainguard image), Prometheus 3.5.0, Loki 3.5.5, Grafana 12.2.0. Deed ran as a host process in development mode
 (plain http on loopback, SQLite in a fresh data directory). **Result: 19/19 steps passed; planted-secret scan
@@ -18,8 +18,8 @@ of every database, WAL, log and JSON artefact: 0 hits.**
 | 2 | Authenticate (bootstrap link, local password + TOTP; API token) | PASS | 0.2 s |
 | 3 | Register a custom kind | PASS | 0.0 s |
 | 4 | Import a sanitized Terraform state (push source, CLI) | PASS | 0.1 s |
-| 5 | Install the provider built from terraform-provider-deed (dev_overrides) | PASS | 0.3 s |
-| 6 | Declare entities and relationships through Terraform; apply | PASS | 0.3 s |
+| 5 | Install the provider built from terraform-provider-deed (dev_overrides) | PASS | 0.4 s |
+| 6 | Declare entities and relationships through Terraform; apply | PASS | 0.2 s |
 | 7 | A subsequent plan is a no-op (-detailed-exitcode = 0) | PASS | 0.1 s |
 | 8 | Update and import provider-managed resources | PASS | 0.8 s |
 | 9 | Ownership, repository and Grafana links (incl. a Grafana API link binding) | PASS | 0.1 s |
@@ -27,9 +27,9 @@ of every database, WAL, log and JSON artefact: 0 hits.**
 | 11 | Merge with the declared entity without losing declared ownership | PASS | 0.0 s |
 | 12 | Dashboard finding -> inventory -> detail -> focused graph (API path the UI uses) | PASS | 0.0 s |
 | 13 | Filter and group the graph; inspect provenance | PASS | 0.0 s |
-| 14 | Operational summaries with freshness and failure states (telemetry, edge rates, sources) | PASS | 0.0 s |
+| 14 | Operational summaries with freshness and failure states (telemetry, edge rates, sources) | PASS | 15.1 s |
 | 15 | Conflict handling, interrupted snapshot and partial import safety | PASS | 0.1 s |
-| 16 | Remove a Terraform declaration without deleting independent observations | PASS | 0.4 s |
+| 16 | Remove a Terraform declaration without deleting independent observations | PASS | 0.2 s |
 | 17 | Audit records, metrics and alert delivery (Pulse event) | PASS | 0.0 s |
 | 18 | Create an encrypted S3 backup (MinIO) | PASS | 1.0 s |
 | 19 | Restore into a clean instance and verify catalog integrity | PASS | 1.2 s |
@@ -37,7 +37,8 @@ of every database, WAL, log and JSON artefact: 0 hits.**
 History: the first run (go-deed `2fb543c`, provider `fd234a2`) passed 19/19. A re-run after the UI merge (`5d026c3`)
 failed step 14: an empty Loki answer queried before Loki had indexed the pushed lines was cached for the binding's
 whole freshness period (300 s). Fixed in `0487244` (an empty answer is reused for at most 15 s, with a regression
-test); the run above is after that fix.
+test). The run above is the final one, after all later merges; step 14 includes one 15 s wait because Loki's first
+answer was still empty.
 
 Evidence highlights (from `results.json`):
 - **2 Authentication:** bootstrap link → local password; the session is limited until TOTP enrollment
@@ -64,12 +65,12 @@ Evidence highlights (from `results.json`):
   refused: `409 Conflict: commit would remove 8 of 12 live facts (67% > 25% guard); set allow_mass_removal to proceed (mass_removal_refused)`.
 - **16 Removal:** after removing the Terraform declaration `service/porch` stayed live, undeclared, with its observed
   facet and publish edge; the declared owner went away with the declaration (by design).
-- **17 Audit/metrics/alerts:** audit chain ok over 48 events; 52 `deed_*` metric families on the
+- **17 Audit/metrics/alerts:** audit chain ok over 49 events; 53 `deed_*` metric families on the
   management listener; a critical certificate finding fired alert(s) ['critical Certificate expires within 7 days: certificate/id-example-com'] and Deed's outbox
   delivered `evt.deed.alert.alert.raised` to NATS (received evt.deed.alert.alert.raised type=deed.alert.alert_raised.v1 source=deed bytes=368).
-- **18–19 Backup/restore:** encrypted backup to MinIO (54246 bytes, manifest signature verified);
+- **18–19 Backup/restore:** encrypted backup to MinIO (61544 bytes, manifest signature verified);
   `deed backup verify` and `deed restore` into a clean data directory with the escrowed KEK; restored counts
-  {"entities": 18, "relations": 7} equal the counts at backup time; restored audit chain ok; the owner's old
+  {"entities": 27, "relations": 15} equal the counts at backup time; restored audit chain ok; the owner's old
   session is refused (401); `backup.restored` recorded on first start.
 
 What is simulated here:
