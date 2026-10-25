@@ -110,7 +110,7 @@ func TestPathAndRedaction(t *testing.T) {
 
 func TestOverview(t *testing.T) {
 	_, e, _ := fixture(t)
-	res, err := e.Overview(context.Background(), graph.Scope{}, nil, "kind")
+	res, err := e.Overview(context.Background(), graph.Scope{}, nil, "kind", false)
 	if err != nil {
 		t.Fatal(err)
 	}

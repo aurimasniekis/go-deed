@@ -102,6 +102,19 @@ type updateRelTypeInput struct {
 	Body catalog.RelTypeInput
 }
 
+type relTypeColorInput struct {
+	KindPath
+	IfMatch
+	Body struct {
+		Color string `json:"color" pattern:"^#[0-9a-fA-F]{6}$" doc:"#rrggbb"`
+	}
+}
+
+type resetRelTypeColorInput struct {
+	KindPath
+	IfMatch
+}
+
 // KindSupport is set by the app to compute support levels.
 var KindSupport SupportResolver = func(string) catalog.Support { return catalog.Support{Modeling: true} }
 
@@ -286,6 +299,42 @@ func registerKinds(api huma.API, d *Deps) {
 			r, err := d.Catalog.UpdateRelType(ctx, Actor(ctx), in.Name, in.Body, v)
 			if err != nil {
 				return nil, d.Fail("update-relationship-type", err)
+			}
+			return &relTypeOutput{ETag: ETag(r.ResourceVersion), Body: r}, nil
+		})
+	huma.Register(api, huma.Operation{OperationID: "set-relationship-type-color", Method: http.MethodPut, Path: "/relationship-types/{name}/color",
+		Tags: []string{"kinds"}, Summary: "Change the map colour of a relationship type", Description: "Works for built-in and custom types. " +
+			"A built-in type keeps its definition (only the colour is installation-specific): the colour is stored as an override that " +
+			"survives upgrades, and setting the built-in default clears it. Audited as reltype.color_updated.", Security: Secured},
+		func(ctx context.Context, in *relTypeColorInput) (*relTypeOutput, error) {
+			if err := adminOnly(ctx); err != nil {
+				return nil, d.Fail("set-relationship-type-color", err)
+			}
+			v, err := in.Version()
+			if err != nil {
+				return nil, err
+			}
+			r, err := d.Catalog.SetRelTypeColor(ctx, Actor(ctx), in.Name, in.Body.Color, v)
+			if err != nil {
+				return nil, d.Fail("set-relationship-type-color", err)
+			}
+			return &relTypeOutput{ETag: ETag(r.ResourceVersion), Body: r}, nil
+		})
+	huma.Register(api, huma.Operation{OperationID: "reset-relationship-type-color", Method: http.MethodDelete, Path: "/relationship-types/{name}/color",
+		Tags: []string{"kinds"}, Summary: "Restore a built-in relationship type's default colour", Description: "Removes the installation's " +
+			"colour override (audited as reltype.color_reset); a type without an override is returned unchanged. Custom types have no " +
+			"default to restore (409).", Security: Secured},
+		func(ctx context.Context, in *resetRelTypeColorInput) (*relTypeOutput, error) {
+			if err := adminOnly(ctx); err != nil {
+				return nil, d.Fail("reset-relationship-type-color", err)
+			}
+			v, err := in.Version()
+			if err != nil {
+				return nil, err
+			}
+			r, err := d.Catalog.ResetRelTypeColor(ctx, Actor(ctx), in.Name, v)
+			if err != nil {
+				return nil, d.Fail("reset-relationship-type-color", err)
 			}
 			return &relTypeOutput{ETag: ETag(r.ResourceVersion), Body: r}, nil
 		})

@@ -90,7 +90,9 @@ type RelType struct {
 	Cardinality      string          `json:"cardinality"`
 	AttributesSchema json.RawMessage `json:"attributes_schema,omitempty"`
 	Impact           string          `json:"impact"`
-	Color            string          `json:"color"`
+	Color            string          `json:"color" doc:"Map colour in effect: for built-in types the installation's override when set, else the built-in default."`
+	DefaultColor     string          `json:"default_color,omitempty" doc:"Built-in types: the colour Deed ships with, restored by DELETE /relationship-types/{name}/color."`
+	ColorOverridden  bool            `json:"color_overridden" doc:"Built-in types: an installation admin changed the colour."`
 	Builtin          bool            `json:"builtin"`
 	CreatedAt        time.Time       `json:"created_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
@@ -237,7 +239,7 @@ func loadKinds(ctx context.Context, q querier) (map[string]*Kind, error) {
 
 func loadRelTypes(ctx context.Context, q querier) (map[string]*RelType, error) {
 	rows, err := q.QueryContext(ctx, `SELECT id, name, inverse_name, title, description, directed, from_kinds, to_kinds, default_evidence,
-		cardinality, attributes_schema, impact, color, builtin, created_at, updated_at, version FROM relationship_types`)
+		cardinality, attributes_schema, impact, color, color_override, builtin, created_at, updated_at, version FROM relationship_types`)
 	if err != nil {
 		return nil, err
 	}
@@ -245,11 +247,17 @@ func loadRelTypes(ctx context.Context, q querier) (map[string]*RelType, error) {
 	out := map[string]*RelType{}
 	for rows.Next() {
 		var r RelType
-		var fk, tk, as string
+		var fk, tk, as, override string
 		var c, u int64
 		if err := rows.Scan(&r.ID, &r.Name, &r.InverseName, &r.Title, &r.Description, &r.Directed, &fk, &tk, &r.DefaultEvidence,
-			&r.Cardinality, &as, &r.Impact, &r.Color, &r.Builtin, &c, &u, &r.ResourceVersion); err != nil {
+			&r.Cardinality, &as, &r.Impact, &r.Color, &override, &r.Builtin, &c, &u, &r.ResourceVersion); err != nil {
 			return nil, err
+		}
+		if r.Builtin {
+			r.DefaultColor = r.Color
+			if override != "" {
+				r.Color, r.ColorOverridden = override, true
+			}
 		}
 		_ = json.Unmarshal([]byte(fk), &r.FromKinds)
 		_ = json.Unmarshal([]byte(tk), &r.ToKinds)
@@ -782,7 +790,7 @@ func (s *Service) CreateRelType(ctx context.Context, actor audit.Actor, in RelTy
 		if err != nil {
 			return err
 		}
-		return s.relChangedTx(ctx, tx, actor, "created", in.Name)
+		return s.relChangedTx(ctx, tx, actor, "created", in.Name, nil)
 	})
 	if err != nil {
 		return nil, err
@@ -842,7 +850,7 @@ func (s *Service) UpdateRelType(ctx context.Context, actor audit.Actor, name str
 		if n == 0 {
 			return apperr.New(apperr.CodePrecondition, "relationship type was modified concurrently; re-read it")
 		}
-		return s.relChangedTx(ctx, tx, actor, "updated", name)
+		return s.relChangedTx(ctx, tx, actor, "updated", name, nil)
 	})
 	if err != nil {
 		return nil, err
@@ -876,7 +884,7 @@ func (s *Service) DeleteRelType(ctx context.Context, actor audit.Actor, name str
 		if _, err := tx.Exec(ctx, `DELETE FROM relationship_types WHERE name = ?`, name); err != nil {
 			return err
 		}
-		return s.relChangedTx(ctx, tx, actor, "deleted", name)
+		return s.relChangedTx(ctx, tx, actor, "deleted", name, nil)
 	})
 	if err != nil {
 		return err
@@ -884,12 +892,94 @@ func (s *Service) DeleteRelType(ctx context.Context, actor audit.Actor, name str
 	return s.Reload(ctx)
 }
 
-func (s *Service) relChangedTx(ctx context.Context, tx *store.Tx, actor audit.Actor, action, name string) error {
-	if _, err := s.Audit.Append(ctx, tx, audit.Event{Actor: actor, Action: "reltype." + action, Target: audit.Target{Type: "relationship_type", ID: name}}); err != nil {
+func (s *Service) relChangedTx(ctx context.Context, tx *store.Tx, actor audit.Actor, action, name string, details map[string]any) error {
+	if _, err := s.Audit.Append(ctx, tx, audit.Event{Actor: actor, Action: "reltype." + action, Target: audit.Target{Type: "relationship_type", ID: name},
+		Details: details}); err != nil {
 		return err
 	}
-	_, err := outbox.Enqueue(ctx, tx, outbox.Event{Area: "catalog", Entity: "reltype", Action: action, Payload: map[string]any{"name": name}})
+	payload := map[string]any{"name": name}
+	for k, v := range details {
+		payload[k] = v
+	}
+	_, err := outbox.Enqueue(ctx, tx, outbox.Event{Area: "catalog", Entity: "reltype", Action: action, Payload: payload})
 	return err
+}
+
+// SetRelTypeColor changes the map colour of a relationship type. A built-in type keeps its definition and records the
+// colour as an installation override (setting it back to the built-in default clears the override); a custom type's
+// colour is changed in place. ifMatch (0 = unconditional) is the type's resource version.
+func (s *Service) SetRelTypeColor(ctx context.Context, actor audit.Actor, name, color string, ifMatch int64) (*RelType, error) {
+	cur := s.reg.rel(name)
+	if cur == nil {
+		return nil, apperr.New(apperr.CodeNotFound, "relationship type %q not found", name)
+	}
+	if color == "" || !colorRE.MatchString(color) {
+		v := &apperr.Validation{}
+		v.Add("color", "must be #rrggbb")
+		return nil, v.Err()
+	}
+	color = strings.ToLower(color)
+	col, value, action := "color", color, "color_updated"
+	if cur.Builtin {
+		col = "color_override"
+		if color == strings.ToLower(cur.DefaultColor) {
+			value = ""
+		}
+	}
+	err := s.Store.W().TxNamed(ctx, "catalog.reltype_color", func(tx *store.Tx) error {
+		n, err := tx.ExecN(ctx, `UPDATE relationship_types SET `+col+` = ?, updated_at = ?, version = version + 1 WHERE name = ? AND (? = 0 OR version = ?)`,
+			value, tx.NowMicros(), name, ifMatch, ifMatch)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return apperr.New(apperr.CodePrecondition, "relationship type was modified concurrently; re-read it")
+		}
+		return s.relChangedTx(ctx, tx, actor, action, name, map[string]any{"color": color, "previous_color": cur.Color, "builtin": cur.Builtin})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Reload(ctx); err != nil {
+		return nil, err
+	}
+	return s.reg.rel(name), nil
+}
+
+// ResetRelTypeColor removes the installation's colour override of a built-in relationship type, restoring the colour
+// Deed ships with. Resetting a type without an override changes nothing.
+func (s *Service) ResetRelTypeColor(ctx context.Context, actor audit.Actor, name string, ifMatch int64) (*RelType, error) {
+	cur := s.reg.rel(name)
+	if cur == nil {
+		return nil, apperr.New(apperr.CodeNotFound, "relationship type %q not found", name)
+	}
+	if !cur.Builtin {
+		return nil, apperr.New(apperr.CodeConflict, "custom relationship types have no built-in colour to reset to; set the colour instead")
+	}
+	if ifMatch != 0 && ifMatch != cur.ResourceVersion {
+		return nil, apperr.New(apperr.CodePrecondition, "relationship type was modified concurrently; re-read it")
+	}
+	if !cur.ColorOverridden {
+		return cur, nil
+	}
+	err := s.Store.W().TxNamed(ctx, "catalog.reltype_color_reset", func(tx *store.Tx) error {
+		n, err := tx.ExecN(ctx, `UPDATE relationship_types SET color_override = '', updated_at = ?, version = version + 1
+			WHERE name = ? AND color_override != '' AND (? = 0 OR version = ?)`, tx.NowMicros(), name, ifMatch, ifMatch)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return apperr.New(apperr.CodePrecondition, "relationship type was modified concurrently; re-read it")
+		}
+		return s.relChangedTx(ctx, tx, actor, "color_reset", name, map[string]any{"color": cur.DefaultColor, "previous_color": cur.Color, "builtin": true})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Reload(ctx); err != nil {
+		return nil, err
+	}
+	return s.reg.rel(name), nil
 }
 
 func compactJSON(b json.RawMessage) string {

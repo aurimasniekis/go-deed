@@ -1306,6 +1306,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/relationship-types/{name}/color": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the map colour of a relationship type
+         * @description Works for built-in and custom types. A built-in type keeps its definition (only the colour is installation-specific): the colour is stored as an override that survives upgrades, and setting the built-in default clears it. Audited as reltype.color_updated.
+         */
+        put: operations["set-relationship-type-color"];
+        post?: never;
+        /**
+         * Restore a built-in relationship type's default colour
+         * @description Removes the installation's colour override (audited as reltype.color_reset); a type without an override is returned unchanged. Custom types have no default to restore (409).
+         */
+        delete: operations["reset-relationship-type-color"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/silences": {
         parameters: {
             query?: never;
@@ -2484,6 +2508,10 @@ export interface components {
             inferred: boolean;
             /** Format: date-time */
             last_seen_at?: string;
+            /** @description ID of the highest-precedence visible source (ADR-003). On an aggregated edge it is set only when that source is the primary of every bundled relationship; empty when no asserting source is visible. */
+            primary_source?: string;
+            /** @description Sources with a live assertion of the relationship that the caller may see (sources of projects the caller cannot read are left out), highest precedence first: layer priority (or the source's policy priority), then the oldest first claim. Aggregated edges list the union of their relationships' sources. */
+            sources: components["schemas"]["EdgeSource"][];
             to: string;
             type: string;
         };
@@ -2513,6 +2541,18 @@ export interface components {
         EdgeRatesOutputBody: {
             rates: components["schemas"]["EdgeRate"][];
             window: string;
+        };
+        EdgeSource: {
+            display_name?: string;
+            id: string;
+            layer: string;
+            name: string;
+            project_id: string;
+            /**
+             * Format: int64
+             * @description Aggregated edges: how many of the bundled relationships this source asserts.
+             */
+            relations?: number;
         };
         Entity: {
             apiVersion: string;
@@ -3159,9 +3199,14 @@ export interface components {
             attributes_schema?: unknown;
             builtin: boolean;
             cardinality: string;
+            /** @description Map colour in effect: for built-in types the installation's override when set, else the built-in default. */
             color: string;
+            /** @description Built-in types: an installation admin changed the colour. */
+            color_overridden: boolean;
             /** Format: date-time */
             created_at: string;
+            /** @description Built-in types: the colour Deed ships with, restored by DELETE /relationship-types/{name}/color. */
+            default_color?: string;
             default_evidence: string;
             description: string;
             directed: boolean;
@@ -3176,6 +3221,10 @@ export interface components {
             to_kinds: string[];
             /** Format: date-time */
             updated_at: string;
+        };
+        RelTypeColorInputBody: {
+            /** @description #rrggbb */
+            color: string;
         };
         RelTypeInput: {
             attributes_schema?: unknown;
@@ -5283,6 +5332,8 @@ export interface operations {
             query?: {
                 project?: string[];
                 group_by?: "project" | "kind" | "environment" | "owner";
+                /** @description Also list the asserting sources of each bundled edge (one more aggregate over the catalog; off by default). */
+                sources?: boolean;
             };
             header?: never;
             path?: never;
@@ -6935,6 +6986,80 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "set-relationship-type-color": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag (resource version) the change is based on; mismatches fail with 412. */
+                "If-Match"?: string;
+            };
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelTypeColorInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelType"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "reset-relationship-type-color": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag (resource version) the change is based on; mismatches fail with 412. */
+                "If-Match"?: string;
+            };
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelType"];
+                };
             };
             /** @description Error */
             default: {

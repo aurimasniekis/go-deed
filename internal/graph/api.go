@@ -52,6 +52,7 @@ type impactOutput struct {
 type overviewInput struct {
 	Project []string `query:"project"`
 	GroupBy string   `query:"group_by" enum:"project,kind,environment,owner" default:"kind"`
+	Sources bool     `query:"sources" doc:"Also list the asserting sources of each bundled edge (one more aggregate over the catalog; off by default)."`
 }
 
 func split(vals []string) []string {
@@ -136,7 +137,7 @@ func (e *Engine) Register(api huma.API, d *httpapi.Deps) {
 				}
 				projects = append(projects, pr.ID)
 			}
-			res, err := e.Overview(ctx, s, projects, in.GroupBy)
+			res, err := e.Overview(ctx, s, projects, in.GroupBy, in.Sources)
 			return &resultOutput{Body: res}, d.Fail("graph-overview", err)
 		})
 }
