@@ -66,7 +66,8 @@ function forceLayout(req: LayoutRequest): Record<string, { x: number; y: number 
       forceY<SimNode>((d) => (d.group ? (centers.get(d.group)?.y ?? 0) : 0)).strength((d) => (d.group ? 0.12 : 0.03)),
     )
     .stop()
-  const ticks = Math.min(400, Math.max(120, Math.ceil(Math.log(sim.alphaMin()) / Math.log(1 - sim.alphaDecay()))))
+  // Large graphs settle with fewer ticks (Barnes–Hut charge is O(n log n) per tick).
+  const ticks = req.nodes.length > 1000 ? 110 : req.nodes.length > 400 ? 200 : 300
   for (let i = 0; i < ticks; i++) sim.tick()
   const out: Record<string, { x: number; y: number }> = {}
   for (const n of nodes) out[n.id] = { x: (n.x ?? 0) - n.w / 2, y: (n.y ?? 0) - n.h / 2 }

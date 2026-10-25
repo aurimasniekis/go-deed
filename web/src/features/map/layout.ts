@@ -1,6 +1,6 @@
 import ELK, { type ElkExtendedEdge, type ElkNode } from 'elkjs/lib/elk-api'
 import elkWorkerUrl from 'elkjs/lib/elk-worker.min.js?worker&url'
-import { GROUP_PADDING, groupBounds, type LayoutRequest, type LayoutResult } from './layoutTypes'
+import { GROUP_PADDING, groupBounds, wrapLayers, type LayoutRequest, type LayoutResult } from './layoutTypes'
 
 /**
  * Layout off the main thread. Layered layouts use ELK (elkjs) in ELK's own Web Worker (elk-worker.min.js, a separate
@@ -83,6 +83,13 @@ async function layered(req: LayoutRequest): Promise<LayoutResult> {
     }
   }
   walk(out, 0, 0)
+  // Hubs with hundreds of neighbours make one enormous layer; wrap it into columns (ungrouped layouts only).
+  const maxPerLayer = Math.max(30, Math.ceil(Math.sqrt(req.nodes.length) * 1.2))
+  const wrapped =
+    req.groups.length === 0 && req.nodes.length > maxPerLayer
+      ? wrapLayers(positions, new Map(req.nodes.map((n) => [n.id, n])), req.direction, maxPerLayer)
+      : positions
+  Object.assign(positions, wrapped)
   // Pinned (dragged or saved) positions win; their groups grow around them.
   const merged = { ...positions, ...req.pinned }
   const hasPins = Object.keys(req.pinned).length > 0

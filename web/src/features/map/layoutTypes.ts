@@ -120,3 +120,68 @@ export function radialLayout(
   }
   return pos
 }
+
+/**
+ * Wraps very tall layers of a layered layout into several columns (rows for vertical directions). A hub with hundreds
+ * of neighbours puts them all in one layer, which would be a single column thousands of pixels long; wrapping keeps
+ * the drawing compact enough to fit on screen. Later layers shift to make room. Pure, so it is unit-tested.
+ */
+export function wrapLayers(
+  positions: Record<string, { x: number; y: number }>,
+  sizes: Map<string, { width: number; height: number }>,
+  direction: LayoutDirection,
+  maxPerLayer: number,
+  gap = 26,
+): Record<string, { x: number; y: number }> {
+  const horizontal = direction === 'RIGHT' || direction === 'LEFT'
+  const main = (p: { x: number; y: number }) => (horizontal ? p.x : p.y)
+  const layers = new Map<number, string[]>()
+  for (const [id, p] of Object.entries(positions)) {
+    const k = Math.round(main(p))
+    layers.set(k, [...(layers.get(k) ?? []), id])
+  }
+  const ordered = [...layers.keys()].sort((a, b) => (direction === 'LEFT' || direction === 'UP' ? b - a : a - b))
+  const out: Record<string, { x: number; y: number }> = { ...positions }
+  let shift = 0
+  for (const k of ordered) {
+    const ids = layers.get(k) ?? []
+    const sign = direction === 'LEFT' || direction === 'UP' ? -1 : 1
+    if (ids.length <= maxPerLayer) {
+      for (const id of ids) {
+        const p = positions[id]
+        if (p) out[id] = horizontal ? { x: p.x + sign * shift, y: p.y } : { x: p.x, y: p.y + sign * shift }
+      }
+      continue
+    }
+    ids.sort((a, b) => {
+      const pa = positions[a]
+      const pb = positions[b]
+      return horizontal ? (pa?.y ?? 0) - (pb?.y ?? 0) : (pa?.x ?? 0) - (pb?.x ?? 0)
+    })
+    const first = positions[ids[0] ?? '']
+    const startCross = first ? (horizontal ? first.y : first.x) : 0
+    let mainStep = 0
+    let crossStep = 0
+    for (const id of ids) {
+      const sz = sizes.get(id)
+      mainStep = Math.max(mainStep, (horizontal ? sz?.width : sz?.height) ?? 0)
+      crossStep = Math.max(crossStep, (horizontal ? sz?.height : sz?.width) ?? 0)
+    }
+    mainStep += gap * 2
+    crossStep += gap
+    const chunks = Math.ceil(ids.length / maxPerLayer)
+    // Centre the wrapped block on the layer's original centre along the cross axis.
+    const blockCross = Math.min(ids.length, maxPerLayer) * crossStep
+    const origCenter = startCross + (ids.length * crossStep) / 2
+    const crossStart = origCenter - blockCross / 2
+    ids.forEach((id, i) => {
+      const col = Math.floor(i / maxPerLayer)
+      const row = i % maxPerLayer
+      const m = k + sign * (shift + col * mainStep)
+      const c = crossStart + row * crossStep
+      out[id] = horizontal ? { x: m, y: c } : { x: c, y: m }
+    })
+    shift += (chunks - 1) * mainStep
+  }
+  return out
+}
