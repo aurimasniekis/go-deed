@@ -107,7 +107,7 @@ web-dev: ## Vite dev server proxying /api and /auth to a running deed (DEED_API)
 web-e2e: ## Playwright + axe against a fresh, seeded deed (builds bin/deed unless DEED_E2E_BINARY is set; run web-build first)
 	$(PNPM) --dir web run e2e
 
-check: fmt-check vet txscope tools-test lint race openapi-check monitoring-check web-check ## everything CI checks without browsers or Docker
+check: fmt-check vet txscope tools-test lint race openapi-check monitoring-check web-check web-build ## everything CI checks without browsers or Docker
 
 docker:
 	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_DATE=$(DATE) -t deed:local .

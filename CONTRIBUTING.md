@@ -5,7 +5,7 @@ Thanks for your interest. Issues and pull requests are welcome; please open an i
 ## Development
 ```sh
 make build          # bin/deed, bin/deed-agent
-make check          # gofmt, tidy, vet, txscope analyzer, golangci-lint, race tests, OpenAPI drift, promtool rule tests, web checks
+make check          # gofmt, tidy, vet, txscope analyzer, golangci-lint, race tests, OpenAPI drift, promtool rule tests, web checks and production build (check-dist)
 make e2e            # spec §18 scenario against deploy/compose.dev.yaml (needs Docker, Terraform, Python 3)
 ```
 Integration tests use a local `nats-server` and `minio` when installed, or `DEED_TEST_NATS` /

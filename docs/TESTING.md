@@ -14,7 +14,7 @@ and container jobs. `docs/VALIDATION.md` records what was actually run against r
 | `make openapi-check` | fails when `api/openapi.json` differs from `deed openapi` (fix with `make openapi`) |
 | `make monitoring-check` | `deploy/monitoring/check.sh`: promtool rule check and unit tests, dashboard JSON check |
 | `make txscope` | `go vet` with `tools/analyzers/txscope`: no network I/O, NATS/S3/outbound-HTTP calls, waits or fsyncs inside store write transactions (`make tools-test` tests the analyzer) |
-| `make check` | `fmt-check vet txscope tools-test lint race openapi-check monitoring-check web-check` |
+| `make check` | `fmt-check vet txscope tools-test lint race openapi-check monitoring-check web-check web-build` (the web build runs `scripts/check-dist.mjs`) |
 | `make e2e` | `scripts/e2e.sh`, the spec §18 end-to-end scenario |
 | `make container-smoke` | builds `deed:local` and runs `scripts/container-smoke.sh` against it |
 | `make secrets` | gitleaks over the git history with `.gitleaks.toml` |
