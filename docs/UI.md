@@ -17,16 +17,18 @@ synthetic seed data.
 
 ## Building and developing
 
-| Command         | What it does                                                                                                   |
-| --------------- | -------------------------------------------------------------------------------------------------------------- |
-| `make web`      | `pnpm install --frozen-lockfile`, `tsc`, production build into `internal/webui/dist`, `scripts/check-dist.mjs` |
-| `make web-dev`  | Vite dev server proxying `/api` and `/auth` to a running deed at `DEED_API` (default `http://127.0.0.1:8787`)  |
-| `make web-lint` | ESLint (strict type-checked, react-hooks, jsx-a11y strict, `--max-warnings=0`) and Prettier check              |
-| `make web-test` | `tsc --noEmit`, lint, Vitest unit tests (`web/src/**/*.test.ts`)                                               |
-| `make web-e2e`  | Builds the UI and `bin/deed`, then runs Playwright + axe against a freshly seeded server                       |
+| Command                       | What it does                                                                                                                     |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `make web`                    | `pnpm install --frozen-lockfile`, then `make web-build`                                                                          |
+| `make web-build`              | `tsc`, production build into `internal/webui/dist`, `scripts/check-dist.mjs`                                                     |
+| `make web-dev`                | Vite dev server proxying `/api` and `/auth` to a running deed at `DEED_API` (default `http://127.0.0.1:8787`)                    |
+| `make web-lint`               | ESLint (strict type-checked, react-hooks, jsx-a11y strict, `--max-warnings=0`) and Prettier check                                |
+| `make web-test` / `web-check` | `tsc --noEmit`, lint, Vitest unit tests (`web/src/**/*.test.ts`); part of `make check`                                           |
+| `make web-gen`                | Regenerates the typed API client; CI fails when it is stale                                                                      |
+| `make web-e2e`                | Playwright + axe against a freshly seeded server (run `make web-build` first; builds `bin/deed` unless `DEED_E2E_BINARY` is set) |
 
-- `pnpm gen:api` regenerates `src/api/schema.gen.ts` from `api/openapi.json`; the client (`openapi-fetch`) is fully
-  typed from it, so API drift fails `tsc`.
+- `make web-gen` (`pnpm gen:api`) regenerates `src/api/schema.gen.ts` from `api/openapi.json`; the client
+  (`openapi-fetch`) is fully typed from it, so API drift fails `tsc`.
 - The dev proxy rewrites `Origin` to the backend's origin, because the server's CSRF check compares `Origin` with its
   own URL.
 - TanStack Query/Router devtools load only under `import.meta.env.DEV`. `scripts/check-dist.mjs` fails the build when
@@ -60,8 +62,10 @@ Map                       /map                   overview / neighbourhood / path
 Relationships             /relations             relation table with evidence
 Findings                  /findings              rule results, acknowledge/suppress
 Alerts                    /alerts                alerts · rules · silences
+Versions                  /versions              newest release / end-of-life status per versioned entity, re-check
 Sources                   /sources               list, schema-driven create/edit, test, preview, sync, runs, tokens
 Kinds                     /kinds                 kind list, schema editor; /relationship-types
+Icons                     /settings/icons        custom SVG icons (custom:<name>), monochrome ones tinted per theme
 Settings                  /settings              projects (members, tokens), bridges, users, account (MFA,
                                                  sessions), telemetry (integrations, bindings), backups, audit, about
 ```
@@ -175,5 +179,6 @@ skips the worker.
   return-to, setup-link and SSO error pages), core flows (dashboard → finding → inventory → entity → focused map →
   path; impact; bulk annotations; relations table), map (filters, grouping, inspector, keyboard, provenance, overview
   expansion, traffic overlay on measured edges only), admin (GitHub source create/test/preview against the mock,
-  push-token reveal-once, custom kind with schema dry run, audit hash-chain verification, saved views), an axe scan
-  of 25 views in both schemes plus the login page (screenshots to `web/e2e/screenshots/`), and the perf budgets.
+  push-token reveal-once, custom kind with schema dry run, audit hash-chain verification, saved views, version
+  re-check, custom icon upload, findings re-evaluation), an axe scan of 27 views in both schemes plus the login page
+  (screenshots to `web/e2e/screenshots/`), and the perf budgets.
