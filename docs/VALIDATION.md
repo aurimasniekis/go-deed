@@ -5,8 +5,8 @@ stand-in rather than the real external system.
 
 ## Spec §18 end-to-end scenario — `scripts/e2e.sh`
 
-Run 2026-10-25T03:19:26Z (finished) on macOS 15 (Apple Silicon), Docker Desktop 29.8, Go 1.27.3, Terraform 1.11.4,
-Python 3. go-deed at `96f08382e134`, terraform-provider-deed at `b2645abac741`
+Run 2026-10-25T05:08:48Z (finished) on macOS 15 (Apple Silicon), Docker Desktop 29.8, Go 1.27.3, Terraform 1.11.4,
+Python 3. go-deed at `569e2db3228c`, terraform-provider-deed at `5c8537abd98a`
 built from source and installed with `dev_overrides`. Dependencies from `deploy/compose.dev.yaml`: NATS 2.15.1 (JetStream),
 MinIO (Chainguard image), Prometheus 3.5.0, Loki 3.5.5, Grafana 12.2.0. Deed ran as a host process in development mode
 (plain http on loopback, SQLite in a fresh data directory). **Result: 19/19 steps passed; planted-secret scan
@@ -18,12 +18,12 @@ of every database, WAL, log and JSON artefact: 0 hits.**
 | 2 | Authenticate (bootstrap link, local password + TOTP; API token) | PASS | 0.2 s |
 | 3 | Register a custom kind | PASS | 0.0 s |
 | 4 | Import a sanitized Terraform state (push source, CLI) | PASS | 0.1 s |
-| 5 | Install the provider built from terraform-provider-deed (dev_overrides) | PASS | 0.3 s |
+| 5 | Install the provider built from terraform-provider-deed (dev_overrides) | PASS | 0.1 s |
 | 6 | Declare entities and relationships through Terraform; apply | PASS | 0.3 s |
-| 7 | A subsequent plan is a no-op (-detailed-exitcode = 0) | PASS | 0.2 s |
+| 7 | A subsequent plan is a no-op (-detailed-exitcode = 0) | PASS | 0.1 s |
 | 8 | Update and import provider-managed resources | PASS | 0.9 s |
 | 9 | Ownership, repository and Grafana links (incl. a Grafana API link binding) | PASS | 0.1 s |
-| 10 | Ingest Pulse-compatible publisher/subscriber observations (tail + ingest consumer) | PASS | 45.3 s |
+| 10 | Ingest Pulse-compatible publisher/subscriber observations (tail + ingest consumer) | PASS | 45.4 s |
 | 11 | Merge with the declared entity without losing declared ownership | PASS | 0.0 s |
 | 12 | Dashboard finding -> inventory -> detail -> focused graph (API path the UI uses) | PASS | 0.0 s |
 | 13 | Filter and group the graph; inspect provenance | PASS | 0.0 s |
@@ -68,7 +68,7 @@ Evidence highlights (from `results.json`):
 - **17 Audit/metrics/alerts:** audit chain ok over 49 events; 53 `deed_*` metric families on the
   management listener; a critical certificate finding fired alert(s) ['critical Certificate expires within 7 days: certificate/id-example-com'] and Deed's outbox
   delivered `evt.deed.alert.alert.raised` to NATS (received evt.deed.alert.alert.raised type=deed.alert.alert_raised.v1 source=deed bytes=368).
-- **18–19 Backup/restore:** encrypted backup to MinIO (61502 bytes, manifest signature verified);
+- **18–19 Backup/restore:** encrypted backup to MinIO (61424 bytes, manifest signature verified);
   `deed backup verify` and `deed restore` into a clean data directory with the escrowed KEK; restored counts
   {"entities": 27, "relations": 15} equal the counts at backup time; restored audit chain ok; the owner's old
   session is refused (401); `backup.restored` recorded on first start.

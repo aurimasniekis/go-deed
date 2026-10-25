@@ -8,10 +8,10 @@ provider works with every Deed release at or above its minimum version.
 
 | Provider | Minimum Deed | Tested against (CI pin) | Terraform |
 |---|---|---|---|
-| 0.1.x (unreleased) | 0.1.0 (go-deed `40311d6` or later) | go-deed `96f0838` (`DEED_COMMIT` in the provider `Makefile` and `test.yml`) | ≥ 1.11 (tested with 1.11.4) |
+| 0.1.x (unreleased) | 0.1.0 (go-deed `40311d6` or later) | go-deed `569e2db` (`DEED_COMMIT` in the provider `Makefile` and `test.yml`) | ≥ 1.11 (tested with 1.11.4) |
 
 Recorded validation pairs: the provider acceptance suite (`make testacc`) and its scenario passed against go-deed
-`96f0838` (provider `b2645ab`); the §18 end-to-end run in `docs/VALIDATION.md` names the exact go-deed and provider commits it used.
+`569e2db` (provider `5c8537a`); the §18 end-to-end run in `docs/VALIDATION.md` names the exact go-deed and provider commits it used.
 Neither repository has published a release yet.
 
 The provider reads `GET /api/v1/system/info` during configure and warns when the server is older than its minimum
