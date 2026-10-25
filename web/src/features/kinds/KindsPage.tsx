@@ -30,6 +30,7 @@ import { keys, useKinds } from '@/api/queries'
 import { Page } from '@/components/AppShell'
 import { ConfirmModal, Field, JsonBlock, Mono, PageHeader, TimeAgo } from '@/components/common'
 import { RefIcon } from '@/components/icons'
+import { IconPicker } from '@/components/IconPicker'
 import { AnchorLink, ButtonLink } from '@/components/links'
 import { EmptyState, ErrorState, LoadingRows } from '@/components/States'
 import { SupportBadge } from '@/components/StatusBadge'
@@ -209,12 +210,11 @@ function KindMetaFields({ v, onChange, isNew }: { v: KindMeta; onChange: (v: Kin
         onChange={(e) => onChange({ ...v, group: e.currentTarget.value })}
         placeholder="infra, software, ops…"
       />
-      <TextInput
+      <IconPicker
         label="Icon"
-        description="pack:name — tabler:server, simple-icons:docker, or custom:<name> for an uploaded icon (Settings › Icons)"
+        description="pack:name — tabler:server, simple-icons:docker, thesvg:aws, or custom:<name> for an uploaded icon (Settings › Icons); type to search"
         value={v.icon}
-        onChange={(e) => onChange({ ...v, icon: e.currentTarget.value })}
-        leftSection={<RefIcon iconRef={v.icon || 'tabler:cube'} size={14} />}
+        onChange={(icon) => onChange({ ...v, icon })}
       />
       <ColorInput label="Colour" value={v.color} onChange={(c) => onChange({ ...v, color: c })} format="hex" />
       <Textarea

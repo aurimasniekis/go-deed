@@ -15,7 +15,7 @@ kind's `icon`:
 |---|---|---|
 | `tabler` | generic UI icons, the fallback for kinds | `tabler:server`, `tabler:database`, `tabler:certificate` |
 | `simple-icons` | brand logos | `simple-icons:cloudflare`, `simple-icons:docker`, `simple-icons:grafana` |
-| `thesvg` | reserved for the theSVG collection; accepted but not bundled yet (renders as the fallback) | `thesvg:proxmox` |
+| `thesvg` | brand logos and cloud service icons from the theSVG collection (curated subset, see below) | `thesvg:proxmox`, `thesvg:aws`, `thesvg:aws-amazon-ec2`, `thesvg:gcp-cloud-sql` |
 | `custom` | SVGs uploaded to this installation | `custom:core-router` |
 
 An invalid reference is refused with `must be pack:name with pack tabler, simple-icons, thesvg or custom`. The API
@@ -25,15 +25,91 @@ Where icons come from:
 - every built-in kind has a default icon (`internal/catalog/builtin/kinds.yaml`), and custom kinds may set one;
 - `metadata.icon` on an entity overrides its kind's icon;
 - Terraform mappings set icons on the entities they create (`cloudflare_*` → `simple-icons:cloudflare`,
-  `hcloud_*` → `simple-icons:hetzner`, see `internal/tfimport/mappings/`); the GitHub connector and the Docker agent
-  set `simple-icons:github` and `simple-icons:docker`.
+  `hcloud_*` → `simple-icons:hetzner`, `aws_instance` → `thesvg:aws-amazon-ec2`, `aws_route53_*` →
+  `thesvg:aws-amazon-route-53`, `aws_s3_bucket` → `thesvg:aws-amazon-simple-storage-service`, `aws_db_instance` →
+  `thesvg:aws-amazon-rds`, `vsphere_virtual_machine` → `thesvg:vsphere`, see `internal/tfimport/mappings/`); the
+  GitHub connector and the Docker agent set `simple-icons:github` and `simple-icons:docker`.
 
 The web UI bundles a curated subset of Tabler (`@tabler/icons-react`) and Simple Icons (`simple-icons`) by named
 imports in `web/src/components/icons.tsx`, so only those icons ship; the pinned versions in `web/package.json` record
 the source. Simple Icons render from their path data as monochrome SVGs tinted with `currentColor`, so they follow
-the theme; brand colors are used only as accents. A reference to an icon that is not bundled renders as a neutral
-cube. `web/src/components/icons.test.ts` checks that every icon the server assigns (built-in kinds, Terraform
-mappings, connectors, demo seed) is bundled. To use another logo, upload it as a custom icon.
+the theme; brand colors are used only as accents. theSVG icons are bundled from a generated manifest (below). A
+reference to an icon that is not bundled renders as a neutral cube. `web/src/components/icons.test.ts` checks that
+every icon the server assigns (built-in kinds, Terraform mappings, connectors, demo seed) is bundled. To use another
+logo, upload it as a custom icon.
+
+The kind editor's **Icon** field suggests every bundled icon and the uploaded ones; type part of a reference or a
+title (`azure`, `route 53`, `nas`) to search. Any well-formed reference can still be typed.
+
+### theSVG
+theSVG icons come from the npm package `@thesvg/icons`, pinned in `web/package.json` (devDependency, exact version;
+the package publishes one module per icon with `slug`, `title`, `hex`, `variants`, `license` and `url`).
+`web/scripts/build-icons.mjs` reads the curated list from it and writes `web/src/components/thesvg-manifest.json`,
+which is checked in and records for each icon its name, title, license, source URL, brand hex, the variant used, how
+it renders and the SVG. The script fails when:
+
+- the installed package is not the pinned version;
+- an icon's license is not CC0-1.0, MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC or Unlicense, unless the icon
+  is on its `UNMODIFIED` allowlist (no-derivatives icons, each with a justification; they must be CC BY-ND and are
+  bundled byte-for-byte);
+- the markup is not static vector content (`<script>`, `<style>` other than plain class rules, which are inlined,
+  foreign or namespaced elements, event handlers, `href` or `url()` outside the icon, `data:` URIs, DOCTYPEs) or has
+  no `viewBox`;
+- an unmodified icon's key colour is below 3:1 on one of the themes.
+
+```sh
+pnpm --dir web run icons        # regenerate the manifest after editing the curated list
+pnpm --dir web run icons:check  # fail when the checked-in manifest is out of date
+```
+
+Rendering: icons drawn in one paint (the `mono` variant where theSVG has one) render as a CSS mask over a `data:`
+URI and take the surrounding text colour, like monochrome custom icons. Multi-colour icons render through `<img>`
+with their own colours when their key colour (the brand colour, or the strongest colour other than black and white)
+reaches 3:1 against both the light (`#ffffff`) and the dark (`#242424`) surface; otherwise the build falls back to
+the mask. The SVG is never inserted into the DOM as markup. The manifest is a separate chunk (about 16 kB gzipped),
+fetched on the first `thesvg:` reference or when the icon picker opens, so other pages do not pay for it.
+
+Bundled theSVG icons (`@thesvg/icons` 3.3.13):
+
+| Reference | Title | License | Rendering |
+|---|---|---|---|
+| `thesvg:akamai` | Akamai | CC0-1.0 | tinted |
+| `thesvg:aws` | AWS | MIT | tinted |
+| `thesvg:aws-amazon-ec2` | Amazon EC2 | CC-BY-ND-2.0 (unmodified) | colour |
+| `thesvg:aws-amazon-rds` | Amazon RDS | CC-BY-ND-2.0 (unmodified) | colour |
+| `thesvg:aws-amazon-route-53` | Amazon Route 53 | CC-BY-ND-2.0 (unmodified) | colour |
+| `thesvg:aws-amazon-simple-storage-service` | Amazon Simple Storage Service | CC-BY-ND-2.0 (unmodified) | colour |
+| `thesvg:cloudflare` | Cloudflare | CC0-1.0 | tinted |
+| `thesvg:digitalocean` | DigitalOcean | CC0-1.0 | tinted |
+| `thesvg:gcp-cloud-dns` | Cloud DNS | Apache-2.0 | colour |
+| `thesvg:gcp-cloud-sql` | Cloud SQL | Apache-2.0 | colour |
+| `thesvg:gcp-cloud-storage` | Cloud Storage | Apache-2.0 | colour |
+| `thesvg:gcp-compute-engine` | Compute Engine | Apache-2.0 | colour |
+| `thesvg:google-cloud` | Google Cloud | CC0-1.0 | tinted |
+| `thesvg:hetzner` | Hetzner | CC0-1.0 | tinted |
+| `thesvg:home-assistant` | Home Assistant | CC0-1.0 | tinted |
+| `thesvg:microsoft-azure` | Microsoft Azure | MIT | colour |
+| `thesvg:mikrotik` | MikroTik | CC0-1.0 | tinted |
+| `thesvg:openwrt` | OpenWrt | CC0-1.0 | tinted |
+| `thesvg:opnsense` | OPNsense | CC0-1.0 | tinted |
+| `thesvg:ovh` | OVH | CC0-1.0 | tinted |
+| `thesvg:pfsense` | pfSense | CC0-1.0 | tinted |
+| `thesvg:proxmox` | Proxmox | CC0-1.0 | tinted |
+| `thesvg:scaleway` | Scaleway | CC0-1.0 | tinted |
+| `thesvg:tailscale` | Tailscale | CC0-1.0 | tinted |
+| `thesvg:truenas` | TrueNAS | CC0-1.0 | tinted |
+| `thesvg:ubiquiti` | Ubiquiti | CC0-1.0 | tinted |
+| `thesvg:unraid` | Unraid | CC0-1.0 | tinted |
+| `thesvg:valkey` | Valkey | BSD-3-Clause | tinted |
+| `thesvg:vsphere` | vSphere | MIT | tinted |
+| `thesvg:windows` | Windows | MIT | tinted |
+| `thesvg:wireguard` | WireGuard | CC0-1.0 | tinted |
+
+The four AWS Architecture Icons are licensed CC BY-ND 2.0 and allowlisted for unmodified use because the Terraform
+AWS mapping assigns them (`aws_instance`, `aws_route53_zone` / `aws_route53_record`, `aws_s3_bucket`,
+`aws_db_instance`): they ship exactly as published and are only scaled. The other AWS service icons are not
+bundled. Logos that are only a wordmark and unreadable at 16 px (Synology, QNAP, VMware, Juniper) are left out;
+upload them as custom icons instead.
 
 ## Custom icons
 Installation owners and admins upload SVGs; every signed-in user can list and display them.
@@ -100,9 +176,12 @@ in the application's origin.
 |---|---|
 | Simple Icons (https://simpleicons.org) | CC0 1.0 Universal |
 | Tabler Icons (https://tabler.io/icons) | MIT License, Copyright (c) 2020-2026 Paweł Kuna |
+| theSVG (https://thesvg.org, `@thesvg/icons`) | collection and package code: MIT License, Copyright (c) 2025 thesvg.org; each icon under its own license, recorded per icon in `web/src/components/thesvg-manifest.json`: CC0-1.0, MIT, Apache-2.0, BSD-3-Clause, and CC-BY-ND-2.0 for the four unmodified AWS Architecture Icons (Amazon Web Services) |
 | custom | whatever the uploader has the right to use |
 
-No icon whose license is `Custom`, unknown, or no-derivatives (e.g. CC BY-ND) is bundled (ADR-011b).
+No icon whose license is `Custom`, unknown, fair use, trademark-only, copyleft or non-commercial is bundled, and no
+no-derivatives (e.g. CC BY-ND) icon except those allowlisted for unmodified use in `web/scripts/build-icons.mjs`
+(ADR-011b); the build script refuses anything else.
 
 All product names, logos and brands are property of their respective owners. Deed uses them for identification
 only, to show which product an entity is (nominative use); this does not imply endorsement. A license on an icon
@@ -114,4 +193,8 @@ owner's guidelines allow this kind of use. See `NOTICE` for the attribution ship
 (scripts, event handlers, `foreignObject`, `javascript:` and external `href`/`url()`, `<style>`, `data:` images,
 `animate`/`set`) and rejection of DOCTYPEs, non-SVG roots, multiple roots, stylesheet processing instructions,
 excessive nesting and oversized input. `FuzzSanitize` checks that output is re-accepted unchanged and never contains
-active content (`make fuzz-smoke`). `web/src/components/icons.test.ts` checks bundle coverage of server-side references.
+active content (`make fuzz-smoke`). `web/src/components/icons.test.ts` checks bundle coverage of server-side references (including `thesvg:`), that
+every theSVG manifest entry has an allowed license (no-derivatives only for allowlisted, unmodified, colour-rendered
+icons), contains static vector markup only and, when rendered in colour, reaches 3:1 on both themes, and that
+`thesvg:` references resolve. `pnpm --dir web run icons:check` regenerates the manifest from the pinned package and
+fails when it differs from the checked-in file.
