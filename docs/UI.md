@@ -287,7 +287,12 @@ Budgets, plainly:
   (beyond the 500-node budget) panning and zooming average 58–60 fps; the longest frame is 17–33 ms in the force and
   radial layouts and 50–67 ms in the layered one, where ~1,200 long edges are in view at the threshold.
 
-Known gaps: the ADR's "10k/50k dataset" first-neighbourhood figure has not been measured in the browser; the radial
+**First neighbourhood on a 10k/50k catalog — met.** With `DEED_E2E_DEMO_SCALE=2500` the server also holds the demo
+dataset scaled to 10,098 entities and 55,151 relations (`deed demo seed -scale 2500`), and `perf.spec.ts` opens the
+depth-1 and depth-2 neighbourhoods of two hosts and two workloads three times each (5–39 nodes, up to 98 edges):
+fetch → first frame p50 196 ms, p95 260 ms, max 264 ms over 24 loads.
+
+Known gaps: the radial
 layout of 2,000 nodes is larger than the minimum zoom (5 %) can fit, so its fitted view shows only part of the
 drawing; the 2,000-node layered threshold crossing still has one frame of 50–67 ms (the first step out to blocks,
 together with the page's own re-render for the legend); and the 2,000-node first frames vary by ~±60 ms between runs on

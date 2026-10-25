@@ -125,7 +125,10 @@ func dataset(now time.Time, scale int) ([]ent, []rel) {
 	r("contains", "repository", "example-website", "release", "example-website-v1.4.0")
 	r("contains", "repository", "example-website", "release", "example-website-v1.5.0")
 	r("deployed_from", "service", "website", "repository", "example-website")
-	// Optional scale-out: racks of synthetic hosts with workloads, for benchmarks and load tests.
+	// Optional scale-out: racks of synthetic hosts with workloads, for benchmarks and load tests. Each workload also
+	// depends on up to five workloads on other hosts, so -scale 2500 gives ~10k entities and ~55k relations (the
+	// 10k/50k size the performance budgets are stated for).
+	cross := map[string]bool{}
 	for i := 0; i < scale; i++ {
 		h := fmt.Sprintf("host-%04d", i)
 		ents = append(ents, e("server", h, map[string]any{"environment": "production"},
@@ -136,6 +139,15 @@ func dataset(now time.Time, scale int) ([]ent, []rel) {
 			ents = append(ents, e("container", w, nil, map[string]any{"image": "example/app", "state": "running"}))
 			r("runs_on", "container", w, "server", h)
 			r("depends_on", "container", w, "database", "postgres-main")
+			for k := 1; k <= 5; k++ {
+				t := (i + k*37) % scale
+				to := fmt.Sprintf("host-%04d-app-%d", t, (j+k)%3)
+				if t == i || cross[w+">"+to] {
+					continue
+				}
+				cross[w+">"+to] = true
+				r("depends_on", "container", w, "container", to)
+			}
 		}
 	}
 	return ents, rels

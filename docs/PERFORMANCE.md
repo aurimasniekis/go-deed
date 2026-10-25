@@ -68,11 +68,12 @@ each); method and the full table in `docs/UI.md` § Performance budgets and meas
 - **Met:** every first-frame and 500-node frame budget. **Still above ~50 ms:** one frame of up to 67 ms per threshold
   crossing in the 2,000-node layered drawing (beyond the 500-node pan/zoom budget).
 
+- On a 10k/50k catalog (`DEED_E2E_DEMO_SCALE=2500`: 10,098 entities, 55,151 relations), typical first neighbourhoods
+  (depth 1–2, 5–39 nodes) take 196 ms p50 and 260 ms p95 from fetch to first frame over 24 loads.
+
 ## Not measured here
 - HTTP overhead, TLS and Cloudflare latency; resident memory of a long-running server; concurrent load from many
   users. The numbers above are single-client, in-process.
-- The browser against the full 10k/50k catalog (the browser suite seeds up to ~2,000 nodes in one neighbourhood;
-  the server side of the same queries is measured above).
 - Hardware other than the development laptop.
 
 Reproduce, or change the size with `DEED_PERF_ENTITIES` / `DEED_PERF_RELATIONS`; `DEED_PERF_OUT=perf.json` writes the

@@ -15,6 +15,7 @@ export default async function globalSetup() {
     port: E2E_PORT,
     binary: process.env.DEED_E2E_BINARY,
     logLevel: process.env.DEED_E2E_LOG ?? 'warn',
+    demoScale: Number(process.env.DEED_E2E_DEMO_SCALE ?? '0'),
   })
   if (srv.baseURL !== E2E_BASE_URL) throw new Error(`unexpected base URL ${srv.baseURL}`)
   try {

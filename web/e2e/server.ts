@@ -34,6 +34,8 @@ export async function startServer(opts: {
   dir?: string
   binary?: string
   logLevel?: string
+  /** Load the synthetic demo dataset with this scale-out before serving (`deed demo seed -scale`; 2500 ≈ 10k/55k). */
+  demoScale?: number
 }): Promise<RunningServer> {
   const binary = ensureBinary(opts.binary)
   const dir = opts.dir ?? mkdtempSync(join(tmpdir(), 'deed-e2e-'))
@@ -65,6 +67,9 @@ export async function startServer(opts: {
   const boot = execFileSync(binary, ['admin', 'bootstrap', '-config', cfg], { encoding: 'utf8', env })
   const setupLink = /(https?:\/\/\S+\/setup#bootstrap=\S+)/.exec(boot)?.[1]
   if (!setupLink) throw new Error(`no setup link in bootstrap output:\n${boot}`)
+  if (opts.demoScale) {
+    execFileSync(binary, ['demo', 'seed', '-config', cfg, '-scale', String(opts.demoScale)], { env, stdio: 'ignore' })
+  }
   const proc = spawn(binary, ['serve', '-config', cfg], { stdio: ['ignore', 'inherit', 'inherit'], env })
   const deadline = Date.now() + 30_000
   for (;;) {

@@ -10,7 +10,9 @@ import { STATE_DIR } from './paths'
  * times while panning and zooming, on the seeded data and — with DEED_E2E_LARGE=2000, which seeds the "scale" project
  * — on a ~500-node neighbourhood (dmz-net, the size the 60 fps budget is stated for) and a ~2,000-node one (core-net,
  * the render cap), each in all three layouts, plus an in-app revisit (served from the in-memory layout cache). Run with
- * `DEED_E2E_LARGE=2000 pnpm e2e perf.spec.ts`; results go to e2e/.state/perf.json.
+ * `DEED_E2E_LARGE=2000 pnpm e2e perf.spec.ts`; results go to e2e/.state/perf.json. With DEED_E2E_DEMO_SCALE=2500 the
+ * server also holds the demo dataset scaled to ~10k entities and ~55k relations, and the first neighbourhood of
+ * typical entities in it is measured (the "10k/50k" size the budget is stated for).
  */
 
 interface MapStats {
@@ -203,6 +205,48 @@ test.describe('map budgets', () => {
           results[`${label}-${layout}`] = entry
         }
       }
+    }
+    if (process.env.DEED_E2E_DEMO_SCALE) {
+      const counts = (await (await page.request.get('/api/v1/dashboard')).json()) as {
+        counts: { entities: number; relations: number }
+      }
+      const lookup = async (kind: string, name: string) => {
+        const res = await page.request.get(`/api/v1/entities/lookup?project=demo-synthetic&kind=${kind}&name=${name}`)
+        expect(res.ok()).toBe(true)
+        return ((await res.json()) as { metadata: { id: string } }).metadata.id
+      }
+      const targets = [
+        ['server', 'host-0100'],
+        ['server', 'host-1234'],
+        ['container', 'host-2001-app-1'],
+        ['container', 'host-0042-app-2'],
+      ] as const
+      const runs: { entity: string; depth: number; nodes: number; edges: number; fetchToRenderMs: number }[] = []
+      for (const [kind, name] of targets) {
+        const id = await lookup(kind, name)
+        for (const depth of [1, 2]) {
+          for (let i = 0; i < 3; i++) {
+            const s = await openMap(page, `/map?focus=${id}&mode=neighborhood&depth=${depth}`)
+            runs.push({
+              entity: `${kind}/${name}`,
+              depth,
+              nodes: s.nodes,
+              edges: s.edges,
+              fetchToRenderMs: s.fetchToRenderMs,
+            })
+          }
+        }
+      }
+      const ms = runs.map((r) => r.fetchToRenderMs).sort((a, b) => a - b)
+      const p95 = ms[Math.min(ms.length - 1, Math.ceil(ms.length * 0.95) - 1)]
+      results.demoScale = {
+        catalog: counts.counts,
+        runs,
+        p50: ms[Math.floor(ms.length / 2)],
+        p95,
+        max: ms[ms.length - 1],
+      }
+      expect(p95).toBeLessThan(500)
     }
     mkdirSync(STATE_DIR, { recursive: true })
     writeFileSync(join(STATE_DIR, 'perf.json'), JSON.stringify(results, null, 2))
