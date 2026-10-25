@@ -137,6 +137,11 @@ the server's reason inline rather than failing silently.
 
 ## Map interaction model
 
+**Quick actions.** Right-click (or `Shift F10` / the context-menu key on the selected node) opens a menu: for an
+entity, open details or provenance, inspect, focus the map on it, expand its neighbours, downstream/upstream impact,
+path from/to, reset a dragged position, its relationships table, copy name or ID; for a cluster, expand it; for a
+relationship, inspect it or go to either end; on the canvas, fit the view or go back to the overview.
+
 Modes: **overview** (projects/kinds aggregated into group nodes), **neighbourhood** (focus entity + depth),
 **path** (between two entities) and **impact** (downstream of the focus). The server enforces depth and node caps
 (`max_nodes` ≤ 2,000) and aggregates into cluster nodes beyond its threshold, so the client never renders more than
@@ -208,18 +213,19 @@ the ADR-011 budget.
 
 Press `?` anywhere to see them in the app.
 
-| Keys                                  | Action                                                    |
-| ------------------------------------- | --------------------------------------------------------- |
-| `/`, `⌘/Ctrl K`                       | Search entities and pages                                 |
-| `?`                                   | Shortcut help                                             |
-| `g d` / `g i` / `g m` / `g r`         | Dashboard / inventory / map / relationships               |
-| `g f` / `g a` / `g s` / `g k` / `g p` | Findings / alerts / sources / kinds / projects            |
-| Map: arrows                           | Move selection to the nearest neighbour in that direction |
-| Map: `Enter`                          | Expand the selected node or cluster                       |
-| Map: `Esc`                            | Clear selection, close panels                             |
-| Map: `f` / `i` / `l`                  | Fit view / impact of selection / toggle legend            |
-| Map: `+` / `−`                        | Zoom                                                      |
-| Inventory: `Space`                    | Toggle the focused row's checkbox                         |
+| Keys                                  | Action                                                      |
+| ------------------------------------- | ----------------------------------------------------------- |
+| `/`, `⌘/Ctrl K`                       | Search entities and pages                                   |
+| `?`                                   | Shortcut help                                               |
+| `g d` / `g i` / `g m` / `g r`         | Dashboard / inventory / map / relationships                 |
+| `g f` / `g a` / `g s` / `g k` / `g p` | Findings / alerts / sources / kinds / projects              |
+| Map: arrows                           | Move selection to the nearest neighbour in that direction   |
+| Map: `Enter`                          | Expand the selected node or cluster                         |
+| Map: `Shift F10`, context-menu key    | Quick-actions menu for the selected node (also right-click) |
+| Map: `Esc`                            | Clear selection, close panels                               |
+| Map: `f` / `i` / `l`                  | Fit view / impact of selection / toggle legend              |
+| Map: `+` / `−`                        | Zoom                                                        |
+| Inventory: `Space`                    | Toggle the focused row's checkbox                           |
 
 ## Performance budgets and measurements
 

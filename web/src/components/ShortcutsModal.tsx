@@ -26,6 +26,7 @@ export const SHORTCUTS: { group: string; items: [string[], string][] }[] = [
     items: [
       [['←', '↑', '→', '↓'], 'Move selection to the nearest neighbour in that direction'],
       [['Enter'], 'Expand the selected node or cluster'],
+      [['Shift', 'F10'], 'Quick actions for the selected node (also right-click)'],
       [['Esc'], 'Clear selection, close panels'],
       [['f'], 'Fit the view'],
       [['i'], 'Impact (downstream) of the selected entity'],

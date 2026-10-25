@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { entityId, readState } from './helpers'
+import { entityId, expectAccessible, readState } from './helpers'
 
 test('map: filter, group, inspect, keyboard and provenance', async ({ page }) => {
   const billing = entityId('service/billing-api')
@@ -133,4 +133,38 @@ test('traffic overlay shows measured rates only on measured edges', async ({ pag
   await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
   await expect(page.getByTestId('map-stats')).toContainText(/traffic: [1-9]\d* measured edge/, { timeout: 20_000 })
   await expect(page.locator('.deed-edge-label[data-rate="measured"]').first()).toContainText('req/s')
+})
+
+test('map context menu: right-click quick actions', async ({ page }) => {
+  const billing = entityId('service/billing-api')
+  await page.goto(`/map?focus=${billing}&mode=neighborhood&depth=1`)
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  const menu = page.getByTestId('map-context-menu')
+
+  // An entity: the menu names it and offers its quick actions.
+  await page.locator(`[data-entity-id="${billing}"]`).click({ button: 'right' })
+  await expect(menu).toBeVisible()
+  await expect(menu).toContainText('Billing API')
+  for (const item of ['Open details', 'Focus map on this', 'Expand neighbours', 'Path from here…', 'Copy ID']) {
+    await expect(menu.getByRole('menuitem', { name: item })).toBeVisible()
+  }
+  await expectAccessible(page, 'map context menu')
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
+
+  // The canvas.
+  await page
+    .getByTestId('map-canvas')
+    .locator('.react-flow__pane')
+    .click({ button: 'right', position: { x: 30, y: 30 } })
+  await expect(menu.getByRole('menuitem', { name: 'Fit view' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // From the keyboard on the selected node, then "Open details" goes to the entity page.
+  await page.locator(`[data-entity-id="${billing}"]`).click()
+  await page.getByTestId('map-canvas').focus()
+  await page.keyboard.press('Shift+F10')
+  await expect(menu).toContainText('Billing API')
+  await menu.getByRole('menuitem', { name: 'Open details' }).click()
+  await expect(page).toHaveURL(new RegExp(`/entities/${billing}`))
 })

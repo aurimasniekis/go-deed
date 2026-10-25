@@ -61,6 +61,7 @@ import { compact, decodeList, encodeList, validateMapSearch, type MapSearch } fr
 import { flushSync } from 'react-dom'
 import { buildLegend, edgeVisual, sourceColor, sourcePalette } from './edgeStyle'
 import { edgeTypes, LodEdges, type DeedFlowEdge } from './edges'
+import { MapContextMenu, type ContextMenuActions, type MenuTarget } from './ContextMenu'
 import { EdgeInspector, NodeInspector, type InspectorActions } from './Inspector'
 import { layoutCache, runLayout, warmLayout } from './layout'
 import type { LayoutResult } from './layoutTypes'
@@ -200,6 +201,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const optionsOpen = useSelector(mapStore, (s) => s.optionsOpen)
   const pathOpen = useSelector(mapStore, (s) => s.pathOpen)
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
+  const [menu, setMenu] = useState<MenuTarget | null>(null)
+  const menuFromKeyAt = useRef(0)
   const [patches, setPatches] = useState<Map<string, Patch>>(new Map())
   const [layout, setLayout] = useState<(LayoutResult & { sig: string; cached?: boolean }) | null>(null)
   const [layoutError, setLayoutError] = useState<{ sig: string; message: string } | null>(null)
@@ -775,9 +778,31 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     return `Selected ${n.displayName ?? n.name}, ${kindMap.get(n.kind)?.title ?? n.kind}, health ${n.health}, ${plural(deg, 'neighbour')}.`
   }, [selected, view.model, kindMap])
 
+  /** The context menu from the keyboard: on the selected node, or the canvas menu in the middle of the map. */
+  const openMenuFromKeyboard = (container: HTMLElement) => {
+    const n = selected ? view.model.nodes.get(selected) : undefined
+    const fn = selected ? rf.getInternalNode(selected) : undefined
+    if (n && fn) {
+      const p = rf.flowToScreenPosition({
+        x: fn.internals.positionAbsolute.x + (fn.measured.width ?? 0) / 2,
+        y: fn.internals.positionAbsolute.y + (fn.measured.height ?? 0) / 2,
+      })
+      setMenu({ kind: 'node', node: n, x: p.x, y: p.y })
+    } else {
+      const r = container.getBoundingClientRect()
+      setMenu({ kind: 'pane', x: r.left + r.width / 2, y: r.top + r.height / 2 })
+    }
+  }
+
   const onKeyDown = (ev: React.KeyboardEvent) => {
     const t = ev.target as HTMLElement
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable) return
+    if (ev.shiftKey && ev.key === 'F10') {
+      ev.preventDefault()
+      menuFromKeyAt.current = performance.now()
+      openMenuFromKeyboard(ev.currentTarget as HTMLElement)
+      return
+    }
     const dirs: Record<string, 'left' | 'right' | 'up' | 'down'> = {
       ArrowLeft: 'left',
       ArrowRight: 'right',
@@ -907,6 +932,25 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const selEdge = selectedEdge ? view.model.edges.get(selectedEdge) : undefined
   const loading = data.base.isPending || (view.model.nodes.size > 0 && layout?.sig !== signature)
   const mode = data.mode
+  const menuActions: ContextMenuActions = {
+    ...actions,
+    selectEdge: (id) => {
+      setSelected(null)
+      setSelectedEdge(id)
+    },
+    unpin: (id) => {
+      setPinned(Object.fromEntries(Object.entries(mapStore.state.pinned).filter(([k]) => k !== id)))
+    },
+    isPinned: (id) => id in mapStore.state.pinned,
+    fitView: () => void rf.fitView({ padding: fitPadding(), duration: reduced ? 0 : 250 }),
+    overview: () => go({ focus: undefined, mode: undefined, trail: undefined }),
+    clearSelection: () => {
+      setSelected(null)
+      setSelectedEdge(null)
+    },
+    hasSelection: selected !== null || selectedEdge !== null,
+    inOverview: mode === 'overview',
+  }
 
   return (
     <Box
@@ -1094,7 +1138,20 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           {data.model.notes.join(' · ')}
         </Text>
       )}
-      <Box style={{ flex: 1, position: 'relative', minHeight: 0 }} onKeyDown={onKeyDown}>
+      <Box
+        style={{ flex: 1, position: 'relative', minHeight: 0 }}
+        onKeyDown={onKeyDown}
+        onContextMenu={(ev) => {
+          // Right-clicks on nodes, edges and the canvas are handled (and prevented) by React Flow's handlers. A
+          // context-menu event that gets here comes from the keyboard (the context-menu key, or Shift+F10 where the
+          // browser turns it into one) on the focused map.
+          if (ev.defaultPrevented) return
+          ev.preventDefault()
+          // Shift+F10 already opened the menu on keydown; some browsers follow it with this event.
+          if (performance.now() - menuFromKeyAt.current < 500) return
+          openMenuFromKeyboard(ev.currentTarget)
+        }}
+      >
         <div aria-live="polite" className="visually-hidden">
           {announce}
         </div>
@@ -1177,6 +1234,29 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                 onPaneClick={() => {
                   setSelected(null)
                   setSelectedEdge(null)
+                }}
+                onNodeContextMenu={(ev, n) => {
+                  const mn = view.model.nodes.get(n.id)
+                  if (!mn) return
+                  ev.preventDefault()
+                  setMenu({ kind: 'node', node: mn, x: ev.clientX, y: ev.clientY })
+                }}
+                onEdgeContextMenu={(ev, e) => {
+                  const me = view.model.edges.get(e.id)
+                  if (!me) return
+                  ev.preventDefault()
+                  setMenu({
+                    kind: 'edge',
+                    edge: me,
+                    from: view.model.nodes.get(me.from),
+                    to: view.model.nodes.get(me.to),
+                    x: ev.clientX,
+                    y: ev.clientY,
+                  })
+                }}
+                onPaneContextMenu={(ev) => {
+                  ev.preventDefault()
+                  setMenu({ kind: 'pane', x: ev.clientX, y: ev.clientY })
                 }}
                 onNodeDragStop={(_, n) => {
                   if (n.type !== 'group') pinPosition(n.id, n.position)
@@ -1281,6 +1361,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           </DetailContext.Provider>
         )}
       </Box>
+      {/* Outside the map container: events from the menu's portal must not reach the map's key and menu handlers. */}
+      <MapContextMenu target={menu} onClose={() => setMenu(null)} actions={menuActions} />
       <Group
         px="md"
         py={4}
@@ -1303,7 +1385,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           </Text>
         )}
         <Text size="xs" c="dimmed">
-          ←↑→↓ neighbours · Enter expand · Esc clear · f fit · l legend · / search
+          ←↑→↓ neighbours · Enter expand · right-click or Shift+F10 actions · Esc clear · f fit · l legend · / search
         </Text>
         {decodeList(search.expand).length > 0 && (
           <Anchor component="button" type="button" size="xs" onClick={() => patch({ expand: undefined })}>

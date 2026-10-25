@@ -306,3 +306,18 @@
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
+
+/* Context menu: the first, disabled item names what was right-clicked (a menu may contain only menu items). */
+.deed-menu-title {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deed-menu-title[data-disabled] {
+  opacity: 1;
+  color: var(--mantine-color-text);
+  cursor: default;
+}
