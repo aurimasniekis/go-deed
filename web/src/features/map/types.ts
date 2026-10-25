@@ -29,6 +29,17 @@ export interface MapNode {
   root?: boolean
 }
 
+/** A source asserting a relationship (only sources of projects the caller can read). */
+export interface EdgeSourceRef {
+  id: string
+  name: string
+  displayName?: string
+  layer: string
+  projectId: string
+  /** How many of the edge's relationships this source asserts (1 for a single relationship). */
+  relations: number
+}
+
 export interface MapEdge {
   id: string
   from: string
@@ -40,6 +51,10 @@ export interface MapEdge {
   lastSeenAt?: string
   /** Number of relationships bundled into this edge (aggregated or collapsed). */
   count: number
+  /** Asserting sources, highest precedence first (union for bundles). */
+  sources: EdgeSourceRef[]
+  /** The highest-precedence source; unset when none is visible or bundled relationships have different primaries. */
+  primarySource?: string | undefined
 }
 
 export interface GraphModel {
@@ -82,6 +97,7 @@ export function toMapNode(n: GraphNode & { via?: string[]; evidence?: string }, 
 }
 
 export function toMapEdge(e: GraphEdge): MapEdge {
+  const count = e.count ?? 1
   return {
     id: e.id,
     from: e.from,
@@ -91,6 +107,53 @@ export function toMapEdge(e: GraphEdge): MapEdge {
     inferred: e.inferred,
     crossProject: e.cross_project,
     ...(e.last_seen_at ? { lastSeenAt: e.last_seen_at } : {}),
-    count: e.count ?? 1,
+    count,
+    sources: e.sources.map((s) => ({
+      id: s.id,
+      name: s.name,
+      ...(s.display_name ? { displayName: s.display_name } : {}),
+      layer: s.layer,
+      projectId: s.project_id,
+      relations: s.relations ?? count,
+    })),
+    ...(e.primary_source ? { primarySource: e.primary_source } : {}),
   }
+}
+
+/** ADR-003 default layer precedence (a source policy may override it server-side). */
+const LAYER_PRIORITY: Record<string, number> = {
+  override: 100,
+  declared: 80,
+  annotation: 70,
+  imported: 60,
+  discovered: 40,
+  observation: 0,
+}
+
+/**
+ * Bundles the sources of two edges into one: the union with summed relationship counts, and a primary only when both
+ * sides have the same one (the server's rule for its own bundles).
+ */
+export function bundleSources(
+  a: Pick<MapEdge, 'sources' | 'primarySource'>,
+  b: Pick<MapEdge, 'sources' | 'primarySource'>,
+): Pick<MapEdge, 'sources' | 'primarySource'> {
+  const union = new Map<string, EdgeSourceRef>()
+  for (const s of [...a.sources, ...b.sources]) {
+    const cur = union.get(s.id)
+    union.set(s.id, cur ? { ...cur, relations: cur.relations + s.relations } : s)
+  }
+  const sources = [...union.values()].sort(
+    (x, y) =>
+      (LAYER_PRIORITY[y.layer] ?? 0) - (LAYER_PRIORITY[x.layer] ?? 0) ||
+      y.relations - x.relations ||
+      x.name.localeCompare(y.name) ||
+      x.id.localeCompare(y.id),
+  )
+  const primary = a.primarySource && a.primarySource === b.primarySource ? a.primarySource : undefined
+  return { sources, primarySource: primary }
+}
+
+export function sourceLabel(s: EdgeSourceRef): string {
+  return s.displayName ?? s.name
 }

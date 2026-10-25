@@ -11,6 +11,69 @@ import {
   NO_FILTERS,
   topologySignature,
 } from './model'
+import { bundleSources, toMapEdge } from './types'
+
+describe('edge sources', () => {
+  const src = (id: string, layer: string, relations?: number) => ({
+    id,
+    name: id,
+    layer,
+    project_id: 'p',
+    ...(relations ? { relations } : {}),
+  })
+  const edge = (id: string, sources: ReturnType<typeof src>[], primary?: string, count?: number) =>
+    toMapEdge({
+      id,
+      from: 'a',
+      to: 'b',
+      type: 'depends_on',
+      evidence_class: 'declared',
+      inferred: false,
+      cross_project: false,
+      sources,
+      ...(primary ? { primary_source: primary } : {}),
+      ...(count ? { count } : {}),
+    })
+
+  it('maps the API sources, counting a single relationship once', () => {
+    const e = edge('rel_1', [src('api', 'declared')], 'api')
+    expect(e.sources).toEqual([{ id: 'api', name: 'api', layer: 'declared', projectId: 'p', relations: 1 }])
+    expect(e.primarySource).toBe('api')
+  })
+
+  it('bundles the union of sources and keeps a primary only when every part shares it', () => {
+    const a = edge('rel_1', [src('api', 'declared'), src('scan', 'discovered')], 'api')
+    const b = edge('bundle:x', [src('scan', 'discovered', 3), src('api', 'declared', 2)], 'api', 3)
+    const both = bundleSources(a, b)
+    expect(both.primarySource).toBe('api')
+    expect(both.sources.map((s) => [s.id, s.relations])).toEqual([
+      ['api', 3],
+      ['scan', 4],
+    ])
+    const c = edge('rel_2', [src('scan', 'discovered')], 'scan')
+    expect(bundleSources(a, c).primarySource).toBeUndefined()
+    // A part without visible sources leaves the bundle without a single primary.
+    expect(bundleSources(a, edge('rel_3', [])).primarySource).toBeUndefined()
+  })
+
+  it('carries sources through client-side group aggregation', () => {
+    const r: GraphResult = {
+      nodes: [n('a', { depth: 0 }), n('b', { kind: 'database' }), n('c', { kind: 'database' })],
+      edges: [
+        { ...e('r1', 'a', 'b'), sources: [src('api', 'declared')], primary_source: 'api' },
+        { ...e('r2', 'a', 'c'), sources: [src('scan', 'discovered')], primary_source: 'scan' },
+      ],
+      notes: [],
+      truncated: false,
+      elapsed_ms: 1,
+    }
+    const model = mergeResults(r, [], ['a'])
+    const grouped = clusterModel(model, 'kind', new Set(['kind:database']), (id) => id)
+    const agg = [...grouped.model.edges.values()].find((x) => x.id.startsWith('agg:'))
+    expect(agg?.sources.map((s) => s.id)).toEqual(['api', 'scan'])
+    expect(agg?.primarySource).toBeUndefined()
+  })
+})
 
 const n = (id: string, over: Record<string, unknown> = {}) => ({
   id,
@@ -33,6 +96,7 @@ const e = (id: string, from: string, to: string, type = 'depends_on', over: Reco
   evidence_class: 'declared',
   inferred: false,
   cross_project: false,
+  sources: [] as GraphResult['edges'][number]['sources'],
   ...over,
 })
 const result = (nodes: ReturnType<typeof n>[], edges: ReturnType<typeof e>[]): GraphResult => ({

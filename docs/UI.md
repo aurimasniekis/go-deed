@@ -117,9 +117,25 @@ the ADR-011 budget.
   relationships as straight lines batched into one SVG layer — no card text, arrowheads, labels, animation or edge hit
   areas. Accessible names, selection, the keyboard model, the inspector and the Table view work as before; the legend
   and the status bar say that the drawing is simplified and what it leaves out.
-- **Edge encoding** (ADR-011c): colour by relationship type (or health/freshness); solid = declared, dashed = inferred
-  (hover shows the evidence), dotted = stale, thick double = bridge, faded = unknown. Width is log-scaled measured
-  rate, only for fresh measurements.
+- **Edge encoding** (ADR-011c): colour by relationship type (or health, freshness, evidence class or source); solid =
+  declared, dashed = inferred (hover shows the evidence), dotted = stale, thick double = bridge, faded = unknown. Width
+  is log-scaled measured rate, only for fresh measurements.
+- **Relationship-type colours**: each type's colour comes from `/relationship-types`; the options drawer overrides it
+  per browser and saved view, and installation admins can make a colour the default for everyone ("Make default", or
+  the palette button on the Relationship types page). That works for built-in types too: the colour is stored as an
+  installation override (the definition stays as Deed ships it), shown as "colour changed", and "Reset to default"
+  restores the built-in colour (`PUT`/`DELETE /relationship-types/{name}/color`, [CUSTOM_KINDS.md](CUSTOM_KINDS.md)).
+- **Colour by source**: graph edges list the sources asserting them (`sources`, highest precedence first, and
+  `primary_source`: the highest layer priority, or the source policy's priority, then the oldest first claim, as in
+  ADR-003). In this mode each relationship takes its primary source's colour from a 24-colour palette whose colours all
+  have at least 3:1 contrast against the canvas in both themes. Colours are assigned over every source you can see,
+  oldest first, each taking the slot its ID hashes to or the next free one, so a source keeps its colour across
+  reloads and a new source never recolours an existing one (beyond 24 sources colours repeat). Bundled relationships
+  with different primary sources are drawn in a neutral warm grey, edges without a visible source in grey. The legend
+  names every source colour on screen with its layer and project, and edge tooltips and the inspector list every
+  asserting source (with counts for bundles), so colour is never the only cue. Sources of projects you cannot read
+  are never listed, also not on edges to redacted stubs. The overview aggregates sources only in this mode
+  (`/graph/overview?sources=true`), since that is a second pass over the catalog's assertions.
 - **Traffic overlay**: rates come from `/graph/edge-rates`. Only `measured` edges animate (flow dots, speed ∝ rate,
   labelled "sampled, N-min window"); `inferred` rates are labelled with their note and never animate; `unavailable`
   edges are never animated. All animation stops under `prefers-reduced-motion` or the user toggle.

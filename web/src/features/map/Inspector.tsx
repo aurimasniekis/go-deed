@@ -32,7 +32,7 @@ import { EvidenceList } from '@/features/findings/FindingItem'
 import { useEntity, useRelationDetail } from '@/features/entity/queries'
 import { humanize } from '@/lib/format'
 import { evidenceMeta } from '@/lib/status'
-import type { GraphModel, MapEdge, MapNode } from './types'
+import { sourceLabel, type GraphModel, type MapEdge, type MapNode } from './types'
 
 export interface InspectorActions {
   focus: (id: string) => void
@@ -310,16 +310,21 @@ export function NodeInspector({
   )
 }
 
-/** Selected relationship: endpoints, evidence class and the assertions behind it. */
+/** Selected relationship: endpoints, evidence class, the sources asserting it and the assertions behind it. */
 export function EdgeInspector({
   edge,
   model,
   typeTitle,
+  sourceColor,
+  projectName,
   onClose,
 }: {
   edge: MapEdge
   model: GraphModel
   typeTitle: (t: string) => string
+  /** The source's colour in the colour-by-source mode. */
+  sourceColor: (id: string) => string
+  projectName: (id: string) => string
   onClose: () => void
 }) {
   const real = !edge.id.startsWith('agg:') && edge.count <= 1
@@ -370,6 +375,48 @@ export function EdgeInspector({
           <Text size="xs" c="dimmed">
             Last seen <TimeAgo value={edge.lastSeenAt} />
           </Text>
+        )}
+        <Divider label="Asserted by" labelPosition="left" />
+        {edge.sources.length === 0 ? (
+          <Text size="xs" c="dimmed">
+            No source you can see.
+          </Text>
+        ) : (
+          <Stack gap={4} data-testid="edge-sources" role="list" aria-label="Sources asserting this relationship">
+            {edge.sources.map((s) => (
+              <Group key={s.id} gap={6} wrap="nowrap" align="flex-start" role="listitem">
+                <span
+                  style={{
+                    width: 14,
+                    height: 4,
+                    marginTop: 7,
+                    borderRadius: 2,
+                    background: sourceColor(s.id),
+                    flexShrink: 0,
+                  }}
+                  aria-hidden
+                />
+                <div>
+                  <Text size="xs" fw={s.id === edge.primarySource ? 600 : 400}>
+                    {sourceLabel(s)}
+                    {s.id === edge.primarySource ? ' (primary)' : ''}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {[
+                      projectName(s.projectId),
+                      `${s.layer} layer`,
+                      ...(edge.count > 1 ? [`${s.relations} of ${edge.count}`] : []),
+                    ].join(' · ')}
+                  </Text>
+                </div>
+              </Group>
+            ))}
+            {edge.count > 1 && !edge.primarySource && (
+              <Text size="xs" c="dimmed">
+                The bundled relationships have different primary sources.
+              </Text>
+            )}
+          </Stack>
         )}
         {real && (
           <>

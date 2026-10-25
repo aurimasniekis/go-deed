@@ -129,6 +129,17 @@ Entities are validated against the kind's storage version whenever they are reco
 supported). Narrowing `from_kinds` or `to_kinds` is refused with `409 N existing relations would violate the new
 endpoint constraint` while live relations use other kinds.
 
+### Map colours, including built-in types
+`PUT /relationship-types/{name}/color` with `{"color": "#rrggbb"}` changes the map colour of any relationship type
+(installation owner or admin; `If-Match` supported, the response carries the new `ETag`). For a custom type it is the
+same as changing `color` with `PUT`. A built-in type keeps its definition (title, description, endpoints, impact and
+evidence stay as Deed ships them and `PUT /relationship-types/{name}` is still refused); its colour is stored as an
+installation override that survives upgrades. Built-in types report `default_color` (the shipped colour) and
+`color_overridden`; setting the default colour again clears the override. `DELETE /relationship-types/{name}/color`
+restores the default of a built-in type (a type without an override is returned unchanged; custom types have no
+default and get `409`). In the UI, admins use the palette button on the Relationship types page or "Make default"
+in the map's options drawer.
+
 ## Deleting
 - `DELETE /kinds/{name}` fails with `409 N live entities still use kind …`. Tombstoned entities of the kind do not
   block it: they are removed immediately, so a later kind with the same name starts clean. The kind's schema
@@ -137,7 +148,8 @@ endpoint constraint` while live relations use other kinds.
   are removed with it.
 
 Changes are audited (`kind.created`, `kind.updated`, `kind.version_published`, `kind.deleted`, `reltype.created`,
-`reltype.updated`, `reltype.deleted`) and published through the outbox as `evt.deed.catalog.kind.<action>` and
+`reltype.updated`, `reltype.deleted`, `reltype.color_updated`, `reltype.color_reset`; colour changes record `color`,
+`previous_color` and `builtin`) and published through the outbox as `evt.deed.catalog.kind.<action>` and
 `evt.deed.catalog.reltype.<action>`.
 
 ## Terraform
@@ -183,7 +195,7 @@ resource "deed_relationship_type" "powers" {
 - Changing `name` forces a new resource. Import by name: `terraform import deed_kind.ups example.com/ups`,
   `terraform import deed_relationship_type.powers example.com/powers`.
 - Built-in kinds and relationship types cannot be managed; read them with the `deed_kind` and
-  `deed_relationship_type` data sources.
+  `deed_relationship_type` data sources (a built-in type's `color` is the installation's colour, override included).
 
 ## Validation status
 Covered by `internal/catalog` tests (schema limits, compatibility rules, strict declarations, identity-key

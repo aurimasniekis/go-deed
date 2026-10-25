@@ -46,7 +46,13 @@ relation per frontier step: depth-2 neighborhood p95 28.6 ms, depth 3 79.3 ms, i
 - **Path search:** bidirectional breadth-first search with a visited-node budget; before that change the same
   benchmark took 1.07 s at p95, now 8.9 ms.
 - **Overview:** 194 ms p95 to aggregate the whole catalog; it is computed on demand for the map's
-  zoomed-out level, not on every interaction.
+  zoomed-out level, not on every interaction. With `sources=true` (only the map's colour-by-source mode asks for it)
+  it also aggregates the asserting sources of every bundle, a second pass over the catalog's assertions: 486 ms p50 /
+  498 ms p95 against 200 / 237 ms without it, in a later run of the same harness on a busier machine
+  (`graph_overview_by_kind_with_sources`).
+- **Edge sources** on neighbourhoods, expansions, paths and impact cost one indexed lookup per 400 relationships;
+  an A/B run (sources on and off, same machine) measured +0.6 ms p50 for the depth-2 neighbourhood and +5 ms p50 for
+  depth 3 at the 2,000-node cap.
 
 ## Browser rendering
 Measured by the Playwright suite (`web/e2e/perf.spec.ts`, headless Chromium at 1440×900 on the same laptop, three runs

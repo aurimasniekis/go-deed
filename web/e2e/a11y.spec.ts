@@ -67,6 +67,32 @@ for (const scheme of ['light', 'dark'] as const) {
   })
 }
 
+/** States the route scan does not reach: the map coloured by source with an edge's sources open, and the built-in
+ * relationship-type colour dialog. */
+for (const scheme of ['light', 'dark'] as const) {
+  test(`colour by source and the built-in colour dialog are accessible (${scheme})`, async ({ page }) => {
+    await page.goto('/settings/about')
+    await useScheme(page, scheme)
+    await page.evaluate(() => {
+      window.localStorage.setItem('deed.ui.map.style', JSON.stringify({ colorMode: 'source' }))
+    })
+    await page.goto(`/map?focus=${entityId('service/billing-api')}&mode=neighborhood&depth=1`)
+    await mapReady(page)
+    await page.locator('.react-flow__edge').first().locator('path').first().dispatchEvent('click')
+    await expect(page.getByTestId('edge-sources')).toBeVisible()
+    await expect(page.getByTestId('map-legend')).toContainText('Colour: the primary source')
+    await page.waitForTimeout(400)
+    await screenshot(page, `map-source-${scheme}`)
+    await expectAccessible(page, `map coloured by source (${scheme})`)
+
+    await page.goto('/relationship-types')
+    await ready(page)
+    await page.getByRole('button', { name: 'Change colour of Runs on' }).click()
+    await expect(page.getByRole('dialog')).toContainText('Built-in default')
+    await expectAccessible(page, `built-in colour dialog (${scheme})`)
+  })
+}
+
 test.describe('signed out', () => {
   test.use({ storageState: { cookies: [], origins: [] } })
   for (const scheme of ['light', 'dark'] as const) {

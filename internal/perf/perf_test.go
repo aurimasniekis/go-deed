@@ -169,7 +169,11 @@ func TestPerformance(t *testing.T) {
 		return err
 	})
 	run("graph_overview_by_kind", 20, func(int) error {
-		_, err := eng.Overview(ctx, scope, nil, "kind")
+		_, err := eng.Overview(ctx, scope, nil, "kind", false)
+		return err
+	})
+	run("graph_overview_by_kind_with_sources", 20, func(int) error {
+		_, err := eng.Overview(ctx, scope, nil, "kind", true)
 		return err
 	})
 	run("entities_search_fts_page50", 100, func(i int) error {

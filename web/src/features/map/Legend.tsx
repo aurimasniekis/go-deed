@@ -63,12 +63,12 @@ export function MapLegend({
                 Edge colour
               </Text>
               {legend.colors.map((c) => (
-                <Group key={c.key} gap={6} wrap="nowrap">
+                <Group key={c.key} gap={6} wrap="nowrap" data-legend-color={c.color} data-legend-key={c.key}>
                   <span
                     style={{ width: 14, height: 4, borderRadius: 2, background: c.color, flexShrink: 0 }}
                     aria-hidden
                   />
-                  <Text size="xs" truncate>
+                  <Text size="xs" lineClamp={2} title={c.description ? `${c.label} (${c.description})` : c.label}>
                     {c.label}
                     {c.description ? ` (${c.description})` : ''}
                   </Text>

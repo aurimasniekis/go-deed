@@ -54,15 +54,27 @@ type Cluster struct {
 
 // Edge is a relationship (or an aggregated bundle in overviews).
 type Edge struct {
-	ID            string     `json:"id"`
-	Type          string     `json:"type"`
-	From          string     `json:"from"`
-	To            string     `json:"to"`
-	EvidenceClass string     `json:"evidence_class"`
-	Inferred      bool       `json:"inferred"`
-	CrossProject  bool       `json:"cross_project"`
-	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
-	Count         int        `json:"count,omitempty" doc:"Aggregated edges: number of relationships bundled."`
+	ID            string       `json:"id"`
+	Type          string       `json:"type"`
+	From          string       `json:"from"`
+	To            string       `json:"to"`
+	EvidenceClass string       `json:"evidence_class"`
+	Inferred      bool         `json:"inferred"`
+	CrossProject  bool         `json:"cross_project"`
+	LastSeenAt    *time.Time   `json:"last_seen_at,omitempty"`
+	Count         int          `json:"count,omitempty" doc:"Aggregated edges: number of relationships bundled."`
+	Sources       []EdgeSource `json:"sources" doc:"Sources with a live assertion of the relationship that the caller may see (sources of projects the caller cannot read are left out), highest precedence first: layer priority (or the source's policy priority), then the oldest first claim. Aggregated edges list the union of their relationships' sources."`
+	PrimarySource string       `json:"primary_source,omitempty" doc:"ID of the highest-precedence visible source (ADR-003). On an aggregated edge it is set only when that source is the primary of every bundled relationship; empty when no asserting source is visible."`
+}
+
+// EdgeSource is a source asserting a relationship.
+type EdgeSource struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name,omitempty"`
+	ProjectID   string `json:"project_id"`
+	Layer       string `json:"layer"`
+	Relations   int    `json:"relations,omitempty" doc:"Aggregated edges: how many of the bundled relationships this source asserts."`
 }
 
 // Result is a graph answer.
@@ -141,12 +153,14 @@ func (e *Engine) loadNodes(ctx context.Context, scope Scope, ids []string) (map[
 				rows.Close()
 				return nil, err
 			}
+			id := n.ID
 			if !scope.can(n.ProjectID) {
 				n = redacted(n.ID)
 			} else {
 				_ = json.Unmarshal([]byte(labels), &n.Labels)
 			}
-			out[n.ID] = &n
+			// Keyed by the real ID: callers look nodes up by relation endpoints and swap in the stub's ID themselves.
+			out[id] = &n
 		}
 		rows.Close()
 		if err := rows.Err(); err != nil {
@@ -291,6 +305,14 @@ func (e *Engine) Neighborhood(ctx context.Context, scope Scope, q Query) (*Resul
 		return nil, catalog.ErrEntityNotFound
 	}
 	edges := map[string]Edge{}
+	bundles := map[string][]string{}
+	// Unreadable neighbours become stubs keyed by their redacted ID; stubs maps the real ID to it.
+	stubs := map[string]string{}
+	known := func(id string) bool {
+		_, n := nodes[id]
+		_, s := stubs[id]
+		return n || s
+	}
 	frontier := slices.Clone(order)
 	collapse := max(e.DegreeCollapse, 1)
 	for depth := 1; depth <= q.Depth && len(frontier) > 0 && !res.Truncated; depth++ {
@@ -329,7 +351,7 @@ func (e *Engine) Neighborhood(ctx context.Context, scope Scope, q Query) (*Resul
 			}
 			fresh := 0
 			for _, r := range group {
-				if _, seen := nodes[other(r)]; !seen {
+				if !known(other(r)) {
 					fresh++
 				}
 			}
@@ -343,10 +365,13 @@ func (e *Engine) Neighborhood(ctx context.Context, scope Scope, q Query) (*Resul
 				if k.dir == "in" {
 					from, to = cid, k.anchor
 				}
-				edges[cid+"|"+k.typ] = Edge{ID: "bundle:" + shortHash(key), Type: k.typ, From: from, To: to, EvidenceClass: group[0].EvidenceClass, Count: fresh}
+				bid := "bundle:" + shortHash(key)
+				edges[cid+"|"+k.typ] = Edge{ID: bid, Type: k.typ, From: from, To: to, EvidenceClass: group[0].EvidenceClass, Count: fresh}
 				for _, r := range group {
-					if _, seen := nodes[other(r)]; seen {
+					if known(other(r)) {
 						edges[r.ID] = r.Edge
+					} else {
+						bundles[bid] = append(bundles[bid], r.ID)
 					}
 				}
 				res.Notes = append(res.Notes, fmt.Sprintf("collapsed %d %s neighbors of one node; expand the cluster to load them", fresh, k.typ))
@@ -355,7 +380,7 @@ func (e *Engine) Neighborhood(ctx context.Context, scope Scope, q Query) (*Resul
 			for _, r := range group {
 				o := other(r)
 				edges[r.ID] = r.Edge
-				if _, seen := nodes[o]; !seen && !pending[o] {
+				if !known(o) && !pending[o] {
 					pending[o] = true
 					newIDs = append(newIDs, o)
 				}
@@ -380,17 +405,9 @@ func (e *Engine) Neighborhood(ctx context.Context, scope Scope, q Query) (*Resul
 			}
 			n.Depth = depth
 			if n.Redacted {
-				// Map edges to the stub ID; stubs are never expanded.
+				// Edges are mapped to the stub ID below; stubs are never expanded.
+				stubs[id] = n.ID
 				nodes[n.ID] = n
-				for k, ed := range edges {
-					if ed.From == id {
-						ed.From = n.ID
-					}
-					if ed.To == id {
-						ed.To = n.ID
-					}
-					edges[k] = ed
-				}
 				order = append(order, n.ID)
 				continue
 			}
@@ -408,6 +425,12 @@ func (e *Engine) Neighborhood(ctx context.Context, scope Scope, q Query) (*Resul
 		}
 	}
 	for _, ed := range edges {
+		if s, ok := stubs[ed.From]; ok {
+			ed.From = s
+		}
+		if s, ok := stubs[ed.To]; ok {
+			ed.To = s
+		}
 		if _, ok := nodes[ed.From]; !ok {
 			continue
 		}
@@ -417,6 +440,9 @@ func (e *Engine) Neighborhood(ctx context.Context, scope Scope, q Query) (*Resul
 		res.Edges = append(res.Edges, ed)
 	}
 	sort.Slice(res.Edges, func(i, j int) bool { return res.Edges[i].ID < res.Edges[j].ID })
+	if err := e.attachSources(ctx, scope, res.Edges, bundles); err != nil {
+		return nil, err
+	}
 	res.ElapsedMS = time.Since(start).Milliseconds()
 	return res, nil
 }
@@ -483,6 +509,9 @@ func (e *Engine) Expand(ctx context.Context, scope Scope, key string, limit int)
 		}
 		res.Edges = append(res.Edges, ed)
 	}
+	if err := e.attachSources(ctx, scope, res.Edges, nil); err != nil {
+		return nil, err
+	}
 	res.ElapsedMS = time.Since(start).Milliseconds()
 	return res, nil
 }
@@ -546,6 +575,9 @@ func (e *Engine) expandGroup(ctx context.Context, scope Scope, groupBy, value st
 		if in[r.From] && in[r.To] {
 			res.Edges = append(res.Edges, r.Edge)
 		}
+	}
+	if err := e.attachSources(ctx, scope, res.Edges, nil); err != nil {
+		return nil, err
 	}
 	res.ElapsedMS = time.Since(start).Milliseconds()
 	return res, nil
@@ -674,6 +706,9 @@ func (e *Engine) Path(ctx context.Context, scope Scope, from, to string, maxDept
 			n.Depth = i
 			res.Nodes = append(res.Nodes, *n)
 		}
+	}
+	if err := e.attachSources(ctx, scope, res.Edges, nil); err != nil {
+		return nil, err
 	}
 	res.ElapsedMS = time.Since(start).Milliseconds()
 	return res, nil
@@ -823,13 +858,17 @@ func (e *Engine) Impact(ctx context.Context, scope Scope, root, direction string
 		return res.Nodes[i].Name < res.Nodes[j].Name
 	})
 	res.Notes = slices.Compact(res.Notes)
+	if err := e.attachSources(ctx, scope, res.Edges, nil); err != nil {
+		return nil, err
+	}
 	res.ElapsedMS = time.Since(start).Milliseconds()
 	return res, nil
 }
 
 // Overview aggregates the readable catalog into cluster nodes grouped by project, kind, environment or owner, with
-// bundled edges between groups — the entry view of the global map.
-func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, groupBy string) (*Result, error) {
+// bundled edges between groups — the entry view of the global map. withSources also aggregates the asserting sources of
+// each bundle, which costs a second pass over the catalog's assertions (the map asks for it in colour-by-source mode).
+func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, groupBy string, withSources bool) (*Result, error) {
 	start := time.Now()
 	col := map[string]string{"project": "e.project_id", "kind": "e.kind", "environment": "e.environment", "owner": "e.owner"}[groupBy]
 	if col == "" {
@@ -895,6 +934,7 @@ func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, g
 		return nil, err
 	}
 	defer rows.Close()
+	var keys []string
 	for rows.Next() {
 		var a, b, typ string
 		var n int
@@ -911,7 +951,19 @@ func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, g
 		}
 		from, to := "group:"+groupBy+":"+a, "group:"+groupBy+":"+b
 		res.Edges = append(res.Edges, Edge{ID: "bundle:" + shortHash(from+to+typ), Type: typ, From: from, To: to, EvidenceClass: ev, Count: n})
+		keys = append(keys, a+"\x00"+b+"\x00"+typ)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	if !withSources {
+		for i := range res.Edges {
+			res.Edges[i].Sources = []EdgeSource{}
+		}
+	} else if err := e.overviewSources(ctx, scope, col, where, args, res.Edges, keys); err != nil {
+		return nil, err
 	}
 	res.ElapsedMS = time.Since(start).Milliseconds()
-	return res, rows.Err()
+	return res, nil
 }

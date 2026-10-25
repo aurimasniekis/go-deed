@@ -14,7 +14,9 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 - Ingest protocol (incremental items, snapshots with mass-removal guard, dry-run, observations), pluggable source
   providers: Terraform state (push, S3, HTTP backend), Pulse admin, Pulse `evt.>` tail, GitHub, HallPass, Porch.
 - Pulse integration: outbox relay, ingest consumer, tail rollups; SSE live updates.
-- Graph API (neighborhood, expand, path, impact, overview), saved views, custom icons.
+- Graph API (neighborhood, expand, path, impact, overview), saved views, custom icons. Graph edges list the sources
+  asserting them (primary first); the map can colour relationships by source, and installation admins can change
+  (and reset) the colour of built-in relationship types.
 - Telemetry integrations and named bindings (Prometheus/Mimir, Loki, NATS monitoring, OpenSearch, Grafana, Pulse
   rollups), traffic overlays, telemetry stream.
 - Findings, alerts, version intelligence, dashboard summary.
