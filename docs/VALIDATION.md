@@ -155,9 +155,10 @@ always stopped as partial runs.
   interrupted upload.
 - `internal/pulseint` against a local nats-server: tail rollups, observed edges, ingest consumer authorization.
 - `deploy/monitoring/check.sh`: Prometheus rules pass `promtool test rules`.
-- Web UI: Vitest 76/76; Playwright (Chromium) + axe 73/73 against a fresh, seeded `deed serve` — dashboard →
+- Web UI: Vitest 86/86; Playwright (Chromium) + axe 73/73 against a fresh, seeded `deed serve` — dashboard →
   finding → inventory → detail → focused graph, admin flows, map interactions, axe scans of every view in light and
-  dark, and the render-budget measurements in `docs/UI.md` (run locally 2026-10-25 at `5d026c3`; also a CI job).
+  dark, and the render-budget measurements in `docs/UI.md` (run locally 2026-10-25 after the level-of-detail merge;
+  also a CI job).
 - Docker image build and `scripts/container-smoke.sh` (non-root, KEK permission refusal, healthcheck, Docker health,
   graceful SIGTERM): PASS locally at `5d026c3` and in CI.
 - Real-service validation **pending**: production deployments of Pulse, Porch and HallPass (only local runs above),
