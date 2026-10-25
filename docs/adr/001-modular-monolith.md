@@ -18,9 +18,10 @@ projects (Porch, HallPass, Pulse) run one Go binary on SQLite and share proven s
   `synchronous=FULL`, verified pragmas, flock, local-filesystem check, embedded forward-only goose migrations with a
   pre-migration `VACUUM INTO` snapshot and refusal of newer schemas.
 - **Hand-written SQL** instead of sqlc: sqlc is not part of this toolchain and Deed's read paths are dominated by
-  dynamic filters (inventory, graph, search). A tiny helper (`store.Q`) keeps scanning uniform. A `txscope`
-  convention (no network I/O inside write transactions) is enforced by code review and the `storetest` duration
-  guard (100 ms per write transaction in tests).
+  dynamic filters (inventory, graph, search). A tiny helper (`store.Q`) keeps scanning uniform. The `txscope`
+  rule (no network I/O, NATS/Pulse, S3, outbound HTTP, connector calls, waits, channel operations or fsyncs inside
+  write transactions) is enforced statically by `tools/analyzers/txscope` (`make txscope`, run in CI) and at run
+  time by the `storetest` duration guard (100 ms per write transaction in tests).
 - **Exceptions to the 100 ms budget:** a snapshot commit is one atomic transaction by design (ADR-003), so it holds
   the writer for a time proportional to the snapshot (bounded by `MaxSnapshotItems`; measured in PERFORMANCE.md).
   Incremental writes, batches and every request-path transaction stay within the budget. Start-up work (keyring load,

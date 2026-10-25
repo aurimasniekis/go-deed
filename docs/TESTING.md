@@ -13,15 +13,15 @@ and container jobs. `docs/VALIDATION.md` records what was actually run against r
 | `make lint` | `golangci-lint run --timeout 10m ./...` (CI pins v2.15.0) |
 | `make openapi-check` | fails when `api/openapi.json` differs from `deed openapi` (fix with `make openapi`) |
 | `make monitoring-check` | `deploy/monitoring/check.sh`: promtool rule check and unit tests, dashboard JSON check |
-| `make check` | `fmt-check vet lint race openapi-check monitoring-check web-check` |
+| `make txscope` | `go vet` with `tools/analyzers/txscope`: no network I/O, NATS/S3/outbound-HTTP calls, waits or fsyncs inside store write transactions (`make tools-test` tests the analyzer) |
+| `make check` | `fmt-check vet txscope tools-test lint race openapi-check monitoring-check web-check` |
 | `make e2e` | `scripts/e2e.sh`, the spec §18 end-to-end scenario |
 | `make container-smoke` | builds `deed:local` and runs `scripts/container-smoke.sh` against it |
 | `make secrets` | gitleaks over the git history with `.gitleaks.toml` |
 | `make vuln` | `govulncheck@v1.9.0 ./...` |
 
-`web-check` (typecheck, lint, unit tests) and the Playwright suite (`make web-e2e`) need `web/package.json`; without
-it `web-check` prints `web/ not present; skipping`. This checkout's `web/` holds only `public/`, so the web, browser
-e2e and container CI jobs are skipped (see [CI](#ci)).
+`web-check` runs the web typecheck, lint and Vitest suites; `make web-e2e` runs Playwright + axe against a fresh,
+seeded `deed serve` (build the UI first with `make web-build`). See `docs/UI.md` for the browser suites.
 
 ## Unit and integration tests
 Most packages test through real dependencies rather than mocks:
@@ -142,7 +142,7 @@ and a KEK readable by group or others; and finally `deed serve` passing `deed he
 | Job | Steps |
 |---|---|
 | `detect` | sets `web` / `e2e` outputs from the presence of `web/package.json` and `web/playwright.config.ts` |
-| `go` | golangci-lint v2.15.0; `make fmt-check vet openapi-check monitoring-check`; NATS 2.15.1 (JetStream) and MinIO containers; `make race` with `DEED_TEST_TX_MAX=500ms`, `DEED_TEST_NATS`, `DEED_TEST_S3`; `make fuzz-smoke` |
+| `go` | golangci-lint v2.15.0; `make fmt-check vet txscope tools-test openapi-check monitoring-check`; NATS 2.15.1 (JetStream) and MinIO containers; `make race` with `DEED_TEST_TX_MAX=500ms`, `DEED_TEST_NATS`, `DEED_TEST_S3`; `make fuzz-smoke` |
 | `web` | only with `web/package.json`: install, `web-check`, `web-build`, and a check that the generated API client is current |
 | `e2e` | only with `web/playwright.config.ts`: Playwright (Chromium) with axe |
 | `container` | only with `web/package.json`: build the image, `scripts/container-smoke.sh deed:ci` |

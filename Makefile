@@ -13,7 +13,7 @@ DEED_API ?= http://127.0.0.1:8787
 FUZZTIME ?= 10s
 HAS_WEB := $(wildcard web/package.json)
 
-.PHONY: all build run fmt fmt-check vet lint test race fuzz-smoke openapi openapi-check vuln secrets monitoring-check \
+.PHONY: all build run fmt fmt-check vet txscope tools-test lint test race fuzz-smoke openapi openapi-check vuln secrets monitoring-check \
 	web web-install web-build web-gen web-check web-test web-lint web-dev web-e2e check docker container-smoke e2e bench release-build clean
 
 all: build
@@ -29,11 +29,20 @@ fmt:
 	gofmt -w cmd internal pkg
 
 fmt-check:
-	@out=$$(gofmt -l cmd internal pkg); if [[ -n "$$out" ]]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	@out=$$(gofmt -l cmd internal pkg tools); if [[ -n "$$out" ]]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	@$(GO) mod tidy -diff >/dev/null || { echo "go.mod/go.sum need go mod tidy"; exit 1; }
 
 vet:
 	$(GO) vet ./...
+
+bin/deed-vet: $(shell find tools -name '*.go' -not -path '*/testdata/*') tools/go.mod
+	cd tools && GOWORK=off $(GO) build -o ../bin/deed-vet ./cmd/deed-vet
+
+txscope: bin/deed-vet ## no network I/O, waits or fsyncs inside store write transactions (tools/analyzers/txscope)
+	$(GO) vet -vettool=$(abspath bin/deed-vet) ./...
+
+tools-test: ## analyzer tests
+	cd tools && GOWORK=off $(GO) test ./...
 
 lint:
 	golangci-lint run --timeout 10m ./...
@@ -98,7 +107,7 @@ web-dev: ## Vite dev server proxying /api and /auth to a running deed (DEED_API)
 web-e2e: ## Playwright + axe against a fresh, seeded deed (builds bin/deed unless DEED_E2E_BINARY is set; run web-build first)
 	$(PNPM) --dir web run e2e
 
-check: fmt-check vet lint race openapi-check monitoring-check web-check ## everything CI checks without browsers or Docker
+check: fmt-check vet txscope tools-test lint race openapi-check monitoring-check web-check ## everything CI checks without browsers or Docker
 
 docker:
 	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_DATE=$(DATE) -t deed:local .
