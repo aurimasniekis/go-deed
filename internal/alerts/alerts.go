@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/aurimasniekis/go-deed/internal/apperr"
@@ -359,11 +360,30 @@ func (e *Engine) Alerts(ctx context.Context, states []string, projects []string,
 	if limit <= 0 || limit > 500 {
 		limit = 200
 	}
+	// Filters are part of the query: filtering after a LIMIT would hide matching alerts behind others.
+	const state = `CASE WHEN COALESCE(a.silenced_by, '') != '' AND a.state = 'firing' THEN 'suppressed' ELSE a.state END`
+	where, args := []string{"1"}, []any{}
+	if len(states) > 0 {
+		where = append(where, state+" IN ("+strings.Repeat(",?", len(states))[1:]+")")
+		for _, s := range states {
+			args = append(args, s)
+		}
+	}
+	if projects != nil {
+		if len(projects) == 0 {
+			where = append(where, "a.project_id IS NULL")
+		} else {
+			where = append(where, "(a.project_id IS NULL OR a.project_id IN ("+strings.Repeat(",?", len(projects))[1:]+"))")
+			for _, p := range projects {
+				args = append(args, p)
+			}
+		}
+	}
 	rows, err := e.Store.R().QueryContext(ctx, `SELECT a.id, a.rule_id, r.name, a.finding_id, COALESCE(a.project_id, ''), a.state, a.severity, a.title, a.evidence_json,
 		a.started_at, a.fired_at, a.resolved_at, a.last_notified_at, a.notifications, COALESCE(a.silenced_by, ''),
 		COALESCE((SELECT CASE WHEN o.published_at IS NOT NULL THEN 'published' WHEN o.dead_at IS NOT NULL THEN 'dead' WHEN o.attempts > 0 THEN 'retrying' ELSE 'pending' END
 			FROM outbox o WHERE o.id = json_extract(a.evidence_json, '$.last_event_id')), '')
-		FROM alerts a JOIN alert_rules r ON r.id = a.rule_id ORDER BY a.updated_at DESC LIMIT ?`, limit*4)
+		FROM alerts a JOIN alert_rules r ON r.id = a.rule_id WHERE `+strings.Join(where, " AND ")+` ORDER BY a.updated_at DESC LIMIT ?`, append(args, limit)...)
 	if err != nil {
 		return nil, err
 	}
@@ -381,19 +401,10 @@ func (e *Engine) Alerts(ctx context.Context, states []string, projects []string,
 		if a.SilencedBy != "" && a.State == "firing" {
 			a.State = "suppressed"
 		}
-		if len(states) > 0 && !slices.Contains(states, a.State) {
-			continue
-		}
-		if projects != nil && a.ProjectID != "" && !slices.Contains(projects, a.ProjectID) {
-			continue
-		}
 		_ = json.Unmarshal([]byte(ev), &a.Evidence)
 		a.StartedAt = clock.FromMicros(s)
 		a.FiredAt, a.ResolvedAt, a.LastNotifiedAt = nt(f), nt(rs), nt(ln)
 		out = append(out, a)
-		if len(out) >= limit {
-			break
-		}
 	}
 	return out, rows.Err()
 }

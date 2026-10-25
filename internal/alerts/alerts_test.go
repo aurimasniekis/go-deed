@@ -2,6 +2,7 @@ package alerts_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/aurimasniekis/go-deed/internal/audit"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/findings"
+	"github.com/aurimasniekis/go-deed/internal/store"
 	"github.com/aurimasniekis/go-deed/internal/testenv"
 )
 
@@ -119,5 +121,59 @@ func TestDriftAndInvalidFindings(t *testing.T) {
 	_ = env.Store.R().QueryRowContext(ctx, `SELECT SUM(type = 'declared_observed_drift'), SUM(type = 'invalid_schema') FROM findings WHERE state = 'open'`).Scan(&drift, &invalid)
 	if drift != 1 || invalid != 1 {
 		t.Fatalf("drift=%d invalid=%d", drift, invalid)
+	}
+}
+
+func TestAlertsListFiltersBeforeLimit(t *testing.T) {
+	env := testenv.New(t)
+	ctx := context.Background()
+	busy, quiet := env.Project(t, "busy"), env.Project(t, "quiet")
+	now := env.Clock.Now().UnixMicro()
+	if err := env.Store.W().Tx(ctx, func(tx *store.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO alert_rules (id, name, matcher_json, created_at, updated_at) VALUES ('rul_t', 'test', '{}', ?, ?)`, now, now); err != nil {
+			return err
+		}
+		add := func(id, project, state, silenced string, updated int64) error {
+			_, err := tx.Exec(ctx, `INSERT INTO alerts (id, rule_id, finding_id, dedup_key, project_id, state, severity, title, started_at, silenced_by, updated_at)
+				VALUES (?, 'rul_t', ?, ?, ?, ?, 'critical', ?, ?, NULLIF(?, ''), ?)`, id, id, id, project, state, id, now, silenced, updated)
+			return err
+		}
+		// Newer alerts in a project the caller cannot read sort before the caller's alerts.
+		for i := range 20 {
+			if err := add(fmt.Sprintf("alt_busy%02d", i), busy.ID, "firing", "", now+int64(100+i)); err != nil {
+				return err
+			}
+		}
+		if err := add("alt_quiet_firing", quiet.ID, "firing", "", now+2); err != nil {
+			return err
+		}
+		return add("alt_quiet_silenced", quiet.ID, "firing", "sil_1", now+1)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	al := &alerts.Engine{Store: env.Store, Clock: env.Clock}
+	ids := func(states, projects []string, limit int) []string {
+		t.Helper()
+		list, err := al.Alerts(ctx, states, projects, limit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, a := range list {
+			out = append(out, a.ID+"="+a.State)
+		}
+		return out
+	}
+	if got := ids(nil, []string{quiet.ID}, 2); fmt.Sprint(got) != "[alt_quiet_firing=firing alt_quiet_silenced=suppressed]" {
+		t.Fatalf("viewer of quiet: %v", got)
+	}
+	if got := ids([]string{"suppressed"}, nil, 1); fmt.Sprint(got) != "[alt_quiet_silenced=suppressed]" {
+		t.Fatalf("suppressed filter: %v", got)
+	}
+	if got := ids([]string{"firing"}, nil, 50); len(got) != 21 {
+		t.Fatalf("firing (silenced excluded): %d", len(got))
+	}
+	if got := ids(nil, []string{}, 10); len(got) != 0 {
+		t.Fatalf("no readable projects: %v", got)
 	}
 }
