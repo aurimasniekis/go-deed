@@ -271,7 +271,8 @@ func (push) Describe() Descriptor {
 	return Descriptor{Type: "push", Title: "External push source", Description: "Any program that speaks the source protocol " +
 		"(items, snapshots, heartbeats, observations) with a source token: deed-agent, CI jobs, services, the Go SDK pkg/deedclient.",
 		DefaultLayer: catalog.LayerDiscovered, ConfigSchema: json.RawMessage(`{"type":"object","properties":{"notes":{"type":"string","maxLength":2000},` +
-			`"pulse_source":{"type":"string","maxLength":128,"description":"Accept deed.ingest.*.v1 events from Pulse published with this ce-source."}},"additionalProperties":false}`),
+			`"pulse_source":{"type":"string","maxLength":128,"pattern":"^[a-z0-9_-]+$","description":"Accept deed.ingest.*.v1 events from Pulse ` +
+			`published with this ce-source on the subject token after the ingest filter prefix (evt.deed.ingest.<pulse_source>.items)."}},"additionalProperties":false}`),
 		Capabilities: Capabilities{Push: true, Snapshot: true, Incremental: true},
 		Kinds: []KindSupport{{Kind: "container", Level: SupportRuntime, Note: "deed-agent docker collector"}, {Kind: "docker_host", Level: SupportRuntime},
 			{Kind: "service", Level: SupportRuntime}},

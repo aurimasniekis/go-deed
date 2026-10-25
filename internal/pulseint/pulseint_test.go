@@ -3,6 +3,7 @@ package pulseint
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -113,15 +114,18 @@ func TestAdminSync(t *testing.T) {
 	for _, e := range page.Items {
 		names[e.Kind+"/"+e.Metadata.Name] = true
 	}
-	for _, want := range []string{"service/porch", "service/notifier", "nats_stream/events", "nats_consumer/events-cli_notifier_tenants",
+	// Shapes follow a real pulsed (scripts/validate/pulse.sh): ULID client IDs, durables "<client-id>_<name>", outbound
+	// hooks as internal durables, pulsed's own rollup reader as an ephemeral consumer.
+	for _, want := range []string{"service/porch", "service/notifier", "nats_stream/events", "nats_consumer/events-01jbx2q8m5n0t1f1er6e7f8g9h_tenants",
 		"nats_subject/evt.porch.all", "nats_subject/evt.porch.tenancy.tenant.created", "nats_subject/evt.porch.tenancy.tenant.updated.star",
 		"event_contract/porch.tenancy.tenant_created.v1", "nats_system/pulse-1"} {
 		if !names[want] {
 			t.Errorf("missing %s (have %v)", want, names)
 		}
 	}
-	if names["service/old"] || names["nats_stream/kv_config"] || names["nats_consumer/events-pulsed-rollups"] {
-		t.Fatalf("revoked client, kv bucket or internal consumer imported: %v", names)
+	if names["service/old"] || names["nats_stream/kv_config"] || names["nats_stream/obj_blobs"] ||
+		names["nats_consumer/events-pulse_out_01jbx2q9a1h00k0000000000aa"] || names["nats_consumer/events-7an6u9nkqsjlqxoc8vq8te_1"] {
+		t.Fatalf("revoked client, kv/object bucket, internal or ephemeral consumer imported: %v", names)
 	}
 	rels, _ := env.Catalog.ListRelations(ctx, catalog.RelationFilter{Limit: 200})
 	got := map[string]string{}
@@ -129,7 +133,8 @@ func TestAdminSync(t *testing.T) {
 		got[r.Type+" "+r.From.Name+" → "+r.To.Name] = r.EvidenceClass
 	}
 	for _, want := range []string{"publishes porch → evt.porch.all", "subscribes_to notifier → evt.porch.tenancy.all",
-		"contains evt.porch.all → evt.porch.tenancy.tenant.created", "carried_on porch.tenancy.tenant_created.v1 → evt.porch.tenancy.tenant.created"} {
+		"subscribes_to events-01jbx2q8m5n0t1f1er6e7f8g9h_tenants → evt.porch.tenancy.all",
+		"contains events → events-01jbx2q8m5n0t1f1er6e7f8g9h_tenants", "contains evt.porch.all → evt.porch.tenancy.tenant.created", "carried_on porch.tenancy.tenant_created.v1 → evt.porch.tenancy.tenant.created"} {
 		if _, ok := got[want]; !ok {
 			t.Errorf("missing relation %s in %v", want, got)
 		}
@@ -227,13 +232,18 @@ func TestTailAndIngestConsumerAgainstNATS(t *testing.T) {
 	agent := pulseClient(t, url, "agent-1")
 	items := Envelope{SourceID: pushSrc.ID, Entities: []catalog.EntityItem{{Kind: "container", Name: "web", ExternalID: "c1",
 		Spec: map[string]any{"image": "example/web"}}}}
-	if _, err := agent.Publish(ctx, "evt.deed.ingest.agent.items", TypeItems, items); err != nil {
+	if _, err := agent.Publish(ctx, "evt.deed.ingest.agent-1.items", TypeItems, items); err != nil {
 		t.Fatal(err)
 	}
-	// A different publisher cannot write into the agent's source.
+	// A different publisher cannot write into the agent's source: neither with its own ce-source nor by claiming the
+	// agent's ce-source on its own subject (Pulse authenticates subjects through grants, not ce-source).
 	rogue := pulseClient(t, url, "rogue")
 	bad := Envelope{SourceID: pushSrc.ID, Entities: []catalog.EntityItem{{Kind: "container", Name: "evil", ExternalID: "x"}}}
-	if _, err := rogue.Publish(ctx, "evt.deed.ingest.agent.items", TypeItems, bad); err != nil {
+	if _, err := rogue.Publish(ctx, "evt.deed.ingest.agent-1.items", TypeItems, bad); err != nil {
+		t.Fatal(err)
+	}
+	spoofed := Envelope{SourceID: pushSrc.ID, Entities: []catalog.EntityItem{{Kind: "container", Name: "spoofed", ExternalID: "y"}}}
+	if _, err := rogue.Publish(ctx, "evt.deed.ingest.rogue.items", TypeItems, spoofed, pulse.WithEventSource("agent-1")); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(10 * time.Second)
@@ -252,13 +262,15 @@ func TestTailAndIngestConsumerAgainstNATS(t *testing.T) {
 			edge = r
 		}
 	}
-	// The tail sees every evt.> message: porch's events and the agents' ingest envelopes (3 publishers).
-	if edge == nil || rels.Total != 3 || edge.To.Name != "evt.porch.tenancy.tenant.updated.star" || edge.EvidenceClass != catalog.EvidenceObserved {
+	// The tail sees every evt.> message: porch's events and the ingest envelopes (porch, agent-1 and rogue on
+	// agent-1's subject, "agent-1" on rogue's subject: 4 publisher/subject pairs).
+	if edge == nil || rels.Total != 4 || edge.To.Name != "evt.porch.tenancy.tenant.updated.star" || edge.EvidenceClass != catalog.EvidenceObserved {
 		t.Fatalf("observed publish edge missing: %+v", rels.Items)
 	}
 	if edge.Attributes["messages_per_minute"] == nil {
 		t.Fatalf("rate missing: %+v", edge.Attributes)
 	}
+	time.Sleep(500 * time.Millisecond) // the rejected envelopes follow the accepted one
 	cs, _ := env.Catalog.ListEntities(ctx, catalog.EntityFilter{Kinds: []string{"container"}, Limit: 10})
 	if cs.Total != 1 || cs.Items[0].Metadata.Name != "web" {
 		t.Fatalf("ingest consumer: %+v", cs.Items)
@@ -267,5 +279,55 @@ func TestTailAndIngestConsumerAgainstNATS(t *testing.T) {
 	_ = env.Store.R().QueryRowContext(ctx, `SELECT COALESCE(SUM(messages), 0) FROM pulse_rollups WHERE granularity = 'minute' AND publisher = 'porch'`).Scan(&n)
 	if n != 5 {
 		t.Fatalf("rollups counted %d messages", n)
+	}
+}
+
+func TestSubjectPublisher(t *testing.T) {
+	cases := []struct{ filter, subject, want string }{
+		{"evt.deed.ingest.>", "evt.deed.ingest.billing.items", "billing"},
+		{"evt.deed.ingest.>", "evt.deed.ingest", ""},
+		{"evt.*.ingest.>", "evt.billing.ingest.items", "billing"},
+		{"evt.deed.ingest.billing.items", "evt.deed.ingest.billing.items", ""},
+	}
+	for _, c := range cases {
+		if got := SubjectPublisher(c.filter, c.subject); got != c.want {
+			t.Errorf("SubjectPublisher(%s, %s) = %q, want %q", c.filter, c.subject, got, c.want)
+		}
+	}
+}
+
+// Pulse authenticates the subject (client grants) but not ce-source: an event is accepted only when both name the
+// source's pulse_source.
+func TestConsumerBindsSubjectToPublisher(t *testing.T) {
+	env := testenv.New(t)
+	ctx := context.Background()
+	p := env.Project(t, "events")
+	src, err := env.Catalog.CreateSource(ctx, audit.System, catalog.SourceInput{ProjectID: p.ID, Name: "billing", Provider: "push",
+		Layer: catalog.LayerDiscovered, Config: json.RawMessage(`{"pulse_source": "billing"}`)}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ing := &ingest.Service{Store: env.Store, Catalog: env.Catalog, Audit: env.Audit, Clock: env.Clock,
+		Limits: ingest.Limits{MaxItems: 1000, MaxSnapshotItems: 100000, SnapshotTimeout: time.Hour, MaxRemovalPercent: 25}}
+	cons := &Consumer{Catalog: env.Catalog, Ingest: ing, Log: slog.New(slog.DiscardHandler), Self: "deed", Filter: "evt.deed.ingest.>"}
+	event := func(subject, source, name string) pulse.Event {
+		b, _ := json.Marshal(Envelope{SourceID: src.ID, Entities: []catalog.EntityItem{{Kind: "container", Name: name, ExternalID: name}}})
+		return pulse.Event{Subject: subject, Source: source, Type: TypeItems, ID: name, Data: b}
+	}
+	for _, e := range []pulse.Event{
+		event("evt.deed.ingest.rogue.items", "billing", "spoofed-source"),
+		event("evt.deed.ingest.billing.items", "rogue", "wrong-source"),
+		event("evt.deed.ingest.items", "billing", "no-publisher-token"),
+	} {
+		if err := cons.Handle(ctx, e); !errors.Is(err, ErrNotAllowed) {
+			t.Errorf("%s from %s on %s: want a terminal ErrNotAllowed, got %v", e.ID, e.Source, e.Subject, err)
+		}
+	}
+	if err := cons.Handle(ctx, event("evt.deed.ingest.billing.items", "billing", "web")); err != nil {
+		t.Fatalf("legitimate event: %v", err)
+	}
+	cs, _ := env.Catalog.ListEntities(ctx, catalog.EntityFilter{Kinds: []string{"container"}, Limit: 10})
+	if cs.Total != 1 || cs.Items[0].Metadata.Name != "web" {
+		t.Fatalf("containers: %+v", cs.Items)
 	}
 }

@@ -263,11 +263,14 @@ func (c *Config) validatePulse(v *validator, prod bool) {
 	if !slugRE.MatchString(p.Source) {
 		v.add("pulse.source must be a lowercase slug")
 	}
-	if !strings.HasPrefix(p.IngestFilter, "evt.") {
-		v.add("pulse.ingest_filter must be an evt.* subject filter")
+	// The token at the filter's first wildcard names the publisher (evt.deed.ingest.<pulse_source>.…), so a filter
+	// without a wildcard could never accept an event.
+	if !strings.HasPrefix(p.IngestFilter, "evt.") || !strings.Contains("."+p.IngestFilter+".", ".>.") && !strings.Contains("."+p.IngestFilter+".", ".*.") {
+		v.add("pulse.ingest_filter must be an evt.* subject filter with a wildcard for the publisher token, e.g. evt.deed.ingest.>")
 	}
-	if !regexp.MustCompile(`^[a-z0-9_]{1,64}$`).MatchString(p.IngestDurable) {
-		v.add("pulse.ingest_durable must match [a-z0-9_]{1,64}")
+	// Pulse's durable grant names: ^[a-z0-9][a-z0-9_-]{0,47}$ (the consumer is "<client-id>_<name>").
+	if !regexp.MustCompile(`^[a-z0-9][a-z0-9_]{0,47}$`).MatchString(p.IngestDurable) {
+		v.add("pulse.ingest_durable must match ^[a-z0-9][a-z0-9_]{0,47}$ (a Pulse durable grant name)")
 	}
 }
 

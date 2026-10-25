@@ -1,47 +1,62 @@
 {
   "/system/info": {"version": "0.1.0", "profile": "prod", "ready": true, "nats": {"connected": true, "server_name": "pulse-1", "version": "2.15.1", "rtt_ms": 0.4},
-    "runtime": {}, "connect": {}},
+    "runtime": {}, "connect": {"nats_url": "tls://r.events.example.com:4222", "public_url": "https://events.example.com"}},
   "/clients": [
-    {"id": "cli_porch", "name": "porch", "description": "Porch identity provider", "tags": ["identity"], "status": "active", "connections": 1,
+    {"id": "01jbx2q8m4c7p0rch5a1b2c3d4", "name": "porch", "description": "Porch identity provider", "tags": ["identity"], "status": "active", "connections": 1,
      "user_key": "UABC", "signing_key": "AABC", "expires_at": "2027-10-01T00:00:00Z", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
      "version": 3, "expires_soon": false,
-     "grants": [{"action": "publish", "subject": "evt.porch.>"}, {"action": "subscribe", "subject": "_INBOX_cli_porch.>"}]},
-    {"id": "cli_notifier", "name": "notifier", "description": "", "tags": [], "status": "active", "connections": 0,
+     "grants": [{"action": "publish", "subject": "evt.porch.>"}]},
+    {"id": "01jbx2q8m5n0t1f1er6e7f8g9h", "name": "notifier", "description": "", "tags": [], "status": "active", "connections": 0,
      "user_key": "UDEF", "signing_key": "ADEF", "expires_at": "2027-10-01T00:00:00Z", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
      "version": 1, "expires_soon": false,
-     "grants": [{"action": "subscribe", "subject": "evt.porch.tenancy.>"}, {"action": "durable", "stream": "EVENTS", "name": "tenants"}]},
-    {"id": "cli_old", "name": "old", "description": "", "tags": [], "status": "revoked", "connections": 0, "revoked_at": "2026-02-01T00:00:00Z",
+     "grants": [{"action": "subscribe", "subject": "evt.porch.tenancy.>"}, {"action": "durable", "subject": "evt.porch.tenancy.>", "name": "tenants"}]},
+    {"id": "01jbx2q8m6o1d0000000000000", "name": "old", "description": "", "tags": [], "status": "revoked", "connections": 0, "revoked_at": "2026-02-01T00:00:00Z",
      "user_key": "UOLD", "signing_key": "AOLD", "expires_at": "2027-10-01T00:00:00Z", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
      "version": 1, "expires_soon": false, "grants": [{"action": "publish", "subject": "evt.old.>"}]}
   ],
   "/streams": [
-    {"name": "EVENTS", "kind": "stream", "managed": true, "description": "", "subjects": ["evt.>"], "storage": "file", "retention": "limits", "discard": "old",
-     "max_bytes": 1073741824, "max_msgs": -1, "max_age_seconds": 0, "max_msg_size": -1, "compression": "s2", "duplicates_seconds": 120, "allow_direct": true,
-     "created": "2026-01-01T00:00:00Z", "state": {"msgs": 1200, "bytes": 512000, "first_seq": 1, "first_time": "2026-01-01T00:00:00Z", "last_seq": 1200,
-     "last_time": "2026-10-01T11:59:00Z", "consumers": 2, "num_subjects": 3, "num_deleted": 0}},
-    {"name": "KV_config", "kind": "kv", "managed": false, "description": "", "subjects": ["$KV.config.>"], "storage": "file", "retention": "limits",
-     "discard": "new", "max_bytes": -1, "max_msgs": -1, "max_age_seconds": 0, "max_msg_size": -1, "compression": "none", "duplicates_seconds": 0,
-     "allow_direct": true, "created": "2026-01-01T00:00:00Z", "state": {"msgs": 0, "bytes": 0, "first_seq": 0, "first_time": "2026-01-01T00:00:00Z",
-     "last_seq": 0, "last_time": "2026-01-01T00:00:00Z", "consumers": 0, "num_subjects": 0, "num_deleted": 0}}
+    {"name": "EVENTS", "kind": "stream", "managed": true, "description": "Pulse durable events (managed by pulsed)", "subjects": ["evt.>"], "storage": "File",
+     "retention": "Limits", "discard": "DiscardOld", "max_bytes": 1073741824, "max_msgs": -1, "max_age_seconds": 0, "max_msg_size": 1048576, "compression": "S2",
+     "duplicates_seconds": 120, "allow_direct": true, "created": "2026-01-01T00:00:00Z", "state": {"msgs": 1200, "bytes": 512000, "first_seq": 1,
+     "first_time": "2026-01-01T00:00:00Z", "last_seq": 1200, "last_time": "2026-10-01T11:59:00Z", "consumers": 3, "num_subjects": 3, "num_deleted": 0}},
+    {"name": "OBJ_blobs", "kind": "object", "managed": true, "description": "Pulse large payloads referenced by events (pulse-blob header)",
+     "subjects": ["$O.blobs.C.>", "$O.blobs.M.>"], "storage": "File", "retention": "Limits", "discard": "DiscardNew", "max_bytes": -1, "max_msgs": -1,
+     "max_age_seconds": 0, "max_msg_size": -1, "compression": "S2", "duplicates_seconds": 120, "allow_direct": true, "created": "2026-01-01T00:00:00Z",
+     "state": {"msgs": 0, "bytes": 0, "first_seq": 0, "first_time": "0001-01-01T00:00:00Z", "last_seq": 0, "last_time": "0001-01-01T00:00:00Z", "consumers": 0,
+     "num_subjects": 0, "num_deleted": 0}},
+    {"name": "KV_config", "kind": "kv", "managed": false, "description": "", "subjects": ["$KV.config.>"], "storage": "File", "retention": "Limits",
+     "discard": "DiscardNew", "max_bytes": -1, "max_msgs": -1, "max_age_seconds": 0, "max_msg_size": -1, "compression": "None", "duplicates_seconds": 0,
+     "allow_direct": true, "created": "2026-01-01T00:00:00Z", "state": {"msgs": 0, "bytes": 0, "first_seq": 0, "first_time": "0001-01-01T00:00:00Z",
+     "last_seq": 0, "last_time": "0001-01-01T00:00:00Z", "consumers": 0, "num_subjects": 0, "num_deleted": 0}}
   ],
   "/streams/EVENTS/consumers": [
-    {"name": "cli_notifier_tenants", "durable": true, "internal": false, "filter_subjects": ["evt.porch.tenancy.>"], "deliver_policy": "all",
-     "ack_policy": "explicit", "num_pending": 3, "num_ack_pending": 0, "num_redelivered": 0, "last_active": "2026-10-01T11:58:00Z"},
-    {"name": "pulsed:rollups", "durable": true, "internal": true, "filter_subjects": ["evt.>"], "deliver_policy": "new", "ack_policy": "explicit",
-     "num_pending": 0, "num_ack_pending": 0, "num_redelivered": 0}
+    {"name": "01jbx2q8m5n0t1f1er6e7f8g9h_tenants", "durable": true, "description": "", "internal": false, "filter_subjects": ["evt.porch.tenancy.>"],
+     "deliver_policy": "new", "ack_policy": "AckExplicit", "ack_wait_seconds": 30, "max_deliver": -1, "max_ack_pending": 1000,
+     "created": "2026-01-01T00:00:00Z", "num_pending": 3, "num_ack_pending": 0, "num_redelivered": 0, "num_waiting": 1, "delivered_stream_seq": 1197,
+     "ack_floor_stream_seq": 1197, "last_active": "2026-10-01T11:58:00Z", "paused": false},
+    {"name": "pulse_out_01jbx2q9a1h00k0000000000aa", "durable": true, "description": "pulsed: outbound hook audit-mirror", "internal": true,
+     "filter_subjects": ["evt.>"], "deliver_policy": "new", "ack_policy": "AckExplicit", "ack_wait_seconds": 50, "max_deliver": 7, "max_ack_pending": 1,
+     "created": "2026-01-01T00:00:00Z", "num_pending": 0, "num_ack_pending": 0, "num_redelivered": 0, "num_waiting": 1, "delivered_stream_seq": 1200,
+     "ack_floor_stream_seq": 1200, "paused": false},
+    {"name": "7aN6U9nKQsJLqXoC8vQ8TE_1", "durable": false, "description": "", "internal": false, "filter_subjects": [], "deliver_policy": "all",
+     "ack_policy": "AckNone", "ack_wait_seconds": 0, "max_deliver": -1, "max_ack_pending": 0, "created": "2026-01-01T00:00:00Z", "num_pending": 0,
+     "num_ack_pending": 0, "num_redelivered": 0, "num_waiting": 1, "delivered_stream_seq": 1200, "ack_floor_stream_seq": 1200, "paused": false}
   ],
-  "/subjects/tree?prefix=evt&stream=EVENTS": {"index": {"indexed": 3, "cap": 100000, "dropped": 0}, "nodes": [
-    {"token": "porch", "path": "evt.porch", "leaf": false, "children": 1, "subjects": 3, "msgs": 1200, "bytes": 512000, "last_seen": "2026-10-01T11:59:00Z"}]},
-  "/subjects/tree?prefix=evt.porch&stream=EVENTS": {"index": {"indexed": 3, "cap": 100000, "dropped": 0}, "nodes": [
-    {"token": "tenancy", "path": "evt.porch.tenancy", "leaf": false, "children": 1, "subjects": 3, "msgs": 1200, "bytes": 512000, "last_seen": "2026-10-01T11:59:00Z"}]},
-  "/subjects/tree?prefix=evt.porch.tenancy&stream=EVENTS": {"index": {"indexed": 3, "cap": 100000, "dropped": 0}, "nodes": [
-    {"token": "tenant", "path": "evt.porch.tenancy.tenant", "leaf": false, "children": 1, "subjects": 3, "msgs": 1200, "bytes": 512000, "last_seen": "2026-10-01T11:59:00Z"}]},
-  "/subjects/tree?prefix=evt.porch.tenancy.tenant&stream=EVENTS": {"index": {"indexed": 3, "cap": 100000, "dropped": 0}, "nodes": [
+  "/subjects/tree?prefix=evt&stream=EVENTS": {"index": {"indexed": 3, "cap": 50000, "dropped": 0}, "nodes": [
+    {"token": "porch", "path": "evt.porch", "leaf": false, "children": 1, "subjects": 3, "msgs": 1200, "bytes": 512000, "last_seen": "2026-10-01T11:59:00Z",
+     "last_type": "porch.tenancy.tenant_created.v1"}]},
+  "/subjects/tree?prefix=evt.porch&stream=EVENTS": {"index": {"indexed": 3, "cap": 50000, "dropped": 0}, "nodes": [
+    {"token": "tenancy", "path": "evt.porch.tenancy", "leaf": false, "children": 1, "subjects": 3, "msgs": 1200, "bytes": 512000, "last_seen": "2026-10-01T11:59:00Z",
+     "last_type": "porch.tenancy.tenant_created.v1"}]},
+  "/subjects/tree?prefix=evt.porch.tenancy&stream=EVENTS": {"index": {"indexed": 3, "cap": 50000, "dropped": 0}, "nodes": [
+    {"token": "tenant", "path": "evt.porch.tenancy.tenant", "leaf": false, "children": 2, "subjects": 3, "msgs": 1200, "bytes": 512000, "last_seen": "2026-10-01T11:59:00Z",
+     "last_type": "porch.tenancy.tenant_created.v1"}]},
+  "/subjects/tree?prefix=evt.porch.tenancy.tenant&stream=EVENTS": {"index": {"indexed": 3, "cap": 50000, "dropped": 0}, "nodes": [
     {"token": "created", "path": "evt.porch.tenancy.tenant.created", "leaf": true, "children": 0, "subjects": 1, "msgs": 1000, "bytes": 400000,
      "last_seen": "2026-10-01T11:59:00Z", "last_type": "porch.tenancy.tenant_created.v1"},
     {"token": "updated", "path": "evt.porch.tenancy.tenant.updated", "leaf": false, "children": 2, "subjects": 2, "msgs": 200, "bytes": 112000,
-     "last_seen": "2026-10-01T11:50:00Z"}]},
-  "/subjects/tree?prefix=evt.porch.tenancy.tenant.updated&stream=EVENTS": {"index": {"indexed": 3, "cap": 100000, "dropped": 0}, "nodes": [
+     "last_seen": "2026-10-01T11:50:00Z", "last_type": "porch.tenancy.tenant_updated.v1"}]},
+  "/subjects/tree?prefix=evt.porch.tenancy.tenant.updated&stream=EVENTS": {"index": {"indexed": 3, "cap": 50000, "dropped": 0}, "nodes": [
     {"token": "ten_01jb9w2v3x4y5z6a7b8c9d0e1f", "path": "evt.porch.tenancy.tenant.updated.ten_01jb9w2v3x4y5z6a7b8c9d0e1f", "leaf": true, "children": 0,
      "subjects": 1, "msgs": 120, "bytes": 70000, "last_seen": "2026-10-01T11:50:00Z", "last_type": "porch.tenancy.tenant_updated.v1"},
     {"token": "ten_01jb9w2v3x4y5z6a7b8c9d0e2g", "path": "evt.porch.tenancy.tenant.updated.ten_01jb9w2v3x4y5z6a7b8c9d0e2g", "leaf": true, "children": 0,
