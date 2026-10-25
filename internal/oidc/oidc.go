@@ -376,6 +376,14 @@ func (s *Service) Callback(ctx context.Context, in CallbackInput) (res *Callback
 	if rawID == "" {
 		return nil, ErrValidation
 	}
+	// A provider may grant fewer scopes than requested (Porch drops groups unless the client's allowed_scopes list
+	// it); the login then fails later as "not provisioned" with no hint, so name the missing scopes in the log.
+	if granted, ok := tok.Extra("scope").(string); ok && granted != "" {
+		if missing := missingScopes(p.cfg.Scopes, granted); len(missing) > 0 {
+			s.Log.Warn("oidc provider did not grant every requested scope; claims that depend on them (such as groups) are missing",
+				"provider", p.cfg.Slug, "missing_scopes", missing)
+		}
+	}
 	idt, err := verifier.Verify(cctx, rawID)
 	if err != nil {
 		s.Log.Warn("oidc id token rejected", "provider", p.cfg.Slug, "err", err)
@@ -849,6 +857,18 @@ func mergeMissing(dst, src map[string]any) {
 			mergeMissing(cm, sm)
 		}
 	}
+}
+
+// missingScopes returns the requested scopes absent from the space-delimited granted list (RFC 6749 §5.1).
+func missingScopes(requested []string, granted string) []string {
+	have := strings.Fields(granted)
+	var out []string
+	for _, s := range requested {
+		if !slices.Contains(have, s) {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func shortHash(s string) string {

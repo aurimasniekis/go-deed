@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -38,6 +39,7 @@ type testOP struct {
 	userinfo   map[string]any // extra userinfo claims
 	wrongNonce bool
 	issParam   bool
+	scope      string // granted scope in the token response ("" = omitted)
 }
 
 type grant struct {
@@ -78,8 +80,12 @@ func newOP(t *testing.T, now func() time.Time) *testOP {
 		for k, v := range op.claims {
 			c[k] = v
 		}
+		resp := map[string]any{"access_token": "at", "token_type": "Bearer", "expires_in": 300, "id_token": op.sign(t, c)}
+		if op.scope != "" {
+			resp["scope"] = op.scope
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "at", "token_type": "Bearer", "expires_in": 300, "id_token": op.sign(t, c)})
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, _ *http.Request) {
 		u := map[string]any{"sub": "u_01"}
@@ -291,5 +297,29 @@ func TestProvisioningPolicies(t *testing.T) {
 	_ = r4.env.Store.R().QueryRow(`SELECT user_id FROM identities`).Scan(&linked)
 	if linked == "usr_existing" {
 		t.Fatal("an unverified email took over an existing account")
+	}
+}
+
+// Porch grants only the client's allowed_scopes and silently drops the rest (groups is not allowed by default); the
+// resulting "not provisioned" refusal must come with a log line naming the missing scope.
+func TestUngrantedScopesAreLogged(t *testing.T) {
+	r := newRig(t, config.OIDCProvider{JIT: true, Mappings: []config.GroupMapping{{Group: "g", InstallationRole: "auditor"}}})
+	var buf strings.Builder
+	r.svc.Log = slog.New(slog.NewTextHandler(&buf, nil))
+	r.op.scope = "openid profile email"
+	if _, err := r.login(t, nil); !errors.Is(err, oidc.ErrNotProvisioned) {
+		t.Fatalf("login without groups: %v", err)
+	}
+	if !strings.Contains(buf.String(), "did not grant every requested scope") || !strings.Contains(buf.String(), "missing_scopes=[groups]") {
+		t.Fatalf("log: %s", buf.String())
+	}
+	buf.Reset()
+	r.op.scope = "openid profile email groups"
+	r.op.claims = map[string]any{"porch": map[string]any{"groups": []string{"g"}}}
+	if _, err := r.login(t, nil); err != nil {
+		t.Fatalf("login with groups: %v", err)
+	}
+	if strings.Contains(buf.String(), "did not grant") {
+		t.Fatalf("warning with every scope granted: %s", buf.String())
 	}
 }
