@@ -65,11 +65,10 @@ each); method and the full table in `docs/UI.md` § Performance budgets and meas
   17–20 ms instead of ELK's ~350 ms), force 318–338 ms, radial 234–308 ms; panning and zooming 58–60 fps; the longest
   frame when crossing the level-of-detail threshold is 17–33 ms in force and radial and 50–67 ms in layered (before
   367–533 ms), as cards and edges are swapped in over several frames.
-- **Met:** every first-frame and 500-node frame budget. **Still above ~50 ms:** one frame of up to 67 ms per threshold
-  crossing in the 2,000-node layered drawing (beyond the 500-node pan/zoom budget).
-
 - On a 10k/50k catalog (`DEED_E2E_DEMO_SCALE=2500`: 10,098 entities, 55,151 relations), typical first neighbourhoods
   (depth 1–2, 5–39 nodes) take 196 ms p50 and 260 ms p95 from fetch to first frame over 24 loads.
+- **Met:** every first-frame and 500-node frame budget. **Still above ~50 ms:** one frame of up to 67 ms per threshold
+  crossing in the 2,000-node layered drawing (beyond the 500-node pan/zoom budget).
 
 ## Not measured here
 - HTTP overhead, TLS and Cloudflare latency; resident memory of a long-running server; concurrent load from many
