@@ -18,7 +18,7 @@ public_url: https://deed.example.com
 kek: {source: file, file: /etc/deed/kek}       # `deed keys init -out /etc/deed/kek`; never inside data_dir
 http: {listen: 127.0.0.1:8080}                 # behind a local TLS proxy or cloudflared, or terminate TLS (CLOUDFLARE.md)
 management: {listen: 127.0.0.1:9464}           # /metrics, /healthz, /readyz — keep private
-proxy: {cloudflare: true}
+proxy: {cloudflare: true, trusted_proxies: [127.0.0.1/32]}   # the local proxy or cloudflared (CLOUDFLARE.md §1)
 auth:
   local: {enabled: true, mfa_required_roles: [owner, admin]}
   oidc: []                                      # docs/SSO.md (Porch is the primary documented provider)
