@@ -55,15 +55,18 @@ relation per frontier step: depth-2 neighborhood p95 28.6 ms, depth 3 79.3 ms, i
   depth 3 at the 2,000-node cap.
 
 ## Browser rendering
-Measured by the Playwright suite (`web/e2e/perf.spec.ts`, headless Chromium at 1440×900 on the same laptop, three runs
+Measured by the Playwright suite (`web/e2e/perf.spec.ts`, headless Chromium at 1440×900 on the same laptop, six runs
 each); method and the full table in `docs/UI.md` § Performance budgets and measurements:
-- typical neighbourhoods (26 nodes): 176–278 ms from fetch to first frame, 60 fps panning and zooming;
-- ~500 nodes: first frame 127–341 ms in all three layouts, panning 60 fps; a revisit is served from the layout
-  cache in ~70 ms;
-- 2,000 nodes (level-of-detail drawing when zoomed out): first frame force 303–309 ms, radial 208–270 ms, layered
-  591–601 ms; panning 59–60 fps in every layout.
-- **Still over budget:** the 2,000-node layered first frame (ELK takes ~350 ms in a fresh worker), and the single
-  long frame (83–133 ms at ~500 nodes, 333–517 ms at 2,000) when zooming across the level-of-detail threshold.
+- typical neighbourhoods (26 nodes): 187–248 ms from fetch to first frame, 60 fps panning and zooming;
+- ~500 nodes: first frame 129–357 ms in all three layouts, 60 fps panning and zooming, and no frame over 33 ms when
+  zooming across the level-of-detail threshold (before: one 83–133 ms frame per crossing); a revisit is served from
+  the layout cache in ~80 ms;
+- 2,000 nodes: first frame layered 295–458 ms (before 591–615 ms; the layered layout above 600 nodes is now Deed's own,
+  17–20 ms instead of ELK's ~350 ms), force 318–338 ms, radial 234–308 ms; panning and zooming 58–60 fps; the longest
+  frame when crossing the level-of-detail threshold is 17–33 ms in force and radial and 50–67 ms in layered (before
+  367–533 ms), as cards and edges are swapped in over several frames.
+- **Met:** every first-frame and 500-node frame budget. **Still above ~50 ms:** one frame of up to 67 ms per threshold
+  crossing in the 2,000-node layered drawing (beyond the 500-node pan/zoom budget).
 
 ## Not measured here
 - HTTP overhead, TLS and Cloudflare latency; resident memory of a long-running server; concurrent load from many
