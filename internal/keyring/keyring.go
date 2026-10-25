@@ -481,16 +481,26 @@ func (kr *Keyring) Rotate(ctx context.Context, s *store.Store, p Purpose) (uint3
 func (kr *Keyring) Retire(ctx context.Context, s *store.Store, p Purpose, version uint32) error {
 	kr.mu.RLock()
 	k, ok := kr.keys[p][version]
+	var id string
+	var state string
+	if ok {
+		id, state = k.id, k.state
+	}
 	kr.mu.RUnlock()
 	if !ok {
 		return fmt.Errorf("%w: %s v%d", ErrUnknownKey, p, version)
 	}
-	if k.state != StateDecryptOnly {
-		return fmt.Errorf("only decrypt-only keys can be retired (%s v%d is %s)", p, version, k.state)
+	if state != StateDecryptOnly {
+		return fmt.Errorf("only decrypt-only keys can be retired (%s v%d is %s)", p, version, state)
 	}
 	return s.W().TxNamed(ctx, "keyring.retire", func(tx *store.Tx) error {
-		if _, err := tx.Exec(ctx, `UPDATE keyring_keys SET state = ?, updated_at = ? WHERE id = ?`, StateRetired, tx.NowMicros(), k.id); err != nil {
+		// The state check is repeated in the database so a concurrent rotation cannot be overtaken.
+		res, err := tx.Exec(ctx, `UPDATE keyring_keys SET state = ?, updated_at = ? WHERE id = ? AND state = ?`, StateRetired, tx.NowMicros(), id, StateDecryptOnly)
+		if err != nil {
 			return err
+		}
+		if n, _ := res.RowsAffected(); n != 1 {
+			return fmt.Errorf("only decrypt-only keys can be retired (%s v%d changed state)", p, version)
 		}
 		tx.AfterCommit(func() {
 			kr.mu.Lock()
