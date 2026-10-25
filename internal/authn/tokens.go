@@ -342,11 +342,10 @@ func (svc *Service) AuthenticateToken(ctx context.Context, raw, ip string) (*Pri
 		p.TokenProjects = slices.Clone(t.Projects)
 	}
 	if p.InstallationRole == "" && (userRole == RoleOwner || userRole == RoleAdmin) && len(t.Projects) > 0 {
-		// Owners/admins may scope tokens to projects they are not explicit members of: grant the capped role there.
+		// Owners/admins have admin in every project, whether or not they are also explicit members (possibly with a
+		// lower role): grant the capped role in every listed project.
 		for _, pid := range t.Projects {
-			if _, ok := p.ProjectRoles[pid]; !ok {
-				p.ProjectRoles[pid] = ProjectAdmin
-			}
+			p.ProjectRoles[pid] = ProjectAdmin
 		}
 	}
 	return p, nil
