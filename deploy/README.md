@@ -33,9 +33,11 @@ and the effective configuration is printed with secrets redacted.
 ## First start
 1. `deed keys init -out /etc/deed/kek` (mode 0400, owned by the service user). Keep an offline copy, or rely on the
    KEK escrow in encrypted backups.
-2. Start the service. Migrations run automatically after a pre-migration snapshot.
-3. `deed admin bootstrap` prints a single-use setup link (30 minutes) that creates the first owner, who must enroll
-   TOTP. Recovery: `deed admin recover -email …` (break-glass, audited, raises a critical finding).
+2. Before the first start, `deed admin bootstrap` prints a single-use setup link (30 minutes) that creates the first
+   owner, who must enroll TOTP. Host-side admin commands take the data-directory lock, so run them while the server
+   is stopped (with compose: `docker compose run --rm --no-deps deed admin bootstrap`).
+3. Start the service. Migrations run automatically after a pre-migration snapshot. Open the link from step 2.
+   Recovery: `deed admin recover -email …` (break-glass, audited, raises a critical finding; server stopped).
 
 ## Upgrades
 Replace the binary or image and restart. Deed refuses to start on a database whose schema is newer than the binary;

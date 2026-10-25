@@ -73,7 +73,8 @@ What is simulated here:
   The Pulse admin adapter is validated only against fixtures shaped by pulsed's admin OpenAPI.
 - **GitHub, HallPass, Porch connectors:** contract fixtures shaped by their published API descriptions; no live
   instances in this run.
-- **OIDC:** not part of this run (covered by `internal/oidc` tests with a test OP); real Porch SSO pending.
+- **OIDC:** not part of this run; covered by `internal/oidc` tests against an in-process test OP; real Porch SSO
+  pending.
 - **OpenSearch, Mimir:** fixture tests only.
 - **Browser UI:** this script exercises the API paths the UI uses for step 12–13; Playwright + axe browser tests are
   part of the web suite.

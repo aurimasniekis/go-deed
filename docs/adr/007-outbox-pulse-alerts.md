@@ -7,15 +7,15 @@
   `pulse.WithTime(created_at)`.
 - Retries: exponential backoff with jitter capped at 5 min; dead-letter after 50 attempts or 24 h; published rows
   retained 7 days; backlog bounded at 100,000 unpublished rows (oldest dead-lettered first, metric + alert).
-- Pulse downtime never blocks commits. Metrics: `deed_outbox_backlog`, `deed_outbox_published_total{result}`,
-  `deed_outbox_oldest_age_seconds`.
+- Pulse downtime never blocks commits. Metrics: `deed_outbox_events{state}`, `deed_outbox_publish_total{result}`,
+  `deed_outbox_oldest_pending_age_seconds`.
 - Payloads never contain secrets (keys checked by `redact.IsSensitiveKey`) and never contain raw spec values of
   custom kinds — only IDs, names, kinds, projects and change summaries.
 
 ## Alerts (Deed-owned)
 Pulse has no application alert API (`_sys.alert.*` is pulsed-internal). Deed therefore owns alerts:
 - Findings (open/closed, severity `critical|warning|info`, class `confirmed|warning|unknown|stale|not_applicable`)
-  feed **alert rules** (by finding type, severity, project, label selector).
+  feed **alert rules** (by finding type, minimum severity, class and project).
 - Lifecycle: `pending` (for `for:` duration) → `firing` → `resolved`; dedup key = rule + finding key; cooldown
   between re-notifications (default 1 h); suppression windows (silences) by matcher and expiry; evidence = the
   finding's evidence JSON and entity links.

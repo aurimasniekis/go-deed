@@ -14,7 +14,7 @@
 - Local login can be disabled installation-wide (`auth.local.enabled: false`); OIDC policy is never weakened by it.
 
 ## OIDC SSO
-- Generic providers configured in YAML (`auth.oidc.providers[]`): issuer, client ID, client secret (file),
+- Generic providers configured in YAML (`auth.oidc` is the list of providers): issuer, client ID, client secret (file),
   scopes, groups claim JSON path (default `porch.groups`), group→role mappings (installation and project roles),
   `required_tenant` (path `porch.tenant.slug`), `require_email_verified`, `jit: false` by default, `allowed_amr`.
 - Authorization code flow with PKCE S256, `state` (server-side row, hashed) + `__Host-deed_oidc` cookie binding,

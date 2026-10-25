@@ -10,7 +10,7 @@ slice; nothing is removed to make completion easier.
 | 1 | Discovery doc + ADRs (§3) | `docs/DISCOVERY.md`, `docs/adr/` | — | same | done |
 | 2 | Versioned resource model, envelope (§4) | `internal/catalog` | `catalog` unit tests | ADR-002, `docs/CUSTOM_KINDS.md` | pending |
 | 3 | Custom kinds with versioned JSON Schemas, evolution rules, limits (§4) | `internal/catalog/kinds.go`, `schema.go` | schema tests, fuzz | `docs/CUSTOM_KINDS.md` | pending |
-| 4 | Custom relationship types, endpoint constraints (§4, §7) | `internal/catalog/reltypes.go` | unit | `docs/CUSTOM_KINDS.md` | pending |
+| 4 | Custom relationship types, endpoint constraints (§4, §7) | `internal/catalog/kinds.go` | unit | `docs/CUSTOM_KINDS.md` | pending |
 | 5 | Layered facts, facets, deterministic merge, provenance (§4) | `internal/catalog/reconcile*.go` | property tests | ADR-003 | pending |
 | 6 | Conflicts surfaced (§4) | `conflicts` table, findings | unit | ADR-003 | pending |
 | 7 | Snapshots, generations, partial imports, removal guard, dry-run (§4) | `internal/ingest` | property + integration | `docs/INGEST_API.md` | pending |
@@ -47,7 +47,7 @@ slice; nothing is removed to make completion easier.
 | 38 | Structured ECS-style logs with redaction (§11) | `internal/obs/log` | redaction tests | same | pending |
 | 39 | Alert lifecycle → Pulse (§11) | `internal/alerts` | unit + nats | ADR-007 | pending |
 | 40 | Sample Grafana dashboards + alert rules (§11) | `deploy/monitoring` | promtool check | same | pending |
-| 41 | Encrypted S3 backups, retention, metrics (§12) | `internal/backup` | MinIO integration | `docs/BACKUP_RESTORE.md` | pending |
+| 41 | Encrypted S3 backups, retention, metrics (§12) | `internal/backup` | MinIO integration | `docs/BACKUP.md` | pending |
 | 42 | Restore command + runbook, failure cases (§12) | `deed restore` | restore tests (wrong key, corrupt, outage, interrupted) | same | pending |
 | 43 | Versions: declared/observed/available, policy, channel, EOL (§13) | `internal/versions` | unit | `docs/FINDINGS.md` | pending |
 | 44 | Findings: certificates, missing targets, stale, drift, failed ingestion, unreachable, invalid schema, missing owner, expected-unseen (§13) | `internal/findings` | unit | same | pending |
@@ -58,6 +58,6 @@ slice; nothing is removed to make completion easier.
 | 49 | Docs set: README, architecture, threat model, API, integration authoring, custom kinds, backup runbook, troubleshooting, CONTRIBUTING, SECURITY (§15) | `docs/` | — | — | pending |
 | 50 | Demo data clearly labelled (§15) | `deed demo seed` | unit | user guide | pending |
 | 51 | End-to-end scenario §18 | `scripts/e2e.sh` | executed | `docs/VALIDATION.md` | pending |
-| 52 | Source providers: github, hallpass, porch, docker agent (ADR-013) | `internal/sources/*`, `cmd/deed-agent` | contract fixtures | `docs/INTEGRATIONS.md` | pending |
+| 52 | Source providers: github, hallpass, porch, docker agent (ADR-013) | `internal/connectors`, `internal/agent`, `cmd/deed-agent` | contract fixtures | `docs/CONNECTORS.md`, `docs/AGENT.md` | pending |
 | 53 | Icon packs + sanitized custom icons (ADR-011b) | `web/scripts/build-icons.mjs`, `internal/icons` | sanitizer tests | `docs/ICONS.md` | pending |
 | 54 | Edge styling system + options drawer + legend (ADR-011c) | `web/src/map/styles` | unit + Playwright | user guide | pending |
