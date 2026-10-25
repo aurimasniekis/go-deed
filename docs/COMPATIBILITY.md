@@ -26,9 +26,9 @@ version or reports an API major version it does not know.
 | OIDC providers | any OpenID Connect Core 1.0 OP with PKCE S256 | Porch is the primary documented provider |
 | S3 | AWS S3, MinIO, Cloudflare R2, Backblaze B2 (S3 API) | backups and Terraform state |
 | Terraform state | state `version: 4`; `terraform show -json` `format_version` 1.x | Terraform 0.12 – 1.x, OpenTofu |
-| Prometheus API | Prometheus 2.x/3.x, Mimir | `X-Scope-OrgID` supported |
+| Prometheus API | Prometheus 2.x/3.x, Mimir | `X-Scope-OrgID` supported; validated against Mimir 3.2.1 (`scripts/validate/telemetry.sh`) |
 | Loki | 2.9+ / 3.x | |
-| OpenSearch | 2.x | |
+| OpenSearch | 2.x, 3.x | validated against 3.8.0 with the security plugin (`scripts/validate/telemetry.sh`) |
 | GitHub REST API | `X-GitHub-Api-Version: 2022-11-28`; github.com and GitHub Enterprise Server (`/api/v3`) | fine-grained read-only token |
 | HallPass | `/api/v1` as described by HallPass `api/openapi.yaml` | auditor `hallpass_at_` token |
 | Porch | `/api/v1` as described by Porch `api/openapi.json`; validated against go-porch `9940962` | tenant `porch_at_` token with `app:manage` + `service_account:manage` (Porch has no read-only permission for them) |
