@@ -5,6 +5,11 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-26
+
+Upgrading from 0.1.0: schema migration 8 (service accounts) runs at start-up; Deed takes a `VACUUM INTO` snapshot of
+the database first, as for every migration.
+
 ### Added
 - **Link** buttons on *Settings → Account & security* to link a single sign-on identity to the signed-in account
   (previously only reachable by URL). A failed link returns to the account page with the reason instead of the
@@ -13,7 +18,7 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
   installation role and project memberships. `/api/v1/service-accounts` (with token issue, list and revoke; an admin
   token may manage them so automation can rotate its own credential), a *Service accounts* section on the Users page,
   service accounts in the project member picker, and the host command `deed admin token` for the first credential
-  (docs/SERVICE_ACCOUNTS.md).
+  ([docs/SERVICE_ACCOUNTS.md](docs/SERVICE_ACCOUNTS.md)).
 
 ### Fixed
 - The findings page crashed ("Cannot read properties of undefined (reading 'length')") when there were no open
@@ -45,5 +50,6 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/aurimasniekis/go-deed/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/aurimasniekis/go-deed/releases/tag/v0.1.0

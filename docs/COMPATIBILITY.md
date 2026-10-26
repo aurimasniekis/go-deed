@@ -8,7 +8,8 @@ provider works with every Deed release at or above its minimum version.
 
 | Provider | Minimum Deed | Tested against (CI pin) | Terraform |
 |---|---|---|---|
-| 0.1.x | 0.1.0 | go-deed `v0.1.0` (`DEED_COMMIT` in the provider `Makefile` and `test.yml`) | ≥ 1.11 (tested with 1.11.4) |
+| 0.2.x | 0.1.0; 0.2.0 for `deed_service_account` and `deed_service_account_token` | go-deed `v0.2.0` (`DEED_COMMIT` in the provider `Makefile` and `test.yml`) |
+| 0.1.x | 0.1.0 | go-deed `v0.1.0` | ≥ 1.11 (tested with 1.11.4) |
 
 Recorded validation pairs: the provider acceptance suite (`make testacc`) and its scenario passed against go-deed
 `569e2db` (provider `5c8537a`) and against go-deed `v0.1.0` (provider `v0.1.0`); the §18 end-to-end run in
