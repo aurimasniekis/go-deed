@@ -5,6 +5,12 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-26
+
+Upgrading from 0.2.0: schema migration 9 (kind map grouping) runs at start-up after the usual pre-migration snapshot;
+the built-in catalog adds the `region`, `label`, `network_device`, `network_client` and `firewall_rule` kinds and the
+`labeled` relationship type.
+
 ### Added
 - Map grouping by kind: kinds can declare a map grouping (`grouping.relationship_types`), and the map overview and
   clustering can group entities under the nearest entity of that kind. Built in: `location` and the new `region` kind
@@ -76,6 +82,7 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/aurimasniekis/go-deed/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/aurimasniekis/go-deed/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/aurimasniekis/go-deed/releases/tag/v0.1.0
