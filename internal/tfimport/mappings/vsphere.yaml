@@ -1,5 +1,15 @@
-# VMware vSphere provider.
+# VMware vSphere provider (vmware/vsphere 2.x). Standalone ESXi hosts are usually only looked up (data "vsphere_host"),
+# so that data source is mapped too: it gives VMs, datastores and virtual switches the host they run on.
 mappings:
+  - resource: data.vsphere_host
+    kind: hypervisor
+    icon: thesvg:vsphere
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/hostname: name
+      /spec/provider: const:vsphere
+    join: [id]
   - resource: vsphere_virtual_machine
     kind: vm
     icon: thesvg:vsphere
@@ -11,3 +21,48 @@ mappings:
       /spec/memory_mb: memory
       /spec/os: guest_id
       /spec/provider: const:vsphere
+    join: [host_system_id, datastore_id]
+    relations:
+      - {type: runs_on, attribute: host_system_id, target_kinds: [hypervisor], target_attribute: id, confidence: 1}
+      - {type: stored_in, attribute: datastore_id, target_kinds: [storage], target_attribute: id, confidence: 1}
+  - resource: vsphere_vmfs_datastore
+    kind: storage
+    icon: thesvg:vsphere
+    name: '{{ default .name .attr.name | slug }}'
+    fields:
+      /spec/type: const:volume
+      /spec/provider: const:vsphere
+      /spec/capacity_mb: capacity
+      /spec/free_mb: free_space
+      /spec/url: url
+    join: [host_system_id, name]
+    relations:
+      - {type: hosted_on, attribute: host_system_id, target_kinds: [hypervisor], target_attribute: id, confidence: 1}
+  - resource: vsphere_host_virtual_switch
+    kind: network_device
+    icon: thesvg:vsphere
+    # Every host has a vSwitch0: the host's ID keeps the names apart.
+    name: '{{ default .name .attr.name | slug }}-{{ default "host" .attr.host_system_id | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/type: const:virtual_switch
+      /spec/provider: const:vsphere
+      /spec/mtu: mtu
+      /spec/ports: number_of_ports
+      /spec/uplinks: network_adapters
+    join: [host_system_id, name]
+    relations:
+      - {type: hosted_on, attribute: host_system_id, target_kinds: [hypervisor], target_attribute: id, confidence: 1}
+  - resource: vsphere_host_port_group
+    kind: network
+    icon: thesvg:vsphere
+    name: '{{ default .name .attr.name | slug }}-{{ default "host" .attr.host_system_id | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/type: const:port_group
+      /spec/provider: const:vsphere
+      /spec/vlan: vlan_id
+      /spec/virtual_switch: virtual_switch_name
+    join: [virtual_switch_name, host_system_id, name]
+    relations:
+      - {type: contains, direction: in, attribute: virtual_switch_name, target_kinds: [network_device], target_attribute: name, confidence: 0.9}

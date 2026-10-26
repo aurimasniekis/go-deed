@@ -57,7 +57,9 @@ curl -s -X POST https://deed.example.com/api/v1/sources \
 
 Anything else fails with ``not a supported Terraform state: expected state version 4 or `terraform show -json`
 format_version 1.x``. Oversized input fails with `state exceeds N bytes`; malformed input with `state is not valid
-JSON`. Only `managed` resources are read: data sources are skipped and outputs are never read.
+JSON`. Managed resources are read; a data source is read only when a mapping names it (`resource: data.<type>`, for
+example a Cloudflare zone or an ESXi host that a configuration only looks up), and unmapped data sources are not
+reported as unsupported. Outputs are never read.
 
 ## Pushing state
 ```sh
@@ -131,21 +133,46 @@ Mappings are embedded from `internal/tfimport/mappings/*.yaml`:
 | | `aws_s3_bucket` | storage | |
 | | `aws_db_instance` | database | |
 | `certificates.yaml` | `acme_certificate`, `tls_self_signed_cert`, `tls_locally_signed_cert` | certificate | |
-| `cloudflare.yaml` | `cloudflare_zone` | dns_zone | |
+| `cloudflare.yaml` | `cloudflare_zone`, `data.cloudflare_zone` | dns_zone | |
 | | `cloudflare_record` (v4), `cloudflare_dns_record` (v5) | dns_record | zone `contains` record (`zone_id` = zone `id`); record `resolves_to` server/vm/hypervisor/docker_host (`/spec/ipv4`, `/spec/ipv6`) |
+| | `cloudflare_ruleset` | firewall_rule | zone `protected_by` ruleset (`zone_id`) |
+| | `cloudflare_r2_bucket` | storage | |
+| | `cloudflare_origin_ca_certificate` | certificate | record `secured_by_certificate` certificate (`hostnames` = record `/spec/fqdn`) |
+| `deed-family.yaml` | `hallpass_server` | hallpass_server | server/vm/hypervisor `protected_by` it (`address` = `/spec/ipv4` or `/spec/hostname`) |
+| | `hallpass_role` | hallpass_role | server `contains` role (`server_id`) |
+| | `porch_application` | porch_app | |
 | `digitalocean.yaml` | `digitalocean_droplet` | vm | |
 | | `digitalocean_domain` | dns_zone | |
 | | `digitalocean_record` | dns_record | domain `contains` record; record `resolves_to` server/vm/docker_host |
 | `docker.yaml` | `docker_container` | container | container `member_of` network (first network name) |
 | | `docker_network` | network | |
+| | `docker_hub_repository` | repository | |
 | `github.yaml` | `github_repository` | repository | |
+| | `github_repository_pages` | application | `deployed_from` repository (`repository` = `name`); DNS record `resolves_to` it (`cname` = `/spec/fqdn`) |
+| `google.yaml` | `googleworkspace_domain` | domain | |
 | `grafana.yaml` | `grafana_dashboard` | grafana_dashboard | |
 | `hetzner.yaml` | `hcloud_server` | vm | |
 | | `hcloud_network` | network | |
 | | `hcloud_volume` | storage | server `stored_in` volume (`server_id` = server `id`) |
 | `proxmox.yaml` | `proxmox_vm_qemu`, `proxmox_virtual_environment_vm` | vm | `runs_on` hypervisor (`target_node` / `node_name` = `/spec/hostname`, confidence 0.9) |
 | | `proxmox_lxc` | container | `runs_on` hypervisor (`target_node`) |
-| `vsphere.yaml` | `vsphere_virtual_machine` | vm | |
+| `unifi.yaml` | `unifi_network`, `unifi_wan` | network | |
+| | `unifi_wlan` | network (`type: wlan`) | `connects_to` its network (`network_id`) |
+| | `unifi_device` | network_device | |
+| | `unifi_client` | network_client | `connects_to` its network (`network_id`) |
+| | `unifi_firewall_policy` | firewall_rule | `references` source and destination networks (`network_ids`) |
+| | `unifi_port_forward` | firewall_rule (`type: port_forward`) | `routes_to` the client/server/vm with the forward IP (`/spec/ipv4`) |
+| | `unifi_vpn_server` | service (`type: vpn`) | |
+| | `unifi_wireguard_peer` | network_client (`type: vpn_peer`) | `connects_to` its VPN server (`network_id`) |
+| `vsphere.yaml` | `data.vsphere_host` | hypervisor | |
+| | `vsphere_virtual_machine` | vm | `runs_on` hypervisor (`host_system_id`); `stored_in` datastore (`datastore_id`) |
+| | `vsphere_vmfs_datastore` | storage | `hosted_on` hypervisor |
+| | `vsphere_host_virtual_switch` | network_device (`type: virtual_switch`) | `hosted_on` hypervisor; `contains` its port groups (`virtual_switch_name`) |
+| | `vsphere_host_port_group` | network (`type: port_group`) | |
+
+Not mapped on purpose: secrets and key material (`onepassword_item`, `tls_private_key`, `random_*`, `gpg_private_key`,
+`*_access_token`, `github_actions_secret`, HallPass login and host keys) and per-setting resources without inventory
+value (`cloudflare_zone_setting`).
 
 Certificate mappings read public metadata only (names, SANs, validity), never key or certificate PEM.
 `GET /api/v1/providers` lists the kinds the provider can produce.

@@ -1,0 +1,42 @@
+# The HallPass and Porch providers (aurimasniekis/hallpass, aurimasniekis/porch): the same kinds their Deed connectors
+# write, so an access gateway or an application declared in Terraform shows up even without the connector.
+mappings:
+  - resource: hallpass_server
+    kind: hallpass_server
+    icon: tabler:door-enter
+    name: '{{ default .name .attr.alias | slug }}'
+    display_name: '{{ default .name .attr.display_name }}'
+    fields:
+      /spec/address: address
+      /spec/port: port
+      /metadata/description: description
+    join: [id, address, alias, display_name]
+    relations:
+      # The machine HallPass gates, matched by address or hostname.
+      - {type: protected_by, direction: in, attribute: address, target_kinds: [server, vm, hypervisor], target_pointer: /spec/ipv4}
+      - {type: protected_by, direction: in, attribute: address, target_kinds: [server, vm, hypervisor], target_pointer: /spec/hostname}
+  - resource: hallpass_role
+    kind: hallpass_role
+    icon: tabler:key
+    name: '{{ default .name .attr.alias | slug }}'
+    display_name: '{{ default .name .attr.display_name }}'
+    fields:
+      /spec/login: remote_user
+      /metadata/description: description
+    join: [server_id, alias, display_name]
+    relations:
+      - {type: contains, direction: in, attribute: server_id, target_kinds: [hallpass_server], target_attribute: id, confidence: 1}
+  - resource: porch_application
+    kind: porch_app
+    icon: tabler:door
+    name: '{{ default .name .attr.slug | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/app_id: id
+      /spec/client_id: client_id
+      /spec/app_type: kind
+      /spec/tenant: tenant
+      /spec/hosts: hosts
+      /spec/url: launch_url
+      /metadata/description: description
+    join: [slug, name]

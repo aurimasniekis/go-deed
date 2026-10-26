@@ -1,0 +1,13 @@
+# Google Workspace provider (samuzad/googleworkspace).
+mappings:
+  - resource: googleworkspace_domain
+    kind: domain
+    icon: simple-icons:google
+    name: '{{ default .name .attr.domain_name | slug }}'
+    display_name: '{{ default .name .attr.domain_name }}'
+    fields:
+      /spec/fqdn: domain_name
+      /spec/verified: verified
+      /spec/primary: is_primary
+      /spec/provider: const:google-workspace
+    join: [domain_name]

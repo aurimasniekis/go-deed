@@ -1,5 +1,19 @@
 # Cloudflare provider v4 (cloudflare_record, cloudflare_zone.zone) and v5 (cloudflare_dns_record, cloudflare_zone.name).
+# Zones that are only looked up (data "cloudflare_zone") are mapped too, so records, rulesets and certificates hang off
+# their zone. cloudflare_zone_setting is deliberately not mapped (one resource per setting; no inventory value).
 mappings:
+  - resource: data.cloudflare_zone
+    kind: dns_zone
+    icon: simple-icons:cloudflare
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/zone: name
+      /spec/zone_id: id
+      /spec/plan: plan.legacy_id|plan.name
+      /spec/status: status
+      /spec/provider: const:cloudflare
+    join: [id, name]
   - resource: cloudflare_zone
     kind: dns_zone
     icon: simple-icons:cloudflare
@@ -47,3 +61,43 @@ mappings:
       - {type: contains, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
       - {type: resolves_to, attribute: content, target_kinds: [server, vm, hypervisor, docker_host], target_pointer: /spec/ipv4}
       - {type: resolves_to, attribute: content, target_kinds: [server, vm, hypervisor, docker_host], target_pointer: /spec/ipv6}
+  - resource: cloudflare_ruleset
+    kind: firewall_rule
+    icon: simple-icons:cloudflare
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/type: const:ruleset
+      /spec/phase: phase
+      /spec/ruleset_kind: kind
+      /spec/provider: const:cloudflare
+      /metadata/description: description
+    join: [zone_id, name]
+    relations:
+      - {type: protected_by, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
+  - resource: cloudflare_r2_bucket
+    kind: storage
+    icon: simple-icons:cloudflare
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/type: const:bucket
+      /spec/bucket: name
+      /spec/provider: const:cloudflare-r2
+      /spec/location: location
+      /spec/jurisdiction: jurisdiction
+      /spec/storage_class: storage_class
+    join: [name]
+
+  - resource: cloudflare_origin_ca_certificate
+    kind: certificate
+    icon: simple-icons:cloudflare
+    name: 'origin-{{ .name | slug }}'
+    fields:
+      /spec/sans: hostnames
+      /spec/common_name: first:hostnames
+      /spec/not_after: expires_on
+      /spec/issuer: const:cloudflare-origin-ca
+    join: [hostnames]
+    relations:
+      - {type: secured_by_certificate, direction: in, attribute: hostnames, target_kinds: [dns_record], target_pointer: /spec/fqdn}

@@ -21,3 +21,14 @@ mappings:
       /spec/cidr: ipam_config.0.subnet
       /spec/gateway: ipam_config.0.gateway
     join: [name]
+  - resource: docker_hub_repository
+    kind: repository
+    icon: simple-icons:docker
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ .attr.namespace }}/{{ .attr.name }}'
+    fields:
+      /spec/namespace: namespace
+      /spec/private: private
+      /spec/provider: const:docker-hub
+      /metadata/description: description
+    join: [name, namespace]

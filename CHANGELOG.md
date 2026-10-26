@@ -14,6 +14,13 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 - Map mask mode (toolbar *Mask* or `m`) for screenshots: names, owners, labels, project and source names are replaced by
   stable aliases, and the inspector hides entity details.
 
+- Terraform import: mappings for vSphere standalone ESXi (`data.vsphere_host`, datastores, virtual switches, port
+  groups; VMs `runs_on` their host and are `stored_in` their datastore), Cloudflare v5 (`data.cloudflare_zone`,
+  rulesets, R2 buckets, origin CA certificates), UniFi (networks, WLANs, devices, clients, firewall policies, port
+  forwards, VPN), GitHub Pages, Docker Hub repositories, Google Workspace domains, HallPass servers and roles, and Porch
+  applications. A mapping may name a data source (`resource: data.<type>`); other data sources stay ignored.
+- Kinds `network_device`, `network_client` and `firewall_rule`.
+
 ### Changed
 - Map: layered layouts place every connected component in its own region instead of interleaving unrelated chains;
   the members of an expanded group are drawn together in a container (packed in a grid when they are not related to

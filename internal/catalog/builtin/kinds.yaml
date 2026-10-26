@@ -275,6 +275,81 @@ kinds:
             gateway:
               type: string
           additionalProperties: true
+  - name: network_device
+    group: network
+    title: Network device
+    plural: Network devices
+    icon: tabler:router
+    description: Router, gateway, switch, access point or virtual switch.
+    identity_keys:
+      - - /spec/mac
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            type:
+              type: string
+              description: gateway, switch, access_point, virtual_switch, firewall or other.
+            model:
+              type: string
+            mac:
+              type: string
+            ipv4:
+              type: string
+            provider:
+              type: string
+          additionalProperties: true
+  - name: network_client
+    group: network
+    title: Network client
+    plural: Network clients
+    icon: tabler:device-desktop
+    description: A device known to the network by its MAC or a reserved address (a machine, an appliance, a phone, a VPN peer).
+    identity_keys:
+      - - /spec/mac
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            mac:
+              type: string
+            ipv4:
+              type: string
+            hostname:
+              type: string
+            type:
+              type: string
+              description: client, vpn_peer or other.
+          additionalProperties: true
+  - name: firewall_rule
+    group: network
+    title: Firewall rule
+    plural: Firewall rules
+    icon: tabler:shield-lock
+    description: A firewall policy, port forward or WAF ruleset, linked to the networks, zones or clients it applies to.
+    identity_keys: []
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            type:
+              type: string
+              description: policy, port_forward, ruleset or other.
+            action:
+              type: string
+            protocol:
+              type: string
+            enabled:
+              type: boolean
+            provider:
+              type: string
+          additionalProperties: true
   - name: domain
     group: network
     title: Domain

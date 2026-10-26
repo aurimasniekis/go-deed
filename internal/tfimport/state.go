@@ -19,8 +19,9 @@ import (
 
 // Resource is one managed resource instance extracted from a state document.
 type Resource struct {
-	Address      string // module.x.type.name[index]
-	Module       string // module.x (empty for root)
+	Address string // module.x.type.name[index] (data sources: module.x.data.type.name[index])
+	Module  string // module.x (empty for root)
+	// Type is the resource type; data sources are prefixed "data." and only imported when a mapping names them.
 	Type         string
 	Name         string
 	Index        string // "" or the index key rendered as a string
@@ -132,19 +133,26 @@ func providerName(p string) string {
 func parseV4(raw *rawV4) *State {
 	st := &State{Format: "state-v4", TerraformVersion: raw.TerraformVersion, Serial: raw.Serial, Lineage: raw.Lineage}
 	for _, r := range raw.Resources {
-		if r.Mode != "managed" {
-			continue // data sources describe lookups, not owned infrastructure
+		typ := r.Type
+		switch r.Mode {
+		case "managed":
+		case "data":
+			// Data sources describe lookups, not owned infrastructure: kept only for mappings that name them explicitly
+			// (a zone or host that is only looked up, never managed, in this state).
+			typ = "data." + r.Type
+		default:
+			continue
 		}
 		for _, in := range r.Instances {
 			idx := indexString(in.IndexKey)
-			addr := r.Type + "." + r.Name
+			addr := typ + "." + r.Name
 			if r.Module != "" {
 				addr = r.Module + "." + addr
 			}
 			if idx != "" {
 				addr += "[" + idx + "]"
 			}
-			res := Resource{Address: addr, Module: r.Module, Type: r.Type, Name: r.Name, Index: idx, Provider: providerName(r.Provider),
+			res := Resource{Address: addr, Module: r.Module, Type: typ, Name: r.Name, Index: idx, Provider: providerName(r.Provider),
 				Attributes: in.Attributes, Dependencies: in.Dependencies}
 			res.Sensitive = parseSensitiveV4(in.SensitiveAttributes)
 			st.Resources = append(st.Resources, res)
@@ -202,13 +210,18 @@ func parseShow(raw *rawV4) (*State, error) {
 	var walk func(m showModule)
 	walk = func(m showModule) {
 		for _, r := range m.Resources {
-			if r.Mode != "managed" {
+			typ := r.Type
+			switch r.Mode {
+			case "managed":
+			case "data":
+				typ = "data." + r.Type
+			default:
 				continue
 			}
 			idx := indexString(r.Index)
 			deps := make([]string, 0, len(r.DependsOn))
 			deps = append(deps, r.DependsOn...)
-			res := Resource{Address: r.Address, Module: m.Address, Type: r.Type, Name: r.Name, Index: idx, Provider: r.ProviderName,
+			res := Resource{Address: r.Address, Module: m.Address, Type: typ, Name: r.Name, Index: idx, Provider: r.ProviderName,
 				Attributes: r.Values, Dependencies: deps}
 			res.Sensitive = sensitiveFromValues(r.SensitiveValues, nil)
 			st.Resources = append(st.Resources, res)

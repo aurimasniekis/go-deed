@@ -1,0 +1,123 @@
+# UniFi provider (ubiquiti-community/unifi 0.5x): networks, WLANs, devices, clients, firewall policies, port forwards
+# and VPN. Never reads passphrases, pre-shared keys or WAN credentials.
+mappings:
+  - resource: unifi_network
+    kind: network
+    icon: simple-icons:ubiquiti
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/cidr: subnet
+      /spec/vlan: vlan
+      /spec/type: purpose
+      /spec/domain: domain_name
+      /spec/provider: const:unifi
+    join: [id, name]
+  - resource: unifi_wan
+    kind: network
+    icon: simple-icons:ubiquiti
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/type: const:wan
+      /spec/vlan: vlan
+      /spec/provider: const:unifi
+    join: [name]
+
+  - resource: unifi_wlan
+    kind: network
+    icon: simple-icons:ubiquiti
+    name: 'wlan-{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }} (Wi-Fi)'
+    fields:
+      /spec/type: const:wlan
+      /spec/ssid: name
+      /spec/security: security
+      /spec/band: wlan_band
+      /spec/guest: is_guest
+      /spec/hidden: hide_ssid
+      /spec/provider: const:unifi
+    join: [network_id, name]
+    relations:
+      - {type: connects_to, attribute: network_id, target_kinds: [network], target_attribute: id, confidence: 1}
+  - resource: unifi_device
+    kind: network_device
+    icon: simple-icons:ubiquiti
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/mac: mac
+      /spec/model: model
+      /spec/type: type
+      /spec/provider: const:unifi
+    join: [name]
+
+  - resource: unifi_client
+    kind: network_client
+    icon: tabler:device-desktop
+    name: '{{ default (default .name .attr.hostname) .attr.name | slug }}'
+    display_name: '{{ default (default .name .attr.hostname) .attr.name }}'
+    fields:
+      /spec/mac: mac
+      /spec/ipv4: fixed_ip|last_ip
+      /spec/hostname: hostname
+      /spec/type: const:client
+      /spec/provider: const:unifi
+      /metadata/description: note
+    join: [network_id, name, hostname]
+    relations:
+      - {type: connects_to, attribute: network_id, target_kinds: [network], target_attribute: id, confidence: 1}
+  - resource: unifi_firewall_policy
+    kind: firewall_rule
+    icon: simple-icons:ubiquiti
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/type: const:policy
+      /spec/action: action
+      /spec/protocol: protocol
+      /spec/enabled: enabled
+      /spec/ip_version: ip_version
+      /spec/provider: const:unifi
+      /metadata/description: description
+    join: [source.network_ids, destination.network_ids, name]
+    relations:
+      - {type: references, attribute: source.network_ids, target_kinds: [network], target_attribute: id, confidence: 1}
+      - {type: references, attribute: destination.network_ids, target_kinds: [network], target_attribute: id, confidence: 1}
+  - resource: unifi_port_forward
+    kind: firewall_rule
+    icon: simple-icons:ubiquiti
+    name: 'forward-{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }} (port forward)'
+    fields:
+      /spec/type: const:port_forward
+      /spec/protocol: protocol
+      /spec/enabled: enabled
+      /spec/forward_port: forward.port
+      /spec/provider: const:unifi
+    join: [forward.ip, name]
+    relations:
+      - {type: routes_to, attribute: forward.ip, target_kinds: [network_client, server, vm], target_pointer: /spec/ipv4}
+  - resource: unifi_vpn_server
+    kind: service
+    icon: simple-icons:ubiquiti
+    name: 'vpn-{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }} (VPN)'
+    fields:
+      /spec/type: const:vpn
+      /spec/subnet: subnet
+      /spec/provider: const:unifi
+    join: [id, name]
+  - resource: unifi_wireguard_peer
+    kind: network_client
+    icon: tabler:lock
+    name: 'peer-{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }} (WireGuard peer)'
+    fields:
+      /spec/type: const:vpn_peer
+      /spec/ipv4: interface_ip
+      /spec/allowed_ips: allowed_ips
+      /spec/provider: const:unifi
+    join: [network_id, name]
+    relations:
+      - {type: connects_to, attribute: network_id, target_kinds: [service, network], target_attribute: id, confidence: 1}

@@ -14,3 +14,16 @@ mappings:
       /spec/archived: archived
       /metadata/description: description
     join: [name]
+  - resource: github_repository_pages
+    kind: application
+    icon: simple-icons:github
+    name: '{{ default .name .attr.repository | slug }}-pages'
+    display_name: '{{ default .name .attr.repository }} (GitHub Pages)'
+    fields:
+      /spec/url: html_url
+      /spec/cname: cname
+      /spec/provider: const:github-pages
+    join: [repository, cname]
+    relations:
+      - {type: deployed_from, attribute: repository, target_kinds: [repository], target_attribute: name, confidence: 1}
+      - {type: resolves_to, direction: in, attribute: cname, target_kinds: [dns_record], target_pointer: /spec/fqdn}

@@ -123,7 +123,8 @@ func (c *Catalog) With(custom []Mapping) (*Catalog, error) {
 	return out, nil
 }
 
-var resourceRE = regexp.MustCompile(`^[a-z0-9_*?]+$`)
+// resourceRE: a resource type or glob, optionally "data." for a data source (mapped only when named explicitly).
+var resourceRE = regexp.MustCompile(`^(data\.)?[a-z0-9_*?]+$`)
 
 func (m *Mapping) validate() error {
 	if !resourceRE.MatchString(m.Resource) {

@@ -157,10 +157,17 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 	if o.Workspace != "" {
 		extPrefix = o.Workspace + ":"
 	}
+	d.Resources = 0
 	for _, res := range st.Resources {
+		data := strings.HasPrefix(res.Type, "data.")
+		if !data {
+			d.Resources++
+		}
 		m, ok := cat.Lookup(res.Type)
 		if !ok {
-			d.Unsupported[res.Type]++
+			if !data { // an unmapped data source is an ordinary lookup, not a gap in the catalog
+				d.Unsupported[res.Type]++
+			}
 			continue
 		}
 		d.Mapped[res.Type]++
