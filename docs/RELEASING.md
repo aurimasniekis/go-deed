@@ -32,6 +32,10 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.3.0** (2026-10-26, `0aeba06`): release run 40396208532 succeeded in every job. Checked before publishing:
+  checksums, SLSA provenance of the linux/amd64 archive and the image, and an upgrade of a v0.2.0 database (demo
+  data and a service account) by the release binary: snapshot, migration 8 → 9, data and token intact, the `region`
+  grouping served.
 - **v0.2.0** (2026-10-26, `1304838`): release run 40377515163 succeeded in every job; images on GHCR and Docker Hub.
   Checked before publishing: checksum and SLSA provenance of the linux/amd64 archive and of the image, and an upgrade
   of a v0.1.0 database (demo data) by the release binary: pre-migration snapshot, migration 7 → 8, data intact,
