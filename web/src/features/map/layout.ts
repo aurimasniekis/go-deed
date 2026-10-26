@@ -5,7 +5,11 @@ import {
   finishLayered,
   GROUP_PADDING,
   LARGE_LAYOUT,
+  arrangeComponents,
+  connectedComponents,
   LayoutCache,
+  packGroups,
+  subRequest,
   type LayoutRequest,
   type LayoutResult,
 } from './layoutTypes'
@@ -37,8 +41,25 @@ function getWorker() {
   return worker
 }
 
+/**
+ * Layered layout: every connected component is laid out on its own and the components are then placed apart, each in
+ * its own region, instead of interleaving unrelated chains in one set of layers.
+ */
 async function layered(req: LayoutRequest): Promise<LayoutResult> {
   const t0 = performance.now()
+  const parts = await Promise.all(
+    connectedComponents(req).map(async (ids) => {
+      const sub = subRequest(req, ids)
+      const only = sub.nodes.length === 1 ? sub.nodes[0] : undefined
+      if (only) return { nodes: sub.nodes, positions: { [only.id]: { x: 0, y: 0 } }, groups: {} }
+      const r = await layeredComponent(sub)
+      return { nodes: sub.nodes, ...finishLayered(sub, r.positions, r.groups) }
+    }),
+  )
+  return { id: req.id, ...arrangeComponents(req, parts), ms: performance.now() - t0 }
+}
+
+async function layeredComponent(req: LayoutRequest): Promise<Pick<LayoutResult, 'positions' | 'groups'>> {
   const big = req.nodes.length > FAST_LAYERED_MIN
   const groupNodes = new Map<string, ElkNode>(
     req.groups.map((g) => [
@@ -52,14 +73,28 @@ async function layered(req: LayoutRequest): Promise<LayoutResult> {
       },
     ]),
   )
+  // Groups without internal relationships are one block each (a grid of their members), not a compound node.
+  const packed = packGroups(req)
+  const blockOf = new Map<string, string>()
   const top: ElkNode[] = []
+  for (const [id, p] of packed) {
+    groupNodes.delete(id)
+    top.push({ id, width: p.width, height: p.height })
+    for (const m of Object.keys(p.cells)) blockOf.set(m, id)
+  }
   for (const n of req.nodes) {
+    if (blockOf.has(n.id)) continue
     const child: ElkNode = { id: n.id, width: n.width, height: n.height }
     const g = n.group ? groupNodes.get(n.group) : undefined
     if (g) g.children?.push(child)
     else top.push(child)
   }
-  const edges: ElkExtendedEdge[] = req.edges.map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] }))
+  const edges: ElkExtendedEdge[] = []
+  for (const e of req.edges) {
+    const source = blockOf.get(e.source) ?? e.source
+    const target = blockOf.get(e.target) ?? e.target
+    if (source !== target) edges.push({ id: e.id, sources: [source], targets: [target] })
+  }
   const graph: ElkNode = {
     id: 'root',
     layoutOptions: {
@@ -87,7 +122,11 @@ async function layered(req: LayoutRequest): Promise<LayoutResult> {
     for (const c of n.children ?? []) {
       const x = ox + (c.x ?? 0)
       const y = oy + (c.y ?? 0)
-      if (groupNodes.has(c.id)) {
+      const block = packed.get(c.id)
+      if (block) {
+        groups[c.id] = { x, y, width: block.width, height: block.height }
+        for (const [m, cell] of Object.entries(block.cells)) positions[m] = { x: x + cell.x, y: y + cell.y }
+      } else if (groupNodes.has(c.id)) {
         groups[c.id] = { x, y, width: c.width ?? 0, height: c.height ?? 0 }
         walk(c, x, y)
       } else {
@@ -96,7 +135,7 @@ async function layered(req: LayoutRequest): Promise<LayoutResult> {
     }
   }
   walk(out, 0, 0)
-  return { id: req.id, ...finishLayered(req, positions, groups), ms: performance.now() - t0 }
+  return { positions, groups }
 }
 
 /**

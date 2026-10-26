@@ -90,6 +90,7 @@ import {
   applyFilters,
   clusterModel,
   enforceBudget,
+  groupExpansions,
   hashString,
   neighbours,
   nextInDirection,
@@ -278,8 +279,15 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const view = useMemo(() => {
     const filtered = applyFilters(data.model, filters)
     const clustered = clusterModel(filtered, clustering, new Set(collapsed), projectName)
-    const budgeted = enforceBudget(clustered.model)
-    const groups = clustered.groups.filter((g) => !g.collapsed && g.members.some((m) => budgeted.nodes.has(m)))
+    // Members of an expanded cluster stay together in a container (collapsing it undoes the expansion).
+    const expanded = groupExpansions(clustered.model)
+    const budgeted = enforceBudget(expanded.model)
+    const groups = [
+      ...clustered.groups,
+      ...expanded.groups.map((g) =>
+        g.expansion?.startsWith('project|') ? { ...g, label: projectName(g.expansion.slice('project|'.length)) } : g,
+      ),
+    ].filter((g) => !g.collapsed && g.members.some((m) => budgeted.nodes.has(m)))
     return { model: budgeted, groups }
   }, [data.model, filters, clustering, collapsed, projectName])
 
@@ -433,12 +441,36 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       setDragSig(signature)
     })
   }, [layout?.sig, signature, dragSig])
+  // Stable (reads the latest search), so group containers are not rebuilt when the URL changes.
+  const searchRef = useRef(search)
+  searchRef.current = search
+  const collapseExpansion = useCallback(
+    (key: string) => {
+      const cur = searchRef.current
+      setSearch(compact({ ...cur, expand: encodeList(decodeList(cur.expand).filter((k) => k !== key)) }), true)
+    },
+    [setSearch],
+  )
+
   const built = useMemo(() => {
     if (layout?.sig !== signature) return { nodes: [] as Node[], edges: [] as Edge[] }
     const hp =
       algorithm === 'layered'
         ? (handlePos[rankdir] ?? { source: Position.Right, target: Position.Left })
         : { source: Position.Right, target: Position.Left }
+    const regionNodes: Node[] = (layout.regions ?? []).map((r, i) => ({
+      id: `region:${i}`,
+      type: 'region',
+      position: { x: r.x, y: r.y },
+      data: {},
+      style: { width: r.width, height: r.height },
+      width: r.width,
+      height: r.height,
+      selectable: false,
+      draggable: false,
+      focusable: false,
+      zIndex: -2,
+    }))
     const groupNodes: Node<GroupNodeData, 'group'>[] = view.groups
       .filter((g) => layout.groups[g.key])
       .map((g) => {
@@ -447,7 +479,12 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           id: `group:${g.key}`,
           type: 'group' as const,
           position: { x: b.x, y: b.y },
-          data: { key: g.key, label: g.label, count: g.members.length },
+          data: {
+            key: g.key,
+            label: g.label,
+            count: g.members.length,
+            ...(g.expansion ? { onCollapse: () => collapseExpansion(g.expansion ?? '') } : {}),
+          },
           style: { width: b.width, height: b.height },
           width: b.width,
           height: b.height,
@@ -523,7 +560,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         zIndex: 0,
       }
     })
-    return { nodes: [...groupNodes, ...nodes] as Node[], edges: edges }
+    return { nodes: [...regionNodes, ...groupNodes, ...nodes] as Node[], edges: edges }
   }, [
     layout,
     signature,
@@ -544,6 +581,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     now,
     sourceColors,
     projectName,
+    collapseExpansion,
   ])
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
@@ -600,7 +638,9 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       if (id) updates.set(id, { id, nodeElement: el, force: true })
     })
     s.updateNodeInternals(updates)
-    portsPending.current = nodesRef.current.filter((n) => n.type !== 'group' && !updates.has(n.id)).map((n) => n.id)
+    portsPending.current = nodesRef.current
+      .filter((n) => n.type !== 'group' && n.type !== 'region' && !updates.has(n.id))
+      .map((n) => n.id)
   }, [detail, flowStore])
   useEffect(() => {
     if (layout?.sig !== signature) return
@@ -653,7 +693,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           drawn: detail.drawn,
           toDetail,
           nodes: all
-            .filter((n) => n.type !== 'group')
+            .filter((n) => n.type !== 'group' && n.type !== 'region')
             .map((n) => ({ id: n.id, x: n.position.x, y: n.position.y, width: n.width ?? 0, height: n.height ?? 0 })),
           edges: built.edges,
           // React Flow mounts only what is in view above 400 nodes (onlyRenderVisibleElements below).
@@ -814,7 +854,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       ev.preventDefault()
       const positions = new Map(
         nodes
-          .filter((n) => n.type !== 'group')
+          .filter((n) => n.type !== 'group' && n.type !== 'region')
           .map((n) => [n.id, { x: n.position.x + (n.width ?? 0) / 2, y: n.position.y + (n.height ?? 0) / 2 }]),
       )
       if (!selected || !positions.has(selected)) {
@@ -1089,7 +1129,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
               Object.fromEntries(
                 rf
                   .getNodes()
-                  .filter((n) => n.type !== 'group')
+                  .filter((n) => n.type !== 'group' && n.type !== 'region')
                   .map((n) => [n.id, { x: Math.round(n.position.x), y: Math.round(n.position.y) }]),
               )
             }
@@ -1259,7 +1299,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                   setMenu({ kind: 'pane', x: ev.clientX, y: ev.clientY })
                 }}
                 onNodeDragStop={(_, n) => {
-                  if (n.type !== 'group') pinPosition(n.id, n.position)
+                  if (n.type !== 'group' && n.type !== 'region') pinPosition(n.id, n.position)
                 }}
               >
                 <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
@@ -1289,7 +1329,9 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                     zoomable
                     ariaLabel="Minimap"
                     nodeColor={(n) =>
-                      n.type === 'group' ? 'transparent' : (n.data as EntityNodeData).kindColor || '#adb5bd'
+                      n.type === 'group' || n.type === 'region'
+                        ? 'transparent'
+                        : (n.data as EntityNodeData).kindColor || '#adb5bd'
                     }
                     nodeStrokeWidth={2}
                     maskColor={scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(240,242,245,0.6)'}

@@ -5,6 +5,8 @@ import {
   applyFilters,
   clusterModel,
   enforceBudget,
+  EXPANSION_GROUP,
+  groupExpansions,
   mergeResults,
   neighbours,
   nextInDirection,
@@ -12,6 +14,7 @@ import {
   topologySignature,
 } from './model'
 import { bundleSources, toMapEdge } from './types'
+import { MAX_ROOTS, neighborhoodOf } from './useMapData'
 
 describe('edge sources', () => {
   const src = (id: string, layer: string, relations?: number) => ({
@@ -134,6 +137,55 @@ describe('graph model', () => {
     expect(m.edges.has('r4')).toBe(true)
     expect(m.nodes.get('a')?.root).toBe(true)
     expect(m.elapsedMs).toBe(4)
+  })
+
+  it('draws the members an expansion brought in together, but not nodes that were already there', () => {
+    const m = mergeResults(
+      base,
+      [
+        {
+          key: 'fan|a|runs_on',
+          result: result([n('x'), n('y'), n('b')], [e('r4', 'x', 'a', 'runs_on'), e('r5', 'y', 'a', 'runs_on')]),
+        },
+      ],
+      ['a'],
+    )
+    expect(m.expanded).toEqual([{ key: 'fan|a|runs_on', label: 'k', members: ['x', 'y'] }])
+    const g = groupExpansions(m)
+    expect(g.groups).toEqual([
+      {
+        key: `${EXPANSION_GROUP}fan|a|runs_on`,
+        label: 'k',
+        members: ['x', 'y'],
+        collapsed: false,
+        expansion: 'fan|a|runs_on',
+      },
+    ])
+    expect(g.model.nodes.get('x')?.group).toBe(`${EXPANSION_GROUP}fan|a|runs_on`)
+    expect(g.model.nodes.get('b')?.group).toBeUndefined()
+    // A clustering group wins, and one member is not worth a container.
+    const clustered = clusterModel(m, 'kind', new Set())
+    expect(groupExpansions(clustered.model).groups).toEqual([])
+    const one = mergeResults(base, [{ key: 'fan|a|runs_on', result: result([n('x')], []) }])
+    expect(groupExpansions(one).groups).toEqual([])
+  })
+
+  it('fetches large neighbourhoods in batches of MAX_ROOTS and merges them', async () => {
+    const roots = Array.from({ length: 2 * MAX_ROOTS + 7 }, (_, i) => `r${i}`)
+    const calls: string[][] = []
+    const merged = await neighborhoodOf(roots, {}, (root) => {
+      calls.push(root)
+      return Promise.resolve(
+        result(
+          [...root.map((id) => n(id, { depth: 0 })), n('shared', { depth: calls.length })],
+          root.map((id) => e(`e-${id}`, id, 'shared')),
+        ),
+      )
+    })
+    expect(calls.map((c) => c.length)).toEqual([MAX_ROOTS, MAX_ROOTS, 7])
+    expect(merged.nodes).toHaveLength(roots.length + 1)
+    expect(merged.nodes.find((x) => x.id === 'shared')?.depth).toBe(1)
+    expect(merged.edges).toHaveLength(roots.length)
   })
 
   it('keeps the smallest depth when a node arrives twice', () => {

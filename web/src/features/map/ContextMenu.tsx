@@ -88,8 +88,9 @@ export function MapContextMenu({
       // The focus trap focuses the first action instead of an empty placeholder, which an ARIA menu may not contain.
       withInitialFocusPlaceholder={false}
       // Mantine also closes a menu on keydown outside it, which would close a menu opened with Shift+F10 at once;
-      // focus is trapped in the open menu, so keys reach it anyway.
-      clickOutsideEvents={['mousedown', 'touchstart']}
+      // focus is trapped in the open menu, so keys reach it anyway. pointerdown, not mousedown: the map's pan/zoom and
+      // node drag handlers (d3) stop mousedown from propagating, so a click on the canvas never reached the document.
+      clickOutsideEvents={['pointerdown']}
       returnFocus
     >
       <Menu.Target>

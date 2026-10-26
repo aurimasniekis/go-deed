@@ -273,12 +273,19 @@ func TestBundleSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The only VM is shown as itself, not as a group of one.
+	vm := ""
+	for _, n := range over.Nodes {
+		if n.Kind == "vm" {
+			vm = n.ID
+		}
+	}
 	var contains, runsOn *graph.Edge
 	for i, ed := range over.Edges {
 		switch {
 		case ed.Type == "contains":
 			contains = &over.Edges[i]
-		case ed.Type == "runs_on" && ed.From == "group:kind:vm":
+		case ed.Type == "runs_on" && ed.From == vm:
 			runsOn = &over.Edges[i]
 		}
 	}

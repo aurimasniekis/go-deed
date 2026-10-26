@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { foldLeaves, LayoutCache, leafRings, sectorLayout, wrapLayers } from './layoutTypes'
+import {
+  arrangeComponents,
+  connectedComponents,
+  foldLeaves,
+  GROUP_PADDING,
+  LayoutCache,
+  leafRings,
+  packGroups,
+  sectorLayout,
+  wrapLayers,
+  type Box,
+} from './layoutTypes'
 
 const size = { width: 100, height: 40 }
 
@@ -100,5 +111,80 @@ describe('LayoutCache', () => {
     expect(c.get('a')).toBe(1)
     expect(c.get('c')).toBe(3)
     expect(c.size).toBe(2)
+  })
+})
+
+describe('component regions and packed groups', () => {
+  const node = (id: string, group?: string) => ({ id, width: 100, height: 40, ...(group ? { group } : {}) })
+  const edge = (source: string, target: string) => ({ id: `${source}>${target}`, source, target })
+
+  it('splits the drawing into connected components, largest first; a visual group is connected', () => {
+    const comps = connectedComponents({
+      nodes: [node('a'), node('b'), node('c'), node('d', 'g'), node('e', 'g'), node('f')],
+      edges: [edge('a', 'b'), edge('b', 'c')],
+    })
+    expect(comps).toEqual([['a', 'b', 'c'], ['d', 'e'], ['f']])
+  })
+
+  it('packs a group without internal relationships into a grid inside one block', () => {
+    const members = Array.from({ length: 10 }, (_, i) => node(`m${i}`, 'g'))
+    const packed = packGroups({
+      nodes: [...members, node('x')],
+      edges: [edge('x', 'm0')],
+      groups: [{ id: 'g', label: 'g' }],
+      pinned: {},
+    })
+    const g = packed.get('g')
+    expect(g).toBeDefined()
+    const cells = Object.values(g?.cells ?? {})
+    expect(cells).toHaveLength(10)
+    // Several columns, nothing overlapping, everything below the header and inside the block.
+    expect(new Set(cells.map((c) => c.x)).size).toBeGreaterThan(1)
+    expect(new Set(cells.map((c) => `${c.x},${c.y}`)).size).toBe(10)
+    for (const c of cells) {
+      expect(c.y).toBeGreaterThanOrEqual(GROUP_PADDING.top)
+      expect(c.x + 100).toBeLessThanOrEqual((g?.width ?? 0) - GROUP_PADDING.side)
+      expect(c.y + 40).toBeLessThanOrEqual((g?.height ?? 0) - GROUP_PADDING.bottom)
+    }
+    // A group with a relationship inside stays a compound node; a pinned member keeps the group unpacked too.
+    expect(
+      packGroups({ nodes: members, edges: [edge('m0', 'm1')], groups: [{ id: 'g', label: 'g' }], pinned: {} }).size,
+    ).toBe(0)
+    expect(
+      packGroups({ nodes: members, edges: [], groups: [{ id: 'g', label: 'g' }], pinned: { m3: { x: 0, y: 0 } } }).size,
+    ).toBe(0)
+  })
+
+  it('places components apart, each multi-node component in its own region, and applies pins last', () => {
+    type Part = Parameters<typeof arrangeComponents>[1][number]
+    const parts: Part[] = [
+      { nodes: [node('a'), node('b')], positions: { a: { x: 0, y: 0 }, b: { x: 200, y: 0 } }, groups: {} },
+      { nodes: [node('c'), node('d')], positions: { c: { x: 0, y: 0 }, d: { x: 0, y: 100 } }, groups: {} },
+      { nodes: [node('e')], positions: { e: { x: 0, y: 0 } }, groups: {} },
+    ]
+    const r = arrangeComponents(
+      { nodes: parts.flatMap((p) => p.nodes), groups: [], pinned: { e: { x: -500, y: -500 } } },
+      parts,
+    )
+    expect(r.regions).toHaveLength(2)
+    const [ra, rb] = r.regions ?? []
+    const overlap = (p: Box, q: Box) =>
+      p.x < q.x + q.width && q.x < p.x + p.width && p.y < q.y + q.height && q.y < p.y + p.height
+    expect(ra && rb && overlap(ra, rb)).toBe(false)
+    // Every node sits inside its region.
+    for (const [id, region] of [
+      ['a', ra],
+      ['b', ra],
+      ['c', rb],
+      ['d', rb],
+    ] as const) {
+      const p = r.positions[id]
+      expect(p && region && p.x >= region.x && p.x + 100 <= region.x + region.width).toBe(true)
+    }
+    expect(r.positions.e).toEqual({ x: -500, y: -500 })
+    // One component: no region.
+    expect(
+      arrangeComponents({ nodes: parts[0]?.nodes ?? [], groups: [], pinned: {} }, parts.slice(0, 1)).regions,
+    ).toEqual([])
   })
 })

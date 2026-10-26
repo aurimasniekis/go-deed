@@ -24,6 +24,8 @@ export interface GroupNodeData extends Record<string, unknown> {
   key: string
   label: string
   count: number
+  /** Container of an expanded cluster: collapsing undoes the expansion instead of hiding a clustering group. */
+  onCollapse?: () => void
 }
 
 export type EntityFlowNode = Node<EntityNodeData, 'entity'>
@@ -218,14 +220,15 @@ export const GroupNode = memo(function GroupNode({ data }: NodeProps<GroupFlowNo
   return (
     <div className="deed-group" data-testid="map-group">
       <Group gap={4} px={8} py={4} wrap="nowrap" className="deed-group-header">
-        <Tooltip label="Collapse this group into one node">
+        <Tooltip label={data.onCollapse ? 'Collapse back into one node' : 'Collapse this group into one node'}>
           <ActionIcon
             size="xs"
             className="nodrag"
             aria-label={`Collapse group ${data.label}`}
             onClick={(e) => {
               e.stopPropagation()
-              toggleCollapsed(data.key)
+              if (data.onCollapse) data.onCollapse()
+              else toggleCollapsed(data.key)
             }}
           >
             <IconChevronDown size={12} />
@@ -242,4 +245,9 @@ export const GroupNode = memo(function GroupNode({ data }: NodeProps<GroupFlowNo
   )
 })
 
-export const nodeTypes = { entity: EntityNode, cluster: ClusterNode, group: GroupNode }
+/** Background of one connected component when the layout places several apart. */
+export const RegionNode = memo(function RegionNode() {
+  return <div className="deed-region" aria-hidden />
+})
+
+export const nodeTypes = { entity: EntityNode, cluster: ClusterNode, group: GroupNode, region: RegionNode }

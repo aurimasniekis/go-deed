@@ -145,8 +145,14 @@ relationship, inspect it or go to either end; on the canvas, fit the view or go 
 Modes: **overview** (projects/kinds aggregated into group nodes), **neighbourhood** (focus entity + depth),
 **path** (between two entities) and **impact** (downstream of the focus). The server enforces depth and node caps
 (`max_nodes` ≤ 2,000) and aggregates into cluster nodes beyond its threshold, so the client never renders more than
-the ADR-011 budget.
+the ADR-011 budget. In the overview a group of a single entity is shown as that entity (there is nothing to expand).
 
+- Expanding a cluster or overview group draws its members together in a container labelled after the group; its
+  collapse button (or *Collapse … expansion* in the status bar) folds them back into one node. Members without
+  relationships among themselves are packed in a grid instead of one tall column, and expansions of any size work
+  (the member neighbourhood is fetched in batches of 50 roots, the API's limit per request).
+- Layered layouts place every connected component apart, each on its own faint background region, instead of
+  interleaving unrelated chains in one set of layers.
 - Click selects and opens the inspector; double-click or `Enter` expands a node or cluster in place; the arrow keys
   move the selection to the nearest neighbour in that direction, so the map is fully keyboard-operable.
 - Layouts: ELK layered (direction configurable), force (d3-force) and radial around the focus, all computed in Web

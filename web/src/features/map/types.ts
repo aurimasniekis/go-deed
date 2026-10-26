@@ -57,12 +57,21 @@ export interface MapEdge {
   primarySource?: string | undefined
 }
 
+/** The members an expanded cluster brought onto the map, drawn together in one container. */
+export interface ExpandedGroup {
+  /** The expanded cluster key (`kind|service`, `fan|…`). */
+  key: string
+  label: string
+  members: string[]
+}
+
 export interface GraphModel {
   nodes: Map<string, MapNode>
   edges: Map<string, MapEdge>
   notes: string[]
   truncated: boolean
   elapsedMs: number
+  expanded?: ExpandedGroup[]
 }
 
 export function emptyModel(): GraphModel {

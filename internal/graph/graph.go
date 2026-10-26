@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -865,6 +866,57 @@ func (e *Engine) Impact(ctx context.Context, scope Scope, root, direction string
 	return res, nil
 }
 
+// overviewSingles replaces every cluster node of exactly one entity by that entity's node and returns the map from the
+// cluster node ID to the entity ID.
+func (e *Engine) overviewSingles(ctx context.Context, scope Scope, nodes []Node, col, where string, args []any) (map[string]string, error) {
+	byValue := map[string]int{}
+	var values []any
+	for i, n := range nodes {
+		if n.Cluster != nil && n.Cluster.Count == 1 {
+			byValue[n.Cluster.Value] = i
+			values = append(values, n.Cluster.Value)
+		}
+	}
+	out := map[string]string{}
+	if len(values) == 0 {
+		return out, nil
+	}
+	ids := map[string]int{} // entity ID → node index
+	for start := 0; start < len(values); start += chunk {
+		part := values[start:min(start+chunk, len(values))]
+		rows, err := e.Store.R().QueryContext(ctx, `SELECT e.id, `+col+` FROM entities e WHERE e.tombstoned_at IS NULL AND `+col+` IN (`+
+			placeholders(len(part))+`)`+where, append(slices.Clone(part), args...)...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var id, v string
+			if err := rows.Scan(&id, &v); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			ids[id] = byValue[v]
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	loaded, err := e.loadNodes(ctx, scope, slices.Collect(maps.Keys(ids)))
+	if err != nil {
+		return nil, err
+	}
+	for id, i := range ids {
+		n, ok := loaded[id]
+		if !ok {
+			continue
+		}
+		out[nodes[i].ID] = n.ID
+		nodes[i] = *n
+	}
+	return out, nil
+}
+
 // Overview aggregates the readable catalog into cluster nodes grouped by project, kind, environment or owner, with
 // bundled edges between groups — the entry view of the global map. withSources also aggregates the asserting sources of
 // each bundle, which costs a second pass over the catalog's assertions (the map asks for it in colour-by-source mode).
@@ -924,6 +976,11 @@ func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, g
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	// A group of one is not worth a cluster: show the entity itself, and point that group's bundles at it.
+	single, err := e.overviewSingles(ctx, scope, res.Nodes, col, where, args)
+	if err != nil {
+		return nil, err
+	}
 	ecol := strings.ReplaceAll(col, "e.", "fe.")
 	tcol := strings.ReplaceAll(col, "e.", "te.")
 	ewhere := strings.ReplaceAll(where, "e.project_id", "fe.project_id")
@@ -950,7 +1007,9 @@ func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, g
 			ev = "declared"
 		}
 		from, to := "group:"+groupBy+":"+a, "group:"+groupBy+":"+b
-		res.Edges = append(res.Edges, Edge{ID: "bundle:" + shortHash(from+to+typ), Type: typ, From: from, To: to, EvidenceClass: ev, Count: n})
+		id := "bundle:" + shortHash(from+to+typ)
+		from, to = cmp.Or(single[from], from), cmp.Or(single[to], to)
+		res.Edges = append(res.Edges, Edge{ID: id, Type: typ, From: from, To: to, EvidenceClass: ev, Count: n})
 		keys = append(keys, a+"\x00"+b+"\x00"+typ)
 	}
 	if err := rows.Err(); err != nil {

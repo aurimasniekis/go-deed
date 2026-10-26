@@ -3,6 +3,7 @@ package graph_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/aurimasniekis/go-deed/internal/catalog"
@@ -116,6 +117,29 @@ func TestOverview(t *testing.T) {
 	}
 	if len(res.Nodes) != 7 || len(res.Edges) == 0 {
 		t.Fatalf("overview %+v", res)
+	}
+	// A group of one entity is that entity (nothing to expand), and bundles point at it.
+	ids := map[string]bool{}
+	singles := 0
+	for _, n := range res.Nodes {
+		ids[n.ID] = true
+		if n.Cluster != nil && n.Cluster.Count < 2 {
+			t.Errorf("single-member cluster %+v", n)
+		}
+		if n.Cluster == nil {
+			singles++
+			if !strings.HasPrefix(n.ID, "ent_") || n.Kind == "cluster" {
+				t.Errorf("single group not shown as its entity: %+v", n)
+			}
+		}
+	}
+	if singles == 0 {
+		t.Fatal("fixture has no single-entity kind")
+	}
+	for _, ed := range res.Edges {
+		if !ids[ed.From] || !ids[ed.To] {
+			t.Errorf("bundle %s %s → %s has an endpoint that is not a node", ed.ID, ed.From, ed.To)
+		}
 	}
 	// Overview group keys expand into their members and the relationships among them.
 	var key string

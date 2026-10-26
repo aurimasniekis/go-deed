@@ -45,7 +45,21 @@ export function mergeResults(
     model.elapsedMs += r.elapsed_ms
   }
   add(base)
-  for (const x of expansions) add(x.result)
+  const clusters = new Map(
+    [...(base.nodes as GraphResult['nodes'])].filter((n) => n.cluster).map((n) => [n.cluster?.key ?? '', n]),
+  )
+  model.expanded = []
+  for (const x of expansions) {
+    const before = new Set(model.nodes.keys())
+    add(x.result)
+    if (x.key === null) continue
+    // What the expansion brought onto the map (not what was already there) belongs to the cluster it replaced.
+    const members = x.result.nodes.filter((n) => !n.cluster && !before.has(n.id)).map((n) => n.id)
+    const c = clusters.get(x.key)
+    const by = c?.cluster?.group_by ?? ''
+    const label = !c ? x.key : ['project', 'environment', 'owner'].includes(by) ? `${by}: ${c.name}` : c.name
+    model.expanded.push({ key: x.key, label, members: [...new Set(members)] })
+  }
   for (const [id, e] of model.edges) {
     if (!model.nodes.has(e.from) || !model.nodes.has(e.to)) model.edges.delete(id)
   }
@@ -119,6 +133,34 @@ export interface VisualGroup {
   label: string
   members: string[]
   collapsed: boolean
+  /** Set for the container of an expanded cluster: collapsing it undoes the expansion. */
+  expansion?: string
+}
+
+/** Key prefix of the containers drawn around expanded clusters. */
+export const EXPANSION_GROUP = 'exp:'
+
+/**
+ * Draws the members of every expanded cluster together: nodes not already in a clustering group join a container for
+ * their expansion (two members at least, like clustering groups).
+ */
+export function groupExpansions(model: GraphModel): { model: GraphModel; groups: VisualGroup[] } {
+  const groups: VisualGroup[] = []
+  const nodes = new Map(model.nodes)
+  for (const x of model.expanded ?? []) {
+    const members = x.members.filter((id) => {
+      const n = nodes.get(id)
+      return n && !n.group && !n.cluster
+    })
+    if (members.length < 2) continue
+    const key = EXPANSION_GROUP + x.key
+    for (const id of members) {
+      const n = nodes.get(id)
+      if (n) nodes.set(id, { ...n, group: key })
+    }
+    groups.push({ key, label: x.label, members, collapsed: false, expansion: x.key })
+  }
+  return { model: { ...model, nodes }, groups }
 }
 
 const HOST_TYPES = new Set(['runs_on', 'hosted_on'])

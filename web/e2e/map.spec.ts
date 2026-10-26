@@ -158,7 +158,26 @@ test('map context menu: right-click quick actions', async ({ page }) => {
     .locator('.react-flow__pane')
     .click({ button: 'right', position: { x: 30, y: 30 } })
   await expect(menu.getByRole('menuitem', { name: 'Fit view' })).toBeVisible()
-  await page.keyboard.press('Escape')
+  // Clicking away closes it: on the canvas (whose pan handler swallows mousedown) and on a node.
+  await page
+    .getByTestId('map-canvas')
+    .locator('.react-flow__pane')
+    .click({ position: { x: 60, y: 200 } })
+  await expect(menu).toBeHidden()
+  await page.locator(`[data-entity-id="${billing}"]`).click({ button: 'right' })
+  await expect(menu).toBeVisible()
+  // A node the open menu does not cover.
+  const mb = await menu.boundingBox()
+  const others = page.locator(`[data-entity-id]:not([data-entity-id="${billing}"])`)
+  let target = -1
+  for (let i = 0; i < (await others.count()) && target < 0; i++) {
+    const b = await others.nth(i).boundingBox()
+    if (b && mb && (b.x + b.width < mb.x || b.x > mb.x + mb.width || b.y + b.height < mb.y || b.y > mb.y + mb.height))
+      target = i
+  }
+  expect(target).toBeGreaterThanOrEqual(0)
+  await others.nth(target).click()
+  await expect(menu).toBeHidden()
 
   // From the keyboard on the selected node, then "Open details" goes to the entity page.
   await page.locator(`[data-entity-id="${billing}"]`).click()
@@ -167,4 +186,55 @@ test('map context menu: right-click quick actions', async ({ page }) => {
   await expect(menu).toContainText('Billing API')
   await menu.getByRole('menuitem', { name: 'Open details' }).click()
   await expect(page).toHaveURL(new RegExp(`/entities/${billing}`))
+})
+
+test('map: a large overview group expands, with its members drawn together; a group of one is the entity', async ({
+  page,
+}) => {
+  await page.goto('/map?group=kind')
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  // 60 members: more than one /graph/neighborhood request may carry (50 roots), which used to fail with a 422.
+  const created = await page.evaluate(async () => {
+    const me = (await (await fetch('/api/v1/me')).json()) as { csrf_token: string }
+    const post = (path: string, body: unknown) =>
+      fetch(`/api/v1${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Deed-CSRF': me.csrf_token },
+        body: JSON.stringify(body),
+      })
+    await post('/projects', { name: 'e2e-bulk', synthetic: true })
+    let ok = 0
+    for (let i = 0; i < 60; i++) {
+      const r = await post('/entities', {
+        project: 'e2e-bulk',
+        kind: 'nats_consumer',
+        name: `bulk-${i}`,
+        source: 'api',
+      })
+      if (r.ok) ok++
+    }
+    // One entity of a kind nothing else uses: shown as itself, not as a group of one.
+    await post('/entities', { project: 'e2e-bulk', kind: 'ha_integration', name: 'only-site', source: 'api' })
+    return ok
+  })
+  expect(created).toBe(60)
+  await page.reload()
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await expect(page.locator('[data-cluster-key="kind|ha_integration"]')).toHaveCount(0)
+  await expect(page.locator('.react-flow__node').filter({ hasText: 'only-site' })).toBeVisible()
+
+  const problems: string[] = []
+  page.on('response', (r) => {
+    if (r.url().includes('/api/v1/graph/') && r.status() >= 400) problems.push(`${r.status()} ${r.url()}`)
+  })
+  await page.locator('[data-cluster-key="kind|nats_consumer"]').click()
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 30_000 })
+  const group = page.getByTestId('map-group').filter({ hasText: 'nats_consumer' })
+  await expect(group).toBeVisible()
+  await expect(group).toContainText('60')
+  expect(problems).toEqual([])
+  // Collapsing the container undoes the expansion.
+  await group.getByRole('button', { name: /Collapse group/ }).click()
+  await expect(page).not.toHaveURL(/expand=/)
+  await expect(page.locator('[data-cluster-key="kind|nats_consumer"]')).toBeVisible()
 })

@@ -28,6 +28,45 @@ export type MapMode = 'overview' | 'neighborhood' | 'path' | 'impact'
 
 const GROUP_FILTERS = ['kind', 'environment', 'owner', 'project'] as const
 
+/** GET /graph/neighborhood accepts at most this many roots per request. */
+export const MAX_ROOTS = 50
+
+/**
+ * The depth-1 neighbourhood of many entities: one request per MAX_ROOTS roots (a few at a time), merged. A node that
+ * arrives twice keeps its smallest depth.
+ */
+export async function neighborhoodOf(
+  roots: string[],
+  filters: { type?: string[]; evidence?: Evidence[] },
+  fetchHood: (root: string[]) => Promise<GraphResult> = async (root) =>
+    unwrap(
+      await api.GET('/graph/neighborhood', {
+        params: { query: { root, depth: 1, direction: 'both', max_nodes: 2000, include_stale: true, ...filters } },
+      }),
+    ),
+): Promise<GraphResult> {
+  const batches: string[][] = []
+  for (let i = 0; i < roots.length; i += MAX_ROOTS) batches.push(roots.slice(i, i + MAX_ROOTS))
+  const results: GraphResult[] = []
+  for (let i = 0; i < batches.length; i += 4) {
+    results.push(...(await Promise.all(batches.slice(i, i + 4).map(fetchHood))))
+  }
+  const nodes = new Map<string, GraphResult['nodes'][number]>()
+  const edges = new Map<string, GraphResult['edges'][number]>()
+  const out: GraphResult = { nodes: [], edges: [], notes: [], truncated: false, elapsed_ms: 0 }
+  for (const r of results) {
+    for (const n of r.nodes) {
+      const cur = nodes.get(n.id)
+      nodes.set(n.id, cur && cur.depth <= n.depth ? cur : n)
+    }
+    for (const e of r.edges) edges.set(e.id, e)
+    out.notes.push(...r.notes)
+    out.truncated ||= r.truncated
+    out.elapsed_ms = Math.max(out.elapsed_ms, r.elapsed_ms)
+  }
+  return { ...out, nodes: [...nodes.values()], edges: [...edges.values()], notes: [...new Set(out.notes)] }
+}
+
 /**
  * Expands an overview group (`kind|service`, `environment|prod`, …). /graph/expand only accepts fan-cluster keys, so
  * the members come from GET /entities and their relationships from a depth-1 neighbourhood; relationships to entities
@@ -60,21 +99,10 @@ export async function expandOverviewGroup(
   )
   const members = new Set(page.items.map((e) => e.metadata.id))
   if (members.size === 0) return empty
-  const hood = unwrap(
-    await api.GET('/graph/neighborhood', {
-      params: {
-        query: {
-          root: [...members].slice(0, 300),
-          depth: 1,
-          direction: 'both',
-          max_nodes: 2000,
-          include_stale: true,
-          ...(types.length ? { type: types } : {}),
-          ...(evidence.length ? { evidence } : {}),
-        },
-      },
-    }),
-  )
+  const hood = await neighborhoodOf([...members], {
+    ...(types.length ? { type: types } : {}),
+    ...(evidence.length ? { evidence } : {}),
+  })
   const groupOf = (n: GraphResult['nodes'][number]): string => {
     switch (groupBy) {
       case 'kind':

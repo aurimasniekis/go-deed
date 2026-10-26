@@ -5,6 +5,16 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Changed
+- Map: layered layouts place every connected component in its own region instead of interleaving unrelated chains;
+  the members of an expanded group are drawn together in a container (packed in a grid when they are not related to
+  each other) that collapses back into the group; an overview group of a single entity is shown as the entity.
+
+### Fixed
+- Map: expanding an overview group of more than 50 entities failed with "expected array length <= 50" (the member
+  neighbourhood is now fetched in batches).
+- Map: the right-click menu did not close when clicking elsewhere on the map.
+
 ## [0.2.0] - 2026-10-26
 
 Upgrading from 0.1.0: schema migration 8 (service accounts) runs at start-up; Deed takes a `VACUUM INTO` snapshot of
