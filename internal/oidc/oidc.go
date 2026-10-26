@@ -282,6 +282,9 @@ type CallbackInput struct {
 type CallbackResult struct {
 	SessionToken string // new session cookie (login, reauth)
 	ReturnTo     string
+	// Purpose is set alongside a failed link, so the signed-in user returns to ReturnTo with the error instead of the
+	// sign-in page.
+	Purpose string
 }
 
 // Claims are the validated identity claims Deed uses.
@@ -299,7 +302,11 @@ type Claims struct {
 
 // Callback completes the flow.
 func (s *Service) Callback(ctx context.Context, in CallbackInput) (res *CallbackResult, err error) {
+	var purpose, returnTo string
 	defer func() {
+		if err != nil && purpose == PurposeLink {
+			res = &CallbackResult{ReturnTo: returnTo, Purpose: purpose}
+		}
 		switch {
 		case err == nil:
 			s.Metrics.Login("oidc", "success")
@@ -321,7 +328,7 @@ func (s *Service) Callback(ctx context.Context, in CallbackInput) (res *Callback
 		return nil, err
 	}
 	var enc []byte
-	var purpose, returnTo, slug string
+	var slug string
 	var exp int64
 	err = s.Store.W().TxNamed(ctx, "oidc.take_state", func(tx *store.Tx) error {
 		err := tx.QueryRow(ctx, `SELECT secrets_enc, purpose, return_to, provider_slug, expires_at FROM oidc_states WHERE state_mac = ?`, mac).

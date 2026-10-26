@@ -5,6 +5,11 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Added
+- **Link** buttons on *Settings → Account & security* to link a single sign-on identity to the signed-in account
+  (previously only reachable by URL). A failed link returns to the account page with the reason instead of the
+  sign-in page.
+
 ## [0.1.0] - 2026-10-26
 
 First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.md) and the [threat model](docs/THREAT_MODEL.md).

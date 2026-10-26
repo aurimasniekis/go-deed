@@ -21,6 +21,8 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 
+	"github.com/aurimasniekis/go-deed/internal/apperr"
+	"github.com/aurimasniekis/go-deed/internal/audit"
 	"github.com/aurimasniekis/go-deed/internal/authn"
 	"github.com/aurimasniekis/go-deed/internal/config"
 	"github.com/aurimasniekis/go-deed/internal/oidc"
@@ -321,5 +323,53 @@ func TestUngrantedScopesAreLogged(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "did not grant") {
 		t.Fatalf("warning with every scope granted: %s", buf.String())
+	}
+}
+
+func TestLinkIdentity(t *testing.T) {
+	// No JIT: the identity can only reach an account by being linked to it.
+	r := newRig(t, config.OIDCProvider{})
+	ctx := context.Background()
+	alice, err := r.svc.Authn.CreateUser(ctx, audit.System, authn.CreateUserInput{Email: "alice@example.com", DisplayName: "Alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bob, err := r.svc.Authn.CreateUser(ctx, audit.System, authn.CreateUserInput{Email: "bob@example.com", DisplayName: "Bob"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := func(userID string) (*oidc.CallbackResult, error) {
+		t.Helper()
+		cur := &authn.Principal{UserID: userID}
+		start, err := r.svc.Start(ctx, "porch", oidc.PurposeLink, "/settings/account", cur)
+		if err != nil {
+			t.Fatal(err)
+		}
+		code, state := r.op.authorize(t, start.RedirectURL)
+		return r.svc.Callback(ctx, oidc.CallbackInput{Slug: "porch", Code: code, State: state, Iss: r.op.URL, Binding: start.Cookie.Value, Current: cur})
+	}
+	if _, err := r.svc.Start(ctx, "porch", oidc.PurposeLink, "/", nil); !errors.Is(err, authn.ErrUnauthorized) {
+		t.Fatalf("link without a session: %v", err)
+	}
+	if res, err := link(alice.ID); err != nil || res.SessionToken != "" || res.ReturnTo != "/settings/account" {
+		t.Fatalf("link: %+v, %v", res, err)
+	}
+	ids, err := r.svc.Identities(ctx, alice.ID)
+	if err != nil || len(ids) != 1 || ids[0].Provider != "porch" {
+		t.Fatalf("identities after link: %+v, %v", ids, err)
+	}
+	// Signing in with the linked identity reaches Alice's account.
+	res, err := r.login(t, nil)
+	if err != nil {
+		t.Fatalf("login with the linked identity: %v", err)
+	}
+	p, err := r.svc.Authn.Authenticate(ctx, res.SessionToken)
+	if err != nil || p.UserID != alice.ID {
+		t.Fatalf("session after SSO login: %+v, %v", p, err)
+	}
+	// The same identity cannot be linked to a second account; the failure carries where to send the signed-in user.
+	res, err = link(bob.ID)
+	if apperr.CodeOf(err) != apperr.CodeConflict || res == nil || res.Purpose != oidc.PurposeLink || res.ReturnTo != "/settings/account" {
+		t.Fatalf("second link: %+v, %v", res, err)
 	}
 }

@@ -4,8 +4,9 @@ import { safeNextPath } from '@/lib/redirect'
  * Browser navigation into the OIDC flow (GET /auth/oidc/{slug}/start, outside /api): a full page load, because the
  * provider round trip sets and checks a binding cookie. Errors come back as /login?error=<code>.
  */
-export function oidcStartUrl(slug: string, returnTo?: string): string {
+export function oidcStartUrl(slug: string, returnTo?: string, purpose?: 'link'): string {
   const params = new URLSearchParams()
+  if (purpose) params.set('purpose', purpose)
   if (returnTo !== undefined) params.set('return_to', safeNextPath(returnTo))
   const qs = params.toString()
   return `/auth/oidc/${encodeURIComponent(slug)}/start${qs ? `?${qs}` : ''}`
@@ -36,6 +37,19 @@ export function loginErrorMessage(code: string): string {
       return 'This needs your second factor. Sign in with your password and authenticator.'
     default:
       return 'Single sign-on failed. Try again, or contact an administrator.'
+  }
+}
+
+/** Messages for /settings/account?sso_error=<code>, where a failed identity link returns the signed-in user. */
+export function linkErrorMessage(code: string): string {
+  switch (code) {
+    case 'conflict':
+    case 'already_exists':
+      return 'This identity is already linked to a Deed account. Unlink it there first, or ask an administrator.'
+    case 'forbidden':
+      return "The identity provider refused, or the identity does not meet this installation's sign-in rules (tenant, verified email or sign-in method)."
+    default:
+      return loginErrorMessage(code)
   }
 }
 

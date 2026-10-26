@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSetupFragment } from '@/features/auth/sso'
+import { linkErrorMessage, oidcStartUrl, parseSetupFragment } from '@/features/auth/sso'
 import { csvCell, toCsv } from './csv'
 import { duration, relativeTime } from './format'
 import { safeLinkUrl } from './links'
@@ -50,6 +50,24 @@ describe('setup links', () => {
     expect(parseSetupFragment('#reset=x')).toBeNull()
     expect(parseSetupFragment('#other=deed_setup_abcdefgh123')).toBeNull()
     expect(parseSetupFragment('')).toBeNull()
+  })
+})
+
+describe('single sign-on URLs', () => {
+  it('starts a login or an identity link', () => {
+    expect(oidcStartUrl('porch')).toBe('/auth/oidc/porch/start')
+    expect(oidcStartUrl('porch', '/map')).toBe('/auth/oidc/porch/start?return_to=%2Fmap')
+    expect(oidcStartUrl('porch', '/settings/account', 'link')).toBe(
+      '/auth/oidc/porch/start?purpose=link&return_to=%2Fsettings%2Faccount',
+    )
+    expect(oidcStartUrl('a b', 'https://evil.example/', 'link')).toBe(
+      '/auth/oidc/a%20b/start?purpose=link&return_to=%2F',
+    )
+  })
+  it('explains link failures', () => {
+    expect(linkErrorMessage('conflict')).toMatch(/already linked/)
+    expect(linkErrorMessage('forbidden')).toMatch(/sign-in rules/)
+    expect(linkErrorMessage('unavailable')).toMatch(/unavailable/)
   })
 })
 

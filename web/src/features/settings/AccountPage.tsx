@@ -17,16 +17,18 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconKey, IconLogout, IconShieldCheck } from '@tabler/icons-react'
+import { IconKey, IconLink, IconLogout, IconShieldCheck } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
-import { fetchMe, meKey, useMe } from '@/api/auth'
+import { fetchMe, meKey, useMe, useSystemInfo } from '@/api/auth'
 import { api, check, errorMessage, unwrap, type Schemas } from '@/api/client'
 import { keys, useProjects } from '@/api/queries'
 import { Page } from '@/components/AppShell'
 import { ConfirmModal, Field, OneTimeSecret, PageHeader, TimeAgo } from '@/components/common'
 import { ErrorState, LoadingRows } from '@/components/States'
 import { RecoveryCodes } from '@/features/auth/RecoveryCodes'
+import { linkErrorMessage, oidcStartUrl } from '@/features/auth/sso'
 import { TotpEnrollment } from '@/features/auth/TotpEnrollment'
 import { useTitle } from '@/lib/appStore'
 
@@ -458,6 +460,9 @@ function TokensCard() {
 
 function IdentitiesCard() {
   const qc = useQueryClient()
+  const providers = useSystemInfo().data?.sso_providers ?? []
+  const { sso_error: linkError } = useSearch({ from: '/_app/settings/account' })
+  const navigate = useNavigate()
   const ids = useQuery({
     queryKey: keys.account('identities'),
     queryFn: async () => unwrap(await api.GET('/me/identities')),
@@ -472,6 +477,19 @@ function IdentitiesCard() {
       <Title order={2} fz={14} mb="xs">
         Single sign-on identities
       </Title>
+      {linkError && (
+        <Alert
+          color="red"
+          role="alert"
+          mb="xs"
+          withCloseButton
+          closeButtonLabel="Dismiss"
+          onClose={() => void navigate({ to: '/settings/account', search: {}, replace: true })}
+          title="Could not link the identity"
+        >
+          {linkErrorMessage(linkError)}
+        </Alert>
+      )}
       {ids.isPending ? (
         <LoadingRows rows={1} />
       ) : ids.isError ? (
@@ -491,6 +509,27 @@ function IdentitiesCard() {
             </Button>
           </Group>
         ))
+      )}
+      {providers.length > 0 && (
+        <>
+          <Text size="xs" c="dimmed" mt="sm" mb={4}>
+            Link an identity to sign in to this account with it. You are sent to the provider and back here.
+          </Text>
+          <Group gap="xs">
+            {providers.map((p) => (
+              <Button
+                key={p.slug}
+                size="compact-sm"
+                variant="default"
+                leftSection={<IconLink size={14} />}
+                component="a"
+                href={oidcStartUrl(p.slug, '/settings/account', 'link')}
+              >
+                Link {p.display_name}
+              </Button>
+            ))}
+          </Group>
+        </>
       )}
     </Card>
   )

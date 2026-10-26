@@ -115,6 +115,13 @@ Disabled users are rejected. Signed-in users can list their identities (`GET /ap
 one (`/auth/oidc/{slug}/start?purpose=link`, from a browser session) and unlink one
 (`DELETE /api/v1/me/identities/{id}`, recent sign-in required; refused when it is the last way to sign in).
 
+To add SSO to an existing password account: sign in with the password, open **Settings → Account & security** and
+press **Link <provider>** under *Single sign-on identities*. After the provider round trip the identity is listed
+there, and the provider's button on the sign-in page reaches the same account (with its roles; group mappings then
+sync on every SSO sign-in). A failed link returns to the account page with the reason (`?sso_error=<code>`): for
+example `conflict` when the identity is already linked to another account. Policy checks (`required_tenant`,
+`require_email_verified`, `allowed_amr`) apply to linking as well.
+
 ## Groups and role mapping
 `groups_claim` is a dotted path. A literal top-level key containing dots is tried first, then the path is walked
 through nested objects. The value may be a string, an array of strings, or an array of objects, in which case the

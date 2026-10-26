@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"net/url"
@@ -315,6 +316,15 @@ func registerOIDCRedirects(mux *http.ServeMux, d *Deps) {
 			name = oidc.StateCookie
 		}
 		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: d.Secure, SameSite: http.SameSiteLaxMode}) //nolint:gosec // Secure is off only for http:// development origins
+		if err != nil && res != nil && res.Purpose == oidc.PurposeLink {
+			// The user is still signed in: back to where linking started, with the reason.
+			back, _ := url.Parse(httpx.SafeReturnTo(res.ReturnTo, "/settings/account"))
+			q := back.Query()
+			q.Set("sso_error", cmp.Or(string(apperr.CodeOf(err)), "error"))
+			back.RawQuery = q.Encode()
+			http.Redirect(w, r, back.String(), http.StatusFound)
+			return
+		}
 		if err != nil {
 			fail(w, r, err)
 			return
