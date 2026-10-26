@@ -5,6 +5,10 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-26
+
+First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.md) and the [threat model](docs/THREAT_MODEL.md).
+
 ### Added
 - Source-aware catalog: projects and bridges, built-in and custom kinds (JSON Schema 2020-12 with compatibility
   checks), relationship types, layered facets with deterministic field-level merge, provenance, conflicts, change
@@ -20,6 +24,12 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 - Telemetry integrations and named bindings (Prometheus/Mimir, Loki, NATS monitoring, OpenSearch, Grafana, Pulse
   rollups), traffic overlays, telemetry stream.
 - Findings, alerts, version intelligence, dashboard summary.
+- Web UI: dashboard, inventory with saved views and bulk edits, entity detail (declared vs observed, provenance,
+  relations, history, audit), sources, and the map: layered layout with level-of-detail clustering, edge styles
+  encoding evidence, traffic overlays, options drawer, keyboard navigation and right-click quick actions.
 - Encrypted backups (age, zstd, signed manifests, GFS retention) and offline restore.
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
+
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/aurimasniekis/go-deed/releases/tag/v0.1.0
