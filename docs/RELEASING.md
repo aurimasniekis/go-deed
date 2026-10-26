@@ -32,6 +32,10 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.3.1** (2026-10-26, `89d8a3f`, tag checked against the release commit before pushing): release run 40401862832
+  succeeded. Checked before publishing: checksums, SLSA provenance of the archive and the image, the 0.3.0 database
+  served without migration, and the zone-module fixture pushed to the release binary: zones derived from records, and a
+  hand-declared `example.com` domain containing its DNS zone and its Google Workspace domain.
 - **v0.3.0** (2026-10-26, `0aeba06`): release run 40396208532 succeeded in every job. Checked before publishing:
   checksums, SLSA provenance of the linux/amd64 archive and the image, and an upgrade of a v0.2.0 database (demo
   data and a service account) by the release binary: snapshot, migration 8 → 9, data and token intact, the `region`
