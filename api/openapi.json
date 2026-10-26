@@ -1364,6 +1364,10 @@
           "group": {
             "type": "string"
           },
+          "grouping": {
+            "$ref": "#/components/schemas/KindGrouping",
+            "description": "Map grouping: omit to keep, an empty relationship_types list to remove."
+          },
           "icon": {
             "type": "string"
           },
@@ -3281,6 +3285,9 @@
           "group": {
             "type": "string"
           },
+          "grouping": {
+            "$ref": "#/components/schemas/KindGrouping"
+          },
           "icon": {
             "type": "string"
           },
@@ -3343,6 +3350,23 @@
         ],
         "type": "object"
       },
+      "KindGrouping": {
+        "additionalProperties": false,
+        "properties": {
+          "relationship_types": {
+            "description": "Relationship types followed outward to an entity of this kind, for example located_in.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          }
+        },
+        "required": [
+          "relationship_types"
+        ],
+        "type": "object"
+      },
       "KindInput": {
         "additionalProperties": false,
         "properties": {
@@ -3357,6 +3381,10 @@
           },
           "group": {
             "type": "string"
+          },
+          "grouping": {
+            "$ref": "#/components/schemas/KindGrouping",
+            "description": "Map grouping: omit to keep, an empty relationship_types list to remove."
           },
           "icon": {
             "type": "string"
@@ -3451,6 +3479,9 @@
           },
           "group": {
             "type": "string"
+          },
+          "grouping": {
+            "$ref": "#/components/schemas/KindGrouping"
           },
           "icon": {
             "type": "string"
@@ -9284,17 +9315,14 @@
             }
           },
           {
+            "description": "project, kind, environment, owner, or a kind with a map grouping (location, region, label, group, custom kinds).",
             "explode": false,
             "in": "query",
             "name": "group_by",
             "schema": {
               "default": "kind",
-              "enum": [
-                "project",
-                "kind",
-                "environment",
-                "owner"
-              ],
+              "description": "project, kind, environment, owner, or a kind with a map grouping (location, region, label, group, custom kinds).",
+              "maxLength": 128,
               "type": "string"
             }
           },

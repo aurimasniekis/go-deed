@@ -154,6 +154,8 @@ export function inventoryQuery(s: InventorySearch, globalProjects: string[] = []
 // Map
 
 export const MAP_GROUPS = ['project', 'kind', 'environment', 'owner'] as const
+/** A kind name (`location`, `example.com/rack_row`) as it may appear in a group or cluster parameter. */
+const KIND_NAME = /^[a-z0-9][a-z0-9._/-]{0,127}$/
 export const MAP_CLUSTERING = ['none', 'project', 'environment', 'kind', 'host'] as const
 export const MAP_LAYOUTS = ['layered', 'force', 'radial'] as const
 export const MAP_DIRECTIONS = ['RIGHT', 'DOWN', 'LEFT', 'UP'] as const
@@ -166,9 +168,11 @@ export interface MapSearch {
   depth?: number
   dir?: 'out' | 'in' | 'both'
   /** Overview grouping. */
-  group?: (typeof MAP_GROUPS)[number]
+  /** Overview grouping: a MAP_GROUPS value or the name of a kind with a map grouping (location, region, label, …). */
+  group?: string
   /** Visual clustering of the loaded nodes. */
-  cluster?: (typeof MAP_CLUSTERING)[number]
+  /** Client-side clustering: a MAP_CLUSTERING value or `by:<kind>` for a kind with a map grouping. */
+  cluster?: string
   layout?: (typeof MAP_LAYOUTS)[number]
   rankdir?: (typeof MAP_DIRECTIONS)[number]
   /** Path finder endpoints. */
@@ -202,8 +206,13 @@ export function validateMapSearch(s: Record<string, unknown>): MapSearch {
     mode: decodeEnum(s.mode, MAP_MODES),
     depth: decodeInt(s.depth, 1, 6),
     dir,
-    group: decodeEnum(s.group, MAP_GROUPS),
-    cluster: decodeEnum(s.cluster, MAP_CLUSTERING),
+    group:
+      decodeEnum(s.group, MAP_GROUPS) ?? (typeof s.group === 'string' && KIND_NAME.test(s.group) ? s.group : undefined),
+    cluster:
+      decodeEnum(s.cluster, MAP_CLUSTERING) ??
+      (typeof s.cluster === 'string' && s.cluster.startsWith('by:') && KIND_NAME.test(s.cluster.slice(3))
+        ? s.cluster
+        : undefined),
     layout: decodeEnum(s.layout, MAP_LAYOUTS),
     rankdir: decodeEnum(s.rankdir, MAP_DIRECTIONS),
     from: decodeString(s.from, 64),

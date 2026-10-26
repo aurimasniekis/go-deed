@@ -6,6 +6,11 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 ## [Unreleased]
 
 ### Added
+- Map grouping by kind: kinds can declare a map grouping (`grouping.relationship_types`), and the map overview and
+  clustering can group entities under the nearest entity of that kind. Built in: `location` and the new `region` kind
+  (located_in, runs_on, hosted_on), the new `label` kind with the new `labeled` relationship type, and `group` (owned_by,
+  member_of). Custom kinds set it in the kind editor or the API. Cluster cards for project groups now show the project's
+  name instead of its ID.
 - Map mask mode (toolbar *Mask* or `m`) for screenshots: names, owners, labels, project and source names are replaced by
   stable aliases, and the inspector hides entity details.
 

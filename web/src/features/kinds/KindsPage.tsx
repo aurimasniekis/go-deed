@@ -7,6 +7,7 @@ import {
   ColorInput,
   Group,
   Modal,
+  MultiSelect,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -26,7 +27,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { isInstallationAdmin, useMe } from '@/api/auth'
 import { api, check, errorMessage, unwrap, type KindView } from '@/api/client'
-import { keys, useKinds } from '@/api/queries'
+import { keys, useKinds, useRelTypes } from '@/api/queries'
 import { Page } from '@/components/AppShell'
 import { ConfirmModal, Field, JsonBlock, Mono, PageHeader, TimeAgo } from '@/components/common'
 import { RefIcon } from '@/components/icons'
@@ -180,9 +181,12 @@ interface KindMeta {
   description: string
   identityKeys: string
   deprecated: boolean
+  /** Relationship types that put entities in a group of this kind on the map (empty: not a map grouping). */
+  grouping: string[]
 }
 
 function KindMetaFields({ v, onChange, isNew }: { v: KindMeta; onChange: (v: KindMeta) => void; isNew: boolean }) {
+  const relTypes = useRelTypes()
   const nameOk = /^([a-z0-9]([a-z0-9.-]{0,61}[a-z0-9])?\/)?[a-z][a-z0-9_]{0,62}$/.test(v.name)
   return (
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -233,6 +237,17 @@ function KindMetaFields({ v, onChange, isNew }: { v: KindMeta; onChange: (v: Kin
         minRows={2}
         styles={{ input: { fontFamily: 'var(--deed-mono)', fontSize: 12 } }}
       />
+      <MultiSelect
+        label="Map grouping"
+        description="Group the map by entities of this kind: an entity belongs to the nearest one it reaches through these relationship types (for example located_in, member_of). Leave empty for no grouping."
+        data={(relTypes.data ?? []).map((t) => ({ value: t.name, label: t.title }))}
+        value={v.grouping}
+        onChange={(grouping) => onChange({ ...v, grouping })}
+        maxValues={8}
+        searchable
+        clearable
+        data-testid="kind-grouping"
+      />
     </SimpleGrid>
   )
 }
@@ -263,6 +278,7 @@ export function NewKindPage() {
     description: '',
     identityKeys: '',
     deprecated: false,
+    grouping: [],
   })
   const [schema, setSchema] = useState(SCHEMA_TEMPLATE)
   const [sample, setSample] = useState('{\n  "endpoint": "https://example.com"\n}')
@@ -280,6 +296,7 @@ export function NewKindPage() {
             color: meta.color || undefined,
             description: meta.description || undefined,
             ...(identityKeys(meta.identityKeys).length ? { identity_keys: identityKeys(meta.identityKeys) } : {}),
+            ...(meta.grouping.length ? { grouping: { relationship_types: meta.grouping } } : {}),
             schema: parsed.value,
           },
         }),
@@ -431,6 +448,7 @@ export function KindDetailPage({ name }: { name: string }) {
             description: m.description,
             deprecated: m.deprecated,
             identity_keys: identityKeys(m.identityKeys),
+            grouping: { relationship_types: m.grouping },
           },
         }),
       ),
@@ -490,6 +508,7 @@ export function KindDetailPage({ name }: { name: string }) {
                       description: k.description,
                       deprecated: k.deprecated,
                       identityKeys: k.identity_keys.map((x) => x.join(', ')).join('\n'),
+                      grouping: k.grouping?.relationship_types ?? [],
                     })
                     setEditOpen(true)
                   }}
@@ -530,6 +549,15 @@ export function KindDetailPage({ name }: { name: string }) {
                   </div>
                 ))
               : '—'}
+          </Field>
+          <Field label="Map grouping">
+            {k.grouping?.relationship_types.length ? (
+              <>
+                Groups entities that reach it through <Mono>{k.grouping.relationship_types.join(', ')}</Mono>
+              </>
+            ) : (
+              '—'
+            )}
           </Field>
           <Field label="Updated">
             <TimeAgo value={k.updated_at} />

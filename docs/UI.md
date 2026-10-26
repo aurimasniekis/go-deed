@@ -151,6 +151,10 @@ the ADR-011 budget. In the overview a group of a single entity is shown as that 
   collapse button (or *Collapse … expansion* in the status bar) folds them back into one node. Members without
   relationships among themselves are packed in a grid instead of one tall column, and expansions of any size work
   (the member neighbourhood is fetched in batches of 50 roots, the API's limit per request).
+- **Group by location, region, label or team**: the overview's *Group by* and the clustering options include every
+  kind with a map grouping (docs/CUSTOM_KINDS.md, "Map grouping"), built-in or custom. An entity belongs to the nearest
+  location (region, …) it reaches through the kind's relationship types, so a VM on a server in a rack is in that rack;
+  expanding such a group keeps its members connected to the groups still collapsed.
 - **Mask mode** (toolbar *Mask*, or `m`) is for screenshots and screen sharing: entity names, display names, owners,
   labels, project and source names become stable aliases derived from the IDs (`service-k3f9`, `project-2nec`), the
   inspector stops fetching details (description, owner, project, assertion evidence), and the project switcher and the

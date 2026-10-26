@@ -262,3 +262,59 @@ test('map: mask mode hides names for screenshots', async ({ page }) => {
   await page.keyboard.press('m')
   await expect(canvas).toContainText('Billing API')
 })
+
+test('map: group the overview by location and region, and expand a location', async ({ page }) => {
+  await page.goto('/map?group=kind')
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  const ids = await page.evaluate(async () => {
+    const me = (await (await fetch('/api/v1/me')).json()) as { csrf_token: string }
+    const post = async (path: string, body: unknown) => {
+      const r = await fetch(`/api/v1${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Deed-CSRF': me.csrf_token },
+        body: JSON.stringify(body),
+      })
+      return (await r.json()) as { entity_id?: string }
+    }
+    await post('/projects', { name: 'e2e-places', synthetic: true })
+    const out: Record<string, string> = {}
+    for (const [kind, name] of [
+      ['region', 'e2e-eu'],
+      ['location', 'e2e-site'],
+      ['location', 'e2e-rack'],
+      ['server', 'e2e-srv-1'],
+      ['server', 'e2e-srv-2'],
+      ['server', 'e2e-srv-3'],
+      ['vm', 'e2e-vm-1'],
+    ] as const) {
+      out[name] = (await post('/entities', { project: 'e2e-places', kind, name, source: 'api' })).entity_id ?? ''
+    }
+    for (const [type, from, to] of [
+      ['located_in', 'e2e-site', 'e2e-eu'],
+      ['located_in', 'e2e-rack', 'e2e-site'],
+      ['located_in', 'e2e-srv-1', 'e2e-rack'],
+      ['located_in', 'e2e-srv-2', 'e2e-rack'],
+      ['located_in', 'e2e-srv-3', 'e2e-site'],
+      ['runs_on', 'e2e-vm-1', 'e2e-srv-1'],
+    ] as const) {
+      await post('/relations', { type, from: { id: out[from] }, to: { id: out[to] }, source: 'api' })
+    }
+    return out
+  })
+  // Group by location: the rack holds itself, two servers and the VM on one of them.
+  await page.getByTestId('map-group-by').click()
+  await page.getByRole('option', { name: 'Group by location' }).click()
+  await expect(page).toHaveURL(/group=location/)
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  const rack = page.locator(`[data-cluster-key="location|${ids['e2e-rack']}"]`)
+  await expect(rack).toContainText('e2e-rack')
+  await expect(rack).toContainText('4')
+  await rack.click()
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  for (const n of ['e2e-rack', 'e2e-srv-1', 'e2e-srv-2', 'e2e-vm-1'])
+    await expect(page.locator(`[data-entity-id="${ids[n]}"]`)).toBeVisible()
+  // Group by region: everything placed is in e2e-eu.
+  await page.goto('/map?group=region')
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await expect(page.locator(`[data-cluster-key="region|${ids['e2e-eu']}"]`)).toContainText('7')
+})

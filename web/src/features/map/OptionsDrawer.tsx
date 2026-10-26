@@ -183,13 +183,26 @@ export function OptionsDrawer({
         <Section title="Grouping">
           <Select
             label="Cluster loaded nodes by"
-            data={MAP_CLUSTERING.map((c) => ({
-              value: c,
-              label:
-                c === 'none' ? 'No grouping' : c === 'host' ? 'Host (runs on)' : c.charAt(0).toUpperCase() + c.slice(1),
-            }))}
+            data={[
+              ...MAP_CLUSTERING.map((c) => ({
+                value: c,
+                label:
+                  c === 'none'
+                    ? 'No grouping'
+                    : c === 'host'
+                      ? 'Host (runs on)'
+                      : c.charAt(0).toUpperCase() + c.slice(1),
+              })),
+              // Kinds with a map grouping: location, region, label, group and custom kinds.
+              ...(kinds.data ?? [])
+                .filter((k) => k.grouping?.relationship_types.length)
+                .map((k) => ({
+                  value: `by:${k.name}`,
+                  label: `${k.title} (${k.grouping?.relationship_types.join(', ')})`,
+                })),
+            ]}
             value={search.cluster ?? 'none'}
-            onChange={(v) => patch({ cluster: v && v !== 'none' ? (v as MapSearch['cluster']) : undefined })}
+            onChange={(v) => patch({ cluster: v && v !== 'none' ? v : undefined })}
             allowDeselect={false}
             data-testid="map-cluster-select"
           />

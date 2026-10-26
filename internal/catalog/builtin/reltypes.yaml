@@ -202,15 +202,26 @@ relationship_types:
     from_kinds: []
     to_kinds: []
     color: '#a5d8ff'
+  - name: labeled
+    title: Labeled
+    inverse_name: labels
+    description: The entity carries a label (for grouping and filtering the map).
+    impact: none
+    default_evidence: structural
+    from_kinds: []
+    to_kinds:
+      - label
+    color: '#e599f7'
   - name: located_in
     title: Located in
     inverse_name: location_of
-    description: Physical or logical placement.
+    description: Physical or logical placement (in a location, or a location or entity in a region).
     impact: forward
     default_evidence: structural
     from_kinds: []
     to_kinds:
       - location
+      - region
     color: '#ffd43b'
   - name: bridges
     title: Bridges

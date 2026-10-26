@@ -1029,8 +1029,13 @@ kinds:
     title: Location
     plural: Locations
     icon: tabler:map-pin
-    description: Physical or logical location (site, rack, region).
+    description: Physical place (site, building, room, rack). Entities located_in a location, and what runs on them, are grouped under it on the map.
     identity_keys: []
+    grouping:
+      relationship_types:
+        - located_in
+        - runs_on
+        - hosted_on
     versions:
       - version: v1
         schema:
@@ -1055,8 +1060,12 @@ kinds:
     title: Group
     plural: Groups
     icon: tabler:users-group
-    description: Owning team, person or organization.
+    description: Owning team, person or organization. The map can group entities by the group that owns them.
     identity_keys: []
+    grouping:
+      relationship_types:
+        - owned_by
+        - member_of
     versions:
       - version: v1
         schema:
@@ -1074,6 +1083,53 @@ kinds:
               type: string
             chat:
               type: string
+          additionalProperties: true
+  - name: region
+    group: org
+    title: Region
+    plural: Regions
+    icon: tabler:world
+    description: Geographic or provider region (a city, a country, eu-central-1). Locations and entities located_in a region, and what runs on them, are grouped under it on the map.
+    identity_keys: []
+    grouping:
+      relationship_types:
+        - located_in
+        - runs_on
+        - hosted_on
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            provider:
+              type: string
+              description: Cloud or hosting provider the region belongs to, if any.
+            code:
+              type: string
+              description: Provider region code, for example eu-central-1.
+            country:
+              type: string
+          additionalProperties: true
+  - name: label
+    group: org
+    title: Label
+    plural: Labels
+    icon: tabler:tag
+    description: A tag entities carry through labeled relationships, for grouping the map (customer, product, tier, …).
+    identity_keys: []
+    grouping:
+      relationship_types:
+        - labeled
+    versions:
+      - version: v1
+        schema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            color:
+              type: string
+              pattern: '^#[0-9a-fA-F]{6}$'
           additionalProperties: true
   - name: bridge
     group: org

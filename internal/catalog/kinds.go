@@ -48,19 +48,21 @@ type Support struct {
 
 // Kind is a kind definition.
 type Kind struct {
-	ID              string        `json:"id"`
-	Name            string        `json:"name"`
-	Group           string        `json:"group"`
-	Builtin         bool          `json:"builtin"`
-	Title           string        `json:"title"`
-	Plural          string        `json:"plural"`
-	Description     string        `json:"description"`
-	Icon            string        `json:"icon"`
-	Color           string        `json:"color"`
-	IdentityKeys    [][]string    `json:"identity_keys"`
-	StorageVersion  string        `json:"storage_version"`
-	Versions        []KindVersion `json:"versions"`
-	Deprecated      bool          `json:"deprecated"`
+	ID             string        `json:"id"`
+	Name           string        `json:"name"`
+	Group          string        `json:"group"`
+	Builtin        bool          `json:"builtin"`
+	Title          string        `json:"title"`
+	Plural         string        `json:"plural"`
+	Description    string        `json:"description"`
+	Icon           string        `json:"icon"`
+	Color          string        `json:"color"`
+	IdentityKeys   [][]string    `json:"identity_keys"`
+	StorageVersion string        `json:"storage_version"`
+	Versions       []KindVersion `json:"versions"`
+	Deprecated     bool          `json:"deprecated"`
+	// Grouping makes the kind a map grouping: entities are grouped under the nearest entity of this kind they reach.
+	Grouping        *KindGrouping `json:"grouping,omitempty"`
 	CreatedAt       time.Time     `json:"created_at"`
 	UpdatedAt       time.Time     `json:"updated_at"`
 	ResourceVersion int64         `json:"resource_version"`
@@ -177,7 +179,7 @@ type querier interface {
 
 func loadKinds(ctx context.Context, q querier) (map[string]*Kind, error) {
 	rows, err := q.QueryContext(ctx, `SELECT id, name, group_name, builtin, title, plural, description, icon, color, identity_keys,
-		storage_version, deprecated, created_at, updated_at, version FROM kind_definitions`)
+		storage_version, deprecated, created_at, updated_at, version, grouping_json FROM kind_definitions`)
 	if err != nil {
 		return nil, err
 	}
@@ -185,14 +187,20 @@ func loadKinds(ctx context.Context, q querier) (map[string]*Kind, error) {
 	byID := map[string]*Kind{}
 	for rows.Next() {
 		var k Kind
-		var ik string
+		var ik, grouping string
 		var c, u int64
 		if err := rows.Scan(&k.ID, &k.Name, &k.Group, &k.Builtin, &k.Title, &k.Plural, &k.Description, &k.Icon, &k.Color, &ik,
-			&k.StorageVersion, &k.Deprecated, &c, &u, &k.ResourceVersion); err != nil {
+			&k.StorageVersion, &k.Deprecated, &c, &u, &k.ResourceVersion, &grouping); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(ik), &k.IdentityKeys)
+		if grouping != "" {
+			var g KindGrouping
+			if json.Unmarshal([]byte(grouping), &g) == nil && len(g.RelationshipTypes) > 0 {
+				k.Grouping = &g
+			}
+		}
 		if k.IdentityKeys == nil {
 			k.IdentityKeys = [][]string{}
 		}
@@ -292,13 +300,14 @@ func versionNum(v string) int {
 
 type builtinKinds struct {
 	Kinds []struct {
-		Name         string     `yaml:"name"`
-		Group        string     `yaml:"group"`
-		Title        string     `yaml:"title"`
-		Plural       string     `yaml:"plural"`
-		Icon         string     `yaml:"icon"`
-		Description  string     `yaml:"description"`
-		IdentityKeys [][]string `yaml:"identity_keys"`
+		Name         string        `yaml:"name"`
+		Group        string        `yaml:"group"`
+		Title        string        `yaml:"title"`
+		Plural       string        `yaml:"plural"`
+		Icon         string        `yaml:"icon"`
+		Description  string        `yaml:"description"`
+		IdentityKeys [][]string    `yaml:"identity_keys"`
+		Grouping     *KindGrouping `yaml:"grouping"`
 		Versions     []struct {
 			Version string         `yaml:"version"`
 			Schema  map[string]any `yaml:"schema"`
@@ -347,17 +356,18 @@ func (s *Service) SeedBuiltins(ctx context.Context) error {
 			case errors.Is(err, sql.ErrNoRows):
 				id = ids.New(ids.Kind)
 				if _, err := tx.Exec(ctx, `INSERT INTO kind_definitions (id, name, group_name, builtin, title, plural, description, icon, identity_keys,
-					storage_version, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`, id, k.Name, k.Group, k.Title, k.Plural,
-					k.Description, k.Icon, string(ik), last, tx.NowMicros(), tx.NowMicros()); err != nil {
+					storage_version, created_at, updated_at, grouping_json) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, k.Name, k.Group, k.Title,
+					k.Plural, k.Description, k.Icon, string(ik), last, tx.NowMicros(), tx.NowMicros(), groupingJSON(k.Grouping)); err != nil {
 					return err
 				}
 			case err != nil:
 				return err
 			default:
+				g := groupingJSON(k.Grouping)
 				if _, err := tx.Exec(ctx, `UPDATE kind_definitions SET group_name = ?, title = ?, plural = ?, description = ?, icon = ?, identity_keys = ?,
-					storage_version = ?, builtin = 1 WHERE id = ? AND (group_name, title, plural, description, icon, identity_keys, storage_version)
-					IS NOT (?, ?, ?, ?, ?, ?, ?)`, k.Group, k.Title, k.Plural, k.Description, k.Icon, string(ik), last, id,
-					k.Group, k.Title, k.Plural, k.Description, k.Icon, string(ik), last); err != nil {
+					storage_version = ?, grouping_json = ?, builtin = 1 WHERE id = ? AND (group_name, title, plural, description, icon, identity_keys,
+					storage_version, grouping_json) IS NOT (?, ?, ?, ?, ?, ?, ?, ?)`, k.Group, k.Title, k.Plural, k.Description, k.Icon, string(ik), last,
+					g, id, k.Group, k.Title, k.Plural, k.Description, k.Icon, string(ik), last, g); err != nil {
 					return err
 				}
 			}
@@ -401,6 +411,48 @@ func nonNil(s []string) []string {
 }
 
 // KindInput creates or updates a custom kind.
+// KindGrouping makes a kind a map grouping (locations, regions, labels, teams, custom kinds): an entity belongs to the
+// nearest entity of the kind it reaches by following these relationship types outward (a server located_in a rack
+// located_in a site belongs to the rack when grouping by location; by region, to the site's region).
+type KindGrouping struct {
+	RelationshipTypes []string `json:"relationship_types" yaml:"relationship_types" maxItems:"8" doc:"Relationship types followed outward to an entity of this kind, for example located_in."`
+}
+
+// MaxGroupingDepth bounds how many relationships are followed to find an entity's group.
+const MaxGroupingDepth = 6
+
+func groupingJSON(g *KindGrouping) string {
+	if g == nil || len(g.RelationshipTypes) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(g)
+	return string(b)
+}
+
+// validateGrouping requires existing relationship types (deduplicated in place).
+func (s *Service) validateGrouping(g *KindGrouping) error {
+	if g == nil {
+		return nil
+	}
+	v := &apperr.Validation{}
+	if len(g.RelationshipTypes) > 8 {
+		v.Add("grouping.relationship_types", "at most 8 relationship types")
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, t := range g.RelationshipTypes {
+		if s.reg.rel(t) == nil {
+			v.Add("grouping.relationship_types", "unknown relationship type %q", t)
+		}
+		if !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	g.RelationshipTypes = out
+	return v.Err()
+}
+
 type KindInput struct {
 	Name         string     `json:"name,omitempty"`
 	Group        string     `json:"group,omitempty"`
@@ -411,6 +463,8 @@ type KindInput struct {
 	Color        string     `json:"color,omitempty"`
 	IdentityKeys [][]string `json:"identity_keys,omitempty"`
 	Deprecated   bool       `json:"deprecated,omitempty"`
+	// Grouping: omitted keeps the current setting (on update), an empty list removes it.
+	Grouping *KindGrouping `json:"grouping,omitempty" doc:"Map grouping: omit to keep, an empty relationship_types list to remove."`
 }
 
 var colorRE = regexp.MustCompile(`^(#[0-9a-fA-F]{6})?$`)
@@ -469,6 +523,9 @@ func (s *Service) CreateKind(ctx context.Context, actor audit.Actor, in KindInpu
 	if s.reg.kind(in.Name) != nil {
 		return nil, apperr.New(apperr.CodeAlreadyExists, "kind %q already exists", in.Name)
 	}
+	if err := s.validateGrouping(in.Grouping); err != nil {
+		return nil, err
+	}
 	if len(schema) == 0 {
 		schema = json.RawMessage(`{"type":"object","additionalProperties":true}`)
 	}
@@ -479,8 +536,9 @@ func (s *Service) CreateKind(ctx context.Context, actor audit.Actor, in KindInpu
 	ik, _ := json.Marshal(in.IdentityKeys)
 	err := s.Store.W().TxNamed(ctx, "catalog.kind_create", func(tx *store.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO kind_definitions (id, name, group_name, title, plural, description, icon, color, identity_keys,
-			storage_version, deprecated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1', ?, ?, ?)`, id, in.Name, in.Group, in.Title,
-			in.Plural, in.Description, in.Icon, in.Color, string(ik), in.Deprecated, tx.NowMicros(), tx.NowMicros())
+			storage_version, deprecated, created_at, updated_at, grouping_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1', ?, ?, ?, ?)`, id, in.Name,
+			in.Group, in.Title, in.Plural, in.Description, in.Icon, in.Color, string(ik), in.Deprecated, tx.NowMicros(), tx.NowMicros(),
+			groupingJSON(in.Grouping))
 		if store.IsConstraint(err) {
 			return apperr.New(apperr.CodeAlreadyExists, "kind %q already exists", in.Name)
 		}
@@ -515,11 +573,16 @@ func (s *Service) UpdateKind(ctx context.Context, actor audit.Actor, name string
 	if err := validateKindInput(&in, false); err != nil {
 		return nil, err
 	}
+	if err := s.validateGrouping(in.Grouping); err != nil {
+		return nil, err
+	}
+	grouping := sql.NullString{String: groupingJSON(in.Grouping), Valid: in.Grouping != nil}
 	ik, _ := json.Marshal(in.IdentityKeys)
 	err := s.Store.W().TxNamed(ctx, "catalog.kind_update", func(tx *store.Tx) error {
 		n, err := tx.ExecN(ctx, `UPDATE kind_definitions SET group_name = ?, title = ?, plural = ?, description = ?, icon = ?, color = ?,
-			identity_keys = ?, deprecated = ?, updated_at = ?, version = version + 1 WHERE name = ? AND (? = 0 OR version = ?)`,
-			in.Group, in.Title, in.Plural, in.Description, in.Icon, in.Color, string(ik), in.Deprecated, tx.NowMicros(), name, ifMatch, ifMatch)
+			identity_keys = ?, deprecated = ?, grouping_json = COALESCE(?, grouping_json), updated_at = ?, version = version + 1
+			WHERE name = ? AND (? = 0 OR version = ?)`,
+			in.Group, in.Title, in.Plural, in.Description, in.Icon, in.Color, string(ik), in.Deprecated, grouping, tx.NowMicros(), name, ifMatch, ifMatch)
 		if err != nil {
 			return err
 		}

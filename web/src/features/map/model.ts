@@ -126,7 +126,44 @@ export function applyFilters(model: GraphModel, f: MapFilters, now = Date.now())
   return { ...model, nodes, edges }
 }
 
-export type Clustering = 'none' | 'project' | 'environment' | 'kind' | 'host'
+/** Built-in clustering modes, or `by:<kind>` for a kind with a map grouping (location, region, label, …). */
+export type Clustering = 'none' | 'project' | 'environment' | 'kind' | 'host' | `by:${string}`
+
+/** How far grouping relationships are followed to find a node's group (the server's MaxGroupingDepth). */
+const GROUPING_DEPTH = 6
+
+/**
+ * Nearest node of `kind` each loaded node reaches by following `types` outward (itself when it is of that kind), among
+ * the loaded nodes only: breadth-first, ties broken by ID like the server's overview grouping.
+ */
+export function groupingAnchors(model: GraphModel, kind: string, types: string[]): Map<string, string> {
+  const follow = new Set(types)
+  const parents = new Map<string, string[]>()
+  for (const e of model.edges.values()) {
+    if (!follow.has(e.type) || !model.nodes.has(e.to)) continue
+    const p = parents.get(e.from)
+    if (p) p.push(e.to)
+    else parents.set(e.from, [e.to])
+  }
+  const out = new Map<string, string>()
+  for (const n of model.nodes.values()) {
+    if (n.cluster) continue
+    if (n.kind === kind) {
+      out.set(n.id, n.id)
+      continue
+    }
+    const seen = new Set([n.id])
+    let level = [n.id]
+    for (let d = 0; d < GROUPING_DEPTH && level.length && !out.has(n.id); d++) {
+      const next = level.flatMap((id) => parents.get(id) ?? []).filter((id) => !seen.has(id) && seen.add(id))
+      next.sort()
+      const hit = next.find((id) => model.nodes.get(id)?.kind === kind)
+      if (hit) out.set(n.id, hit)
+      level = next
+    }
+  }
+  return out
+}
 
 export interface VisualGroup {
   key: string
@@ -170,9 +207,18 @@ export function groupKeys(
   model: GraphModel,
   mode: Clustering,
   projectName: (id: string) => string = (id) => id,
+  groupings: ReadonlyMap<string, string[]> = new Map(),
 ): Map<string, { key: string; label: string }> {
   const out = new Map<string, { key: string; label: string }>()
   if (mode === 'none') return out
+  if (mode.startsWith('by:')) {
+    const kind = mode.slice(3)
+    for (const [id, anchor] of groupingAnchors(model, kind, groupings.get(kind) ?? [])) {
+      const a = model.nodes.get(anchor)
+      out.set(id, { key: `${mode}:${anchor}`, label: a ? (a.displayName ?? a.name) : anchor })
+    }
+    return out
+  }
   const hostOf = new Map<string, string>()
   const hosts = new Set<string>()
   if (mode === 'host') {
@@ -225,8 +271,9 @@ export function clusterModel(
   mode: Clustering,
   collapsed: Set<string>,
   projectName?: (id: string) => string,
+  groupings?: ReadonlyMap<string, string[]>,
 ): { model: GraphModel; groups: VisualGroup[] } {
-  const keys = groupKeys(model, mode, projectName)
+  const keys = groupKeys(model, mode, projectName, groupings)
   const groups = new Map<string, VisualGroup>()
   for (const [id, g] of keys) {
     const vg = groups.get(g.key) ?? { key: g.key, label: g.label, members: [], collapsed: collapsed.has(g.key) }

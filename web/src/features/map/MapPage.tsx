@@ -92,6 +92,7 @@ import {
 import {
   applyFilters,
   clusterModel,
+  type Clustering,
   enforceBudget,
   groupExpansions,
   hashString,
@@ -276,7 +277,17 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     }),
     [search, data.sourceIds],
   )
-  const clustering = search.cluster ?? 'none'
+  const clustering = (search.cluster ?? 'none') as Clustering
+  // Kinds the map can group by (location, region, label, group, custom kinds) and the relationships they follow.
+  const groupings = useMemo(
+    () =>
+      new Map(
+        (kinds.data ?? []).flatMap((k) =>
+          k.grouping?.relationship_types.length ? [[k.name, k.grouping.relationship_types]] : [],
+        ) as [string, string[]][],
+      ),
+    [kinds.data],
+  )
   const algorithm = search.layout ?? 'layered'
   const rankdir = search.rankdir ?? 'RIGHT'
   const compactCards = style.nodeMode === 'compact'
@@ -284,7 +295,13 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const view = useMemo(() => {
     const filtered = applyFilters(data.model, filters)
     // Mask mode replaces names before clustering, so host and project group labels are aliases too.
-    const clustered = clusterModel(masked ? maskModel(filtered) : filtered, clustering, new Set(collapsed), projectName)
+    const clustered = clusterModel(
+      masked ? maskModel(filtered) : filtered,
+      clustering,
+      new Set(collapsed),
+      projectName,
+      groupings,
+    )
     // Members of an expanded cluster stay together in a container (collapsing it undoes the expansion).
     const expanded = groupExpansions(clustered.model)
     const budgeted = enforceBudget(expanded.model)
@@ -295,7 +312,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       ),
     ].filter((g) => !g.collapsed && g.members.some((m) => budgeted.nodes.has(m)))
     return { model: budgeted, groups }
-  }, [data.model, filters, clustering, collapsed, projectName, masked])
+  }, [data.model, filters, clustering, collapsed, projectName, masked, groupings])
 
   // Source colours are assigned over every source the user can see (oldest first), so a colour does not depend on
   // what happens to be on screen.
@@ -447,6 +464,25 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       setDragSig(signature)
     })
   }, [layout?.sig, signature, dragSig])
+  // The kind a node is drawn as (a kind cluster as its kind, a group under a grouping kind with that kind's icon) and its
+  // title: the kind, or for a cluster the project's name or the group's name from the server (environment, owner, a
+  // location).
+  const describeNode = useCallback(
+    (n: MapNode) => {
+      const by = n.cluster?.groupBy
+      const k = kindMap.get(by === 'kind' ? (n.cluster?.value ?? '') : by && groupings.has(by) ? by : n.kind)
+      const title = !n.cluster
+        ? (k?.title ?? humanize(n.kind))
+        : by === 'kind'
+          ? (k?.title ?? humanize(n.cluster.value))
+          : by === 'project'
+            ? projectName(n.cluster.value)
+            : n.name
+      return { k, title }
+    },
+    [kindMap, groupings, projectName],
+  )
+
   // Stable (reads the latest search), so group containers are not rebuilt when the URL changes.
   const searchRef = useRef(search)
   searchRef.current = search
@@ -504,7 +540,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     const nodes: Node<EntityNodeData>[] = [...view.model.nodes.values()].map((raw) => {
       const p = patches.get(raw.id)
       const n = p ? { ...raw, ...p } : raw
-      const k = kindMap.get(n.cluster?.groupBy === 'kind' ? n.cluster.value : n.kind)
+      const { k, title } = describeNode(n)
       const pos = layout.positions[n.id] ?? { x: 0, y: 0 }
       const size = sizeOf(n, compactCards)
       return {
@@ -516,7 +552,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         selected: n.id === selected,
         data: {
           node: n,
-          kindTitle: k?.title ?? humanize(n.cluster?.value ?? n.kind),
+          kindTitle: title,
           kindIcon: k?.icon ?? 'tabler:cube',
           kindColor: kindAccent(k?.color, k?.group),
           compact: compactCards,
@@ -572,7 +608,6 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     signature,
     view,
     patches,
-    kindMap,
     compactCards,
     style,
     reduced,
@@ -588,6 +623,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     sourceColors,
     projectName,
     collapseExpansion,
+    describeNode,
   ])
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
@@ -1065,9 +1101,13 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                 { value: 'project', label: 'Group by project' },
                 { value: 'environment', label: 'Group by environment' },
                 { value: 'owner', label: 'Group by owner' },
+                ...[...groupings.keys()].map((k) => ({
+                  value: k,
+                  label: `Group by ${(kindMap.get(k)?.title ?? humanize(k)).toLowerCase()}`,
+                })),
               ]}
               value={search.group ?? 'kind'}
-              onChange={(v) => go({ group: (v ?? 'kind') as MapSearch['group'] })}
+              onChange={(v) => go({ group: v ?? 'kind' })}
               w={180}
               allowDeselect={false}
               data-testid="map-group-by"
@@ -1388,11 +1428,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                     <NodeInspector
                       node={patches.get(selNode.id) ? { ...selNode, ...patches.get(selNode.id) } : selNode}
                       model={view.model}
-                      kindTitle={kindMap.get(selNode.kind)?.title ?? humanize(selNode.cluster?.value ?? selNode.kind)}
-                      kindIcon={
-                        kindMap.get(selNode.cluster?.groupBy === 'kind' ? selNode.cluster.value : selNode.kind)?.icon ??
-                        'tabler:cube'
-                      }
+                      kindTitle={describeNode(selNode).title}
+                      kindIcon={describeNode(selNode).k?.icon ?? 'tabler:cube'}
                       typeTitle={typeTitle}
                       actions={actions}
                       onClose={() => setSelected(null)}

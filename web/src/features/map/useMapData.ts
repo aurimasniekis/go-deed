@@ -68,7 +68,7 @@ export async function neighborhoodOf(
 }
 
 /**
- * Expands an overview group (`kind|service`, `environment|prod`, …). /graph/expand only accepts fan-cluster keys, so
+ * Expands an overview group (`kind|service`, `environment|prod`, …). For the built-in groupings
  * the members come from GET /entities and their relationships from a depth-1 neighbourhood; relationships to entities
  * outside the group are re-pointed at that entity's (still collapsed) overview group, bundled with counts.
  */
@@ -80,7 +80,11 @@ export async function expandOverviewGroup(
 ): Promise<GraphResult> {
   const [groupBy = '', value = ''] = key.split('|', 2)
   const empty: GraphResult = { nodes: [], edges: [], notes: [], truncated: false, elapsed_ms: 0 }
-  if (!(GROUP_FILTERS as readonly string[]).includes(groupBy)) return { ...empty, notes: [`cannot expand ${key}`] }
+  if (!(GROUP_FILTERS as readonly string[]).includes(groupBy)) {
+    // A kind with a map grouping (location, region, label, …): only the server knows every entity's group, so it returns
+    // the members together with bundles to the groups still collapsed.
+    return unwrap(await api.GET('/graph/expand', { params: { query: { key, limit: 500 } } }))
+  }
   if (value === '') return { ...empty, notes: [`entities without a ${groupBy} cannot be listed by filter`] }
   const filter =
     groupBy === 'kind'

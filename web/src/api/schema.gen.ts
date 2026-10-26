@@ -2381,6 +2381,8 @@ export interface components {
             deprecated?: boolean;
             description?: string;
             group?: string;
+            /** @description Map grouping: omit to keep, an empty relationship_types list to remove. */
+            grouping?: components["schemas"]["KindGrouping"];
             icon?: string;
             identity_keys?: string[][];
             name?: string;
@@ -2996,6 +2998,7 @@ export interface components {
             deprecated: boolean;
             description: string;
             group: string;
+            grouping?: components["schemas"]["KindGrouping"];
             icon: string;
             id: string;
             identity_keys: string[][];
@@ -3009,11 +3012,17 @@ export interface components {
             updated_at: string;
             versions: components["schemas"]["KindVersion"][];
         };
+        KindGrouping: {
+            /** @description Relationship types followed outward to an entity of this kind, for example located_in. */
+            relationship_types: string[];
+        };
         KindInput: {
             color?: string;
             deprecated?: boolean;
             description?: string;
             group?: string;
+            /** @description Map grouping: omit to keep, an empty relationship_types list to remove. */
+            grouping?: components["schemas"]["KindGrouping"];
             icon?: string;
             identity_keys?: string[][];
             name?: string;
@@ -3041,6 +3050,7 @@ export interface components {
             deprecated: boolean;
             description: string;
             group: string;
+            grouping?: components["schemas"]["KindGrouping"];
             icon: string;
             id: string;
             identity_keys: string[][];
@@ -5460,7 +5470,8 @@ export interface operations {
         parameters: {
             query?: {
                 project?: string[];
-                group_by?: "project" | "kind" | "environment" | "owner";
+                /** @description project, kind, environment, owner, or a kind with a map grouping (location, region, label, group, custom kinds). */
+                group_by?: string;
                 /** @description Also list the asserting sources of each bundled edge (one more aggregate over the catalog; off by default). */
                 sources?: boolean;
             };

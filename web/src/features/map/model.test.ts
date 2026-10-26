@@ -7,6 +7,8 @@ import {
   enforceBudget,
   EXPANSION_GROUP,
   groupExpansions,
+  groupingAnchors,
+  groupKeys,
   mergeResults,
   neighbours,
   nextInDirection,
@@ -186,6 +188,43 @@ describe('graph model', () => {
     expect(merged.nodes).toHaveLength(roots.length + 1)
     expect(merged.nodes.find((x) => x.id === 'shared')?.depth).toBe(1)
     expect(merged.edges).toHaveLength(roots.length)
+  })
+
+  it('groups loaded nodes by the nearest entity of a grouping kind', () => {
+    const m = mergeResults(
+      result(
+        [
+          n('eu', { kind: 'region' }),
+          n('dc1', { kind: 'location' }),
+          n('rack1', { kind: 'location' }),
+          n('s1', { kind: 'server' }),
+          n('vm1', { kind: 'vm' }),
+          n('loose', { kind: 'vm' }),
+        ],
+        [
+          e('l1', 'dc1', 'eu', 'located_in'),
+          e('l2', 'rack1', 'dc1', 'located_in'),
+          e('l3', 's1', 'rack1', 'located_in'),
+          e('l4', 'vm1', 's1', 'runs_on'),
+        ],
+      ),
+      [],
+    )
+    const types = ['located_in', 'runs_on', 'hosted_on']
+    expect(Object.fromEntries(groupingAnchors(m, 'location', types))).toEqual({
+      dc1: 'dc1',
+      rack1: 'rack1',
+      s1: 'rack1',
+      vm1: 'rack1',
+    })
+    expect(groupingAnchors(m, 'region', types).get('vm1')).toBe('eu')
+    // Following only located_in, the VM is not placed.
+    expect(groupingAnchors(m, 'location', ['located_in']).has('vm1')).toBe(false)
+    const keys = groupKeys(m, 'by:region', undefined, new Map([['region', types]]))
+    expect(keys.get('s1')).toEqual({ key: 'by:region:eu', label: 'eu' })
+    expect(keys.has('loose')).toBe(false)
+    const clustered = clusterModel(m, 'by:location', new Set(), undefined, new Map([['location', types]]))
+    expect(clustered.groups.map((g) => [g.label, g.members.length])).toEqual([['rack1', 3]])
   })
 
   it('keeps the smallest depth when a node arrives twice', () => {

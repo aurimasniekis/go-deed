@@ -537,9 +537,16 @@ func (e *Engine) expandGroup(ctx context.Context, scope Scope, groupBy, value st
 		}
 		f.ProjectIDs = []string{value}
 	default:
-		return nil, apperr.New(apperr.CodeInvalid, "unknown cluster key")
+		k := e.groupingKind(groupBy)
+		if k == nil {
+			return nil, apperr.New(apperr.CodeInvalid, "unknown cluster key")
+		}
+		anchors, err := e.anchorsOf(ctx, scope, scope.Readable, k)
+		if err != nil {
+			return nil, err
+		}
+		return e.expandByKind(ctx, scope, k, anchors, value, limit, start)
 	}
-	res := &Result{Nodes: []Node{}, Edges: []Edge{}, Notes: []string{}}
 	var ids []string
 	for len(ids) < limit {
 		page, err := e.Catalog.ListEntities(ctx, f)
@@ -554,6 +561,12 @@ func (e *Engine) expandGroup(ctx context.Context, scope Scope, groupBy, value st
 		}
 		f.Cursor = page.NextCursor
 	}
+	return e.groupMembers(ctx, scope, ids, limit, start)
+}
+
+// groupMembers is an expanded group: the member nodes (at most limit) and the relationships among them.
+func (e *Engine) groupMembers(ctx context.Context, scope Scope, ids []string, limit int, start time.Time) (*Result, error) {
+	res := &Result{Nodes: []Node{}, Edges: []Edge{}, Notes: []string{}}
 	if len(ids) > limit {
 		ids, res.Truncated = ids[:limit], true
 	}
@@ -923,11 +936,14 @@ func (e *Engine) overviewSingles(ctx context.Context, scope Scope, nodes []Node,
 func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, groupBy string, withSources bool) (*Result, error) {
 	start := time.Now()
 	col := map[string]string{"project": "e.project_id", "kind": "e.kind", "environment": "e.environment", "owner": "e.owner"}[groupBy]
-	if col == "" {
-		return nil, apperr.New(apperr.CodeInvalid, "group_by must be project, kind, environment or owner")
-	}
 	if projects == nil {
 		projects = scope.Readable
+	}
+	if col == "" {
+		if k := e.groupingKind(groupBy); k != nil {
+			return e.overviewByKind(ctx, scope, projects, k)
+		}
+		return nil, apperr.New(apperr.CodeInvalid, "group_by must be project, kind, environment, owner or a kind with a map grouping")
 	}
 	var where string
 	var args []any

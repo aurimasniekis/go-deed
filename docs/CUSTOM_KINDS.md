@@ -21,6 +21,7 @@ publishing and deleting needs the installation `owner` or `admin` role. Source t
 | `color` | `#rrggbb` |
 | `identity_keys` | at most 8 keys; each key lists 1–4 JSON pointers starting with `/spec/` or `/metadata/` |
 | `deprecated` | flag |
+| `grouping` | `{"relationship_types": [...]}`, at most 8 existing types: makes the kind a map grouping (below) |
 
 Names with a domain contain `/`, so escape it in URLs: `/api/v1/kinds/example.com%2Fups`.
 
@@ -44,9 +45,27 @@ The first schema is stored as version `v1`; without `schema` it is an open objec
 `If-Match` on updates to get `412` instead of overwriting a concurrent change.
 
 `PATCH /kinds/{name}` changes the display fields, `identity_keys` and `deprecated`. It writes the whole set: send every
-field you want to keep, because omitted ones fall back to their defaults (`title` is always required).
+field you want to keep, because omitted ones fall back to their defaults (`title` is always required). The exception
+is `grouping`: omitted keeps it, `{"relationship_types": []}` removes it.
 `GET /kinds` and `GET /kinds/{name}` include `support`: whether Terraform mappings, runtime ingestion paths or native
 providers produce the kind.
+
+### Map grouping
+A kind with a `grouping` becomes a way to group the map: on the overview (*Group by …*) and as a clustering option for
+loaded nodes (*Filters & options → Cluster loaded nodes by*). An entity belongs to the **nearest** entity of the kind it
+reaches by following the listed relationship types outward (at most 6 hops, ties broken by ID); an entity of the kind
+is in its own group; entities that reach none are grouped as *(none)*. Built-in groupings:
+
+| Kind | Follows | Example |
+|---|---|---|
+| `location` (site, building, room, rack) | `located_in`, `runs_on`, `hosted_on` | a VM on a server in rack 3 is in rack 3 |
+| `region` (city, country, `eu-central-1`) | `located_in`, `runs_on`, `hosted_on` | a site located_in Frankfurt puts everything in it in Frankfurt |
+| `label` (customer, product, tier) | `labeled` | `labeled` relationships to a label entity |
+| `group` (team, person, organization) | `owned_by`, `member_of` | everything a team owns |
+
+For a custom kind, list the relationship types that place an entity in it, for example a `rack_row` kind with
+`located_in`. The overview computes groups on the server over the whole readable catalog; clustering of loaded nodes
+uses only the nodes and relationships on screen.
 
 ### Identity keys
 When a source writes an entity that does not resolve by ID, external ID or kind + name, Deed computes the item's
