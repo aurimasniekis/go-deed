@@ -178,7 +178,7 @@ export function FindingsPage({
         <ErrorState error={findings.error} what="findings" onRetry={() => void findings.refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState title={search.state === 'closed' ? 'No closed findings' : 'No open findings'}>
-          {query.type.length || query.severity.length
+          {query.type || query.severity || query.class // compact() keeps only non-empty filters
             ? 'Nothing matches these filters.'
             : 'Findings are evaluated every two minutes from the catalog’s evidence.'}
         </EmptyState>

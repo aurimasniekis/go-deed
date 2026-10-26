@@ -10,6 +10,10 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
   (previously only reachable by URL). A failed link returns to the account page with the reason instead of the
   sign-in page.
 
+### Fixed
+- The findings page crashed ("Cannot read properties of undefined (reading 'length')") when there were no open
+  findings and no filters.
+
 ## [0.1.0] - 2026-10-26
 
 First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.md) and the [threat model](docs/THREAT_MODEL.md).

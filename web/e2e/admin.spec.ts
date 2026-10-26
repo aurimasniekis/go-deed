@@ -162,3 +162,16 @@ test('findings: owners can re-evaluate now', async ({ page }) => {
   await page.getByTestId('evaluate-findings').click()
   await expect(page.getByText('Findings and alerts re-evaluated')).toBeVisible()
 })
+
+test('findings: an empty list without filters renders the empty state', async ({ page }) => {
+  // Regression: with no open findings and no filters the page read the length of a dropped (empty) filter and crashed.
+  await page.route('**/api/v1/findings?*', (route) =>
+    route.request().method() === 'GET' ? route.fulfill({ json: [] }) : route.fallback(),
+  )
+  await page.goto('/findings')
+  await ready(page)
+  await expect(page.getByText('No open findings')).toBeVisible()
+  await expect(page.getByText('Findings are evaluated every two minutes from the catalog’s evidence.')).toBeVisible()
+  await page.goto('/findings?severity=critical')
+  await expect(page.getByText('Nothing matches these filters.')).toBeVisible()
+})

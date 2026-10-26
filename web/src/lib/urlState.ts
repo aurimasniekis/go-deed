@@ -44,13 +44,13 @@ export function decodeEnum<T extends string>(v: unknown, allowed: readonly T[]):
 }
 
 /** Drops undefined/empty values so URLs only carry what differs from the defaults. */
-export function compact<T extends object>(o: T): T {
+export function compact<T extends object>(o: T): Partial<T> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(o)) {
     if (v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) continue
     out[k] = v
   }
-  return out as T
+  return out as Partial<T>
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
