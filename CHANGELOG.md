@@ -5,6 +5,10 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-26
+
+No schema migration. Re-sync terraform_state sources to derive their DNS zones.
+
 ### Added
 - Terraform import: DNS zones derived from records when a state only passes zone IDs around (a zone module): one
   `dns_zone` per `zone_id`, named after the records' registrable domain (public-suffix aware), unless the state manages
@@ -96,7 +100,8 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/aurimasniekis/go-deed/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/aurimasniekis/go-deed/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/aurimasniekis/go-deed/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/aurimasniekis/go-deed/releases/tag/v0.1.0
