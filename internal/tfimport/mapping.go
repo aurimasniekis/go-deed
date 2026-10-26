@@ -13,6 +13,7 @@ import (
 	"text/template"
 
 	"go.yaml.in/yaml/v3"
+	"golang.org/x/net/publicsuffix"
 
 	"github.com/aurimasniekis/go-deed/internal/apperr"
 )
@@ -38,6 +39,9 @@ type Mapping struct {
 	Relations []RelRule `yaml:"relations,omitempty" json:"relations,omitempty"`
 	// Dependencies turn Terraform dependencies on given resource types into typed relationships.
 	Dependencies []DepRule `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	// Derive declares synthetic resources built from this resource's allowlisted attributes, mapped by their own
+	// mapping (for example a DNS zone derived from its records when the state only passes the zone ID around).
+	Derive []Derive `yaml:"derive,omitempty" json:"derive,omitempty"`
 	// Environment and Labels set static metadata.
 	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
@@ -57,6 +61,16 @@ type RelRule struct {
 	TargetPointer string `yaml:"target_pointer,omitempty" json:"target_pointer,omitempty"`
 	// Confidence of the inference (default 0.9 for pointer joins, 1.0 for id joins).
 	Confidence float64 `yaml:"confidence,omitempty" json:"confidence,omitempty"`
+}
+
+// Derive is a synthetic resource ("derived.<type>") built from the attributes of the resources that declare it: one per
+// distinct Key (a template), with Attributes rendered from templates and "id" set to the key. It is skipped when a
+// resource of one of UnlessTypes in the same state has that id.
+type Derive struct {
+	Resource    string            `yaml:"resource" json:"resource"`
+	Key         string            `yaml:"key" json:"key"`
+	Attributes  map[string]string `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+	UnlessTypes []string          `yaml:"unless_types,omitempty" json:"unless_types,omitempty"`
 }
 
 // DepRule types a Terraform dependency.
@@ -123,8 +137,9 @@ func (c *Catalog) With(custom []Mapping) (*Catalog, error) {
 	return out, nil
 }
 
-// resourceRE: a resource type or glob, optionally "data." for a data source (mapped only when named explicitly).
-var resourceRE = regexp.MustCompile(`^(data\.)?[a-z0-9_*?]+$`)
+// resourceRE: a resource type or glob, optionally "data." for a data source (mapped only when named explicitly) or
+// "derived." for a synthetic resource (Mapping.Derive).
+var resourceRE = regexp.MustCompile(`^((data|derived)\.)?[a-z0-9_*?]+$`)
 
 func (m *Mapping) validate() error {
 	if !resourceRE.MatchString(m.Resource) {
@@ -152,6 +167,23 @@ func (m *Mapping) validate() error {
 	for _, r := range m.Relations {
 		if r.Type == "" || r.Attribute == "" || (r.TargetAttribute == "" && r.TargetPointer == "") {
 			return fmt.Errorf("relation rules need type, attribute and target_attribute or target_pointer")
+		}
+	}
+	for _, dv := range m.Derive {
+		if !strings.HasPrefix(dv.Resource, "derived.") || !resourceRE.MatchString(dv.Resource) || strings.ContainsAny(dv.Resource, "*?") {
+			return fmt.Errorf("derive resource must be derived.<type>")
+		}
+		templates := []string{dv.Key}
+		for _, t := range dv.Attributes {
+			templates = append(templates, t)
+		}
+		for _, t := range templates {
+			if t == "" || len(t) > 512 {
+				return fmt.Errorf("derive templates must be 1–512 characters")
+			}
+			if _, err := template.New("t").Funcs(funcs).Parse(t); err != nil {
+				return fmt.Errorf("derive template: %w", err)
+			}
 		}
 	}
 	return nil
@@ -202,6 +234,18 @@ var funcs = template.FuncMap{
 	"slug":       Slug,
 	"lower":      strings.ToLower,
 	"trimSuffix": func(suffix, s string) string { return strings.TrimSuffix(s, suffix) },
+	// registrable is the registrable domain of a host name (public-suffix rules: app.example.co.uk → example.co.uk), or "".
+	"registrable": func(v any) string {
+		host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(fmt.Sprint(v))), ".")
+		if host == "" || host == "<nil>" {
+			return ""
+		}
+		d, err := publicsuffix.EffectiveTLDPlusOne(host)
+		if err != nil {
+			return ""
+		}
+		return d
+	},
 	"default": func(def string, v any) string {
 		if s := fmt.Sprint(v); v != nil && s != "" && s != "<no value>" {
 			return s

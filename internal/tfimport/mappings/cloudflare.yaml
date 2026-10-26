@@ -14,6 +14,9 @@ mappings:
       /spec/status: status
       /spec/provider: const:cloudflare
     join: [id, name]
+    relations:
+      # The registrable domain (a domain entity, e.g. declared by hand) contains its DNS zone.
+      - {type: contains, direction: in, attribute: name, target_kinds: [domain], target_pointer: /spec/fqdn}
   - resource: cloudflare_zone
     kind: dns_zone
     icon: simple-icons:cloudflare
@@ -24,7 +27,21 @@ mappings:
       /spec/zone_id: id
       /spec/plan: plan|plan.legacy_id
       /spec/provider: const:cloudflare
-    join: [id]
+    join: [id, zone, name]
+    relations:
+      - {type: contains, direction: in, attribute: zone|name, target_kinds: [domain], target_pointer: /spec/fqdn}
+  - resource: derived.cloudflare_zone
+    kind: dns_zone
+    icon: simple-icons:cloudflare
+    name: '{{ default .name .attr.name | slug }}'
+    display_name: '{{ default .name .attr.name }}'
+    fields:
+      /spec/zone: name
+      /spec/zone_id: id
+      /spec/provider: const:cloudflare
+    join: [id, name]
+    relations:
+      - {type: contains, direction: in, attribute: name, target_kinds: [domain], target_pointer: /spec/fqdn}
   - resource: cloudflare_record
     kind: dns_record
     icon: simple-icons:cloudflare
@@ -39,6 +56,13 @@ mappings:
       /spec/priority: priority
       /spec/zone: zone_id
     join: [zone_id]
+    derive:
+      # The state may only pass zone IDs around (a zone module, a variable): derive the zone from the records, named after
+      # their registrable domain, unless the state manages or looks up the zone itself.
+      - resource: derived.cloudflare_zone
+        key: '{{ .attr.zone_id }}'
+        attributes: {name: '{{ registrable .attr.hostname }}'}
+        unless_types: [cloudflare_zone, data.cloudflare_zone]
     relations:
       - {type: contains, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
       - {type: resolves_to, attribute: content|value, target_kinds: [server, vm, hypervisor, docker_host], target_pointer: /spec/ipv4}
@@ -57,6 +81,13 @@ mappings:
       /spec/priority: priority
       /spec/zone: zone_id
     join: [zone_id]
+    derive:
+      # The state may only pass zone IDs around (a zone module, a variable): derive the zone from the records, named after
+      # their registrable domain, unless the state manages or looks up the zone itself.
+      - resource: derived.cloudflare_zone
+        key: '{{ .attr.zone_id }}'
+        attributes: {name: '{{ registrable .attr.name }}'}
+        unless_types: [cloudflare_zone, data.cloudflare_zone]
     relations:
       - {type: contains, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
       - {type: resolves_to, attribute: content, target_kinds: [server, vm, hypervisor, docker_host], target_pointer: /spec/ipv4}

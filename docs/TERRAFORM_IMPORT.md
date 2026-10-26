@@ -133,7 +133,7 @@ Mappings are embedded from `internal/tfimport/mappings/*.yaml`:
 | | `aws_s3_bucket` | storage | |
 | | `aws_db_instance` | database | |
 | `certificates.yaml` | `acme_certificate`, `tls_self_signed_cert`, `tls_locally_signed_cert` | certificate | |
-| `cloudflare.yaml` | `cloudflare_zone`, `data.cloudflare_zone` | dns_zone | |
+| `cloudflare.yaml` | `cloudflare_zone`, `data.cloudflare_zone`, and zones derived from records (`derived.cloudflare_zone`: the records' `zone_id`, named after their registrable domain) | dns_zone | a `domain` entity with the same `/spec/fqdn` `contains` the zone |
 | | `cloudflare_record` (v4), `cloudflare_dns_record` (v5) | dns_record | zone `contains` record (`zone_id` = zone `id`); record `resolves_to` server/vm/hypervisor/docker_host (`/spec/ipv4`, `/spec/ipv6`) |
 | | `cloudflare_ruleset` | firewall_rule | zone `protected_by` ruleset (`zone_id`) |
 | | `cloudflare_r2_bucket` | storage | |
@@ -149,7 +149,7 @@ Mappings are embedded from `internal/tfimport/mappings/*.yaml`:
 | | `docker_hub_repository` | repository | |
 | `github.yaml` | `github_repository` | repository | |
 | | `github_repository_pages` | application | `deployed_from` repository (`repository` = `name`); DNS record `resolves_to` it (`cname` = `/spec/fqdn`) |
-| `google.yaml` | `googleworkspace_domain` | domain | |
+| `google.yaml` | `googleworkspace_domain`, `googleworkspace_domain_alias` | service (`type: google_workspace`) | a `domain` entity with the same `/spec/fqdn` `contains` it |
 | `grafana.yaml` | `grafana_dashboard` | grafana_dashboard | |
 | `hetzner.yaml` | `hcloud_server` | vm | |
 | | `hcloud_network` | network | |
@@ -169,6 +169,10 @@ Mappings are embedded from `internal/tfimport/mappings/*.yaml`:
 | | `vsphere_vmfs_datastore` | storage | `hosted_on` hypervisor |
 | | `vsphere_host_virtual_switch` | network_device (`type: virtual_switch`) | `hosted_on` hypervisor; `contains` its port groups (`virtual_switch_name`) |
 | | `vsphere_host_port_group` | network (`type: port_group`) | |
+
+Hub domains: declare one `domain` entity per registrable domain (`/spec/fqdn`, for example with the provider's
+`deed_entity`) in the project the imports write to; the next sync links its DNS zone and its Google Workspace domain to
+it (`contains`, inferred from the catalog), so `example.com` shows both.
 
 Not mapped on purpose: secrets and key material (`onepassword_item`, `tls_private_key`, `random_*`, `gpg_private_key`,
 `*_access_token`, `github_actions_secret`, HallPass login and host keys) and per-setting resources without inventory
@@ -206,9 +210,15 @@ override one:
   (`network_data.0.ip_address`), `a|b` fallbacks, `first:list`, `lower:attr`, `json:attr.key` (a key inside a
   JSON-encoded string attribute) and `const:value`.
 - `name` and `display_name` are Go templates (≤ 512 characters) over `.name`, `.index`, `.module`, `.address`,
-  `.type` and `.attr` (allowlisted attributes only), with `slug`, `lower`, `trimSuffix` and `default`.
+  `.type` and `.attr` (allowlisted attributes only), with `slug`, `lower`, `trimSuffix`, `default` and `registrable`
+  (the registrable domain of a host name by public-suffix rules: `app.example.co.uk` → `example.co.uk`).
 - `join`, `relations` (`type`, `direction` `out`/`in`, `attribute`, `target_kinds`, `target_attribute` or
   `target_pointer`, `confidence`), `dependencies` (`resource`, `type`, `direction`) and static `labels`.
+- `derive` declares synthetic resources built from this resource (`resource: derived.<type>`, a `key` template, and
+  `attributes` templates; `id` is the key): one per distinct key, mapped by a mapping for `derived.<type>`, and skipped
+  when a resource of one of `unless_types` in the same state has that `id`. The built-in Cloudflare mappings use it to
+  derive a zone from the records of a zone module that only passes the zone ID: `key: '{{ .attr.zone_id }}'`,
+  `attributes: {name: '{{ registrable .attr.name }}'}`, `unless_types: [cloudflare_zone, data.cloudflare_zone]`.
 
 Invalid mappings — and unknown keys anywhere in the source config — are refused when the source is saved
 (`mapping <resource>: …`, `invalid terraform_state config: unknown field …`).

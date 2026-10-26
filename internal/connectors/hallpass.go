@@ -25,6 +25,7 @@ type HallPassConfig struct {
 	Sessions        *bool    `json:"sessions,omitempty"`
 	AgentHostLabel  string   `json:"agent_host_label,omitempty"`
 	MatchServers    *bool    `json:"match_servers,omitempty"`
+	MatchKinds      []string `json:"match_kinds,omitempty"`
 	MaxGrants       int      `json:"max_grants,omitempty"`
 	MaxSessions     int      `json:"max_sessions,omitempty"`
 	AllowCIDRs      []string `json:"allow_cidrs,omitempty"`
@@ -41,7 +42,8 @@ const hallpassSchema = `{
     "grants": {"type": "boolean", "default": true, "description": "Import active grants as has_access_to edges (they expire with the grant)."},
     "sessions": {"type": "boolean", "default": true, "description": "Import open access sessions."},
     "agent_host_label": {"type": "string", "default": "host", "maxLength": 63, "description": "Agent label naming the machine the agent runs on; such agents also become agent boxes."},
-    "match_servers": {"type": "boolean", "default": true, "description": "Link catalog servers/VMs whose hostname or IPv4 equals a HallPass server address (inferred)."},
+    "match_servers": {"type": "boolean", "default": true, "description": "Link catalog machines whose hostname or IPv4 equals a HallPass server address, and agent boxes to the machine named by their host label (inferred)."},
+    "match_kinds": {"type": "array", "maxItems": 20, "items": {"type": "string", "pattern": "^([a-z0-9]([a-z0-9.-]{0,61}[a-z0-9])?/)?[a-z][a-z0-9_]{0,62}$"}, "default": ["server", "vm", "container", "hypervisor"], "description": "Kinds that count as machines for match_servers; add custom kinds (for example vps) whose spec carries hostname or ipv4."},
     "max_grants": {"type": "integer", "minimum": 1, "maximum": 20000, "default": 2000},
     "max_sessions": {"type": "integer", "minimum": 1, "maximum": 20000, "default": 1000},
     "include_disabled": {"type": "boolean", "description": "Also import disabled agents and servers."},
@@ -88,6 +90,9 @@ func parseHallPass(raw json.RawMessage) (*HallPassConfig, error) {
 	}
 	if c.MatchServers == nil {
 		c.MatchServers = &t
+	}
+	if len(c.MatchKinds) == 0 {
+		c.MatchKinds = []string{"server", "vm", "container", "hypervisor"}
 	}
 	if c.AgentHostLabel == "" {
 		c.AgentHostLabel = "host"
@@ -302,7 +307,7 @@ func (HallPass) Sync(ctx context.Context, env sources.Env, em sources.Emitter) e
 				return err
 			}
 			if *c.MatchServers && env.Lookup != nil {
-				if id, ok := env.Lookup(ctx, []string{"server", "vm"}, "/spec/hostname", host); ok {
+				if id, ok := env.Lookup(ctx, c.MatchKinds, "/spec/hostname", host); ok {
 					if err := rel("runs_on", box, catalog.Ref{ID: id}, map[string]any{"rule": "agent_host_label_equals_hostname", "matched": host}, nil, true); err != nil {
 						return err
 					}
@@ -352,7 +357,7 @@ func (HallPass) Sync(ctx context.Context, env sources.Env, em sources.Emitter) e
 			if ip := net.ParseIP(s.Address); ip != nil && ip.To4() != nil {
 				ptr = "/spec/ipv4"
 			}
-			if id, ok := env.Lookup(ctx, []string{"server", "vm", "container"}, ptr, s.Address); ok {
+			if id, ok := env.Lookup(ctx, c.MatchKinds, ptr, s.Address); ok {
 				if err := rel("protected_by", catalog.Ref{ID: id}, ref, map[string]any{"rule": "hallpass_server_address", "pointer": ptr, "matched": s.Address}, nil, true); err != nil {
 					return err
 				}

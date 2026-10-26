@@ -59,7 +59,9 @@ only when the role may read them (`inventory.address.read`; for auditors, HallPa
 without it, the connector test warns `address_redacted` and catalog servers are not matched by address.
 
 **Config:** `{"url": "https://hallpass.example.com"}` plus optional `grants`, `sessions`, `agent_host_label`
-(default `host`), `match_servers`, `max_grants`, `max_sessions`, `include_disabled`.
+(default `host`), `match_servers`, `match_kinds` (kinds that count as machines for `match_servers`, default `server`,
+`vm`, `container`, `hypervisor`; add custom kinds such as a `vps` kind whose spec has `ipv4` or `hostname`), `max_grants`,
+`max_sessions`, `include_disabled`.
 
 Reads `GET /api/v1/system/status`, `/agents`, `/servers`, `/servers/{id}/roles`, `/grants?state=active` and
 `/access-sessions?state=open|closing` (cursor-paged). It models:

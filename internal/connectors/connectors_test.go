@@ -525,3 +525,31 @@ func TestGitHubExplicitZeroSettings(t *testing.T) {
 		t.Fatalf("defaults: %d, %d", *c.MinRateRemaining, *c.ClosedRetentionDays)
 	}
 }
+
+// match_kinds lets custom machine kinds (a vps kind with spec.ipv4) be linked to the HallPass servers that gate them.
+func TestHallPassMatchKinds(t *testing.T) {
+	env := testenv.New(t)
+	ctx := context.Background()
+	hp := serveFixture(t, "hallpass", "/api/v1", "hallpass_at_test", nil)
+	p := env.Project(t, "access")
+	api := env.Source(t, p.ID, "api", "")
+	if _, err := env.Catalog.CreateKind(ctx, audit.System, catalog.KindInput{Name: "example.com/vps", Title: "VPS"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Apply(t, api, catalog.EntityItem{Kind: "example.com/vps", Name: "web-1", Spec: map[string]any{"ipv4": "192.0.2.10"}}, catalog.ApplyOpts{}); err != nil {
+		t.Fatal(err)
+	}
+	inferred := func() bool {
+		for k, rel := range relations(t, env) {
+			if k == "protected_by web-1 -> web-1" && rel.Inferred {
+				return true
+			}
+		}
+		return false
+	}
+	src := newSource(t, env, p.ID, HallPassType, map[string]any{"url": hp.URL, "match_kinds": []string{"server", "example.com/vps"}}, "hallpass_at_test")
+	syncOK(t, runner(env), src)
+	if !inferred() {
+		t.Fatal("match_kinds did not link the custom kind")
+	}
+}

@@ -5,6 +5,20 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Added
+- Terraform import: DNS zones derived from records when a state only passes zone IDs around (a zone module): one
+  `dns_zone` per `zone_id`, named after the records' registrable domain (public-suffix aware), unless the state manages
+  or looks up the zone. Mappings can declare such synthetic resources (`derive`, `derived.<type>`) and use the
+  `registrable` template function.
+- Terraform import: a `domain` entity with the same FQDN `contains` the DNS zone and the Google Workspace domain;
+  `googleworkspace_domain_alias` is mapped too.
+- HallPass connector: `match_kinds` lists the kinds matched by address or hostname (default adds `hypervisor`; custom
+  machine kinds such as `vps` can be added).
+
+### Changed
+- Terraform import: Google Workspace domains are `service` entities (`type: google_workspace`) contained by the domain,
+  instead of `domain` entities.
+
 ## [0.3.0] - 2026-10-26
 
 Upgrading from 0.2.0: schema migration 9 (kind map grouping) runs at start-up after the usual pre-migration snapshot;

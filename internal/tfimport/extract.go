@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/aurimasniekis/go-deed/internal/catalog"
@@ -158,8 +159,8 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 		extPrefix = o.Workspace + ":"
 	}
 	d.Resources = 0
-	for _, res := range st.Resources {
-		data := strings.HasPrefix(res.Type, "data.")
+	process := func(res Resource) {
+		data := strings.HasPrefix(res.Type, "data.") || strings.HasPrefix(res.Type, "derived.")
 		if !data {
 			d.Resources++
 		}
@@ -168,7 +169,7 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 			if !data { // an unmapped data source is an ordinary lookup, not a gap in the catalog
 				d.Unsupported[res.Type]++
 			}
-			continue
+			return
 		}
 		d.Mapped[res.Type]++
 		x := &extracted{res: res, m: m, attrs: map[string]any{}, eff: map[string]any{}}
@@ -287,6 +288,12 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 		items = append(items, x)
 		byBase[stripIndex(res.Address)] = append(byBase[stripIndex(res.Address)], x)
 		byAddr[res.Address] = x
+	}
+	for _, res := range st.Resources {
+		process(res)
+	}
+	for _, res := range derive(items) {
+		process(res)
 	}
 	var b ingest.Batch
 	for _, x := range items {
@@ -465,4 +472,47 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// derive builds the synthetic resources that mappings declare (Mapping.Derive) from the allowlisted attributes of the
+// extracted resources: one per distinct key, skipped when a real resource of one of UnlessTypes has that key as its id
+// (a zone that the state manages or looks up wins over the zone derived from its records).
+func derive(items []*extracted) []Resource {
+	var out []Resource
+	seen := map[string]bool{}
+	for _, x := range items {
+		for _, dv := range x.m.Derive {
+			tdata := map[string]any{"name": x.res.Name, "module": strings.TrimPrefix(x.res.Module, "module."), "address": x.res.Address,
+				"type": x.res.Type, "attr": allowlistedTree(x.attrs)}
+			key, err := render(dv.Key, tdata)
+			key = strings.TrimSpace(key)
+			if err != nil || key == "" {
+				continue
+			}
+			addr := dv.Resource + "[" + strconv.Quote(key) + "]"
+			if seen[addr] {
+				continue
+			}
+			seen[addr] = true
+			real := false
+			for _, y := range items {
+				if contains(dv.UnlessTypes, y.res.Type) && fmt.Sprint(y.attrs["id"]) == key {
+					real = true
+					break
+				}
+			}
+			if real {
+				continue
+			}
+			attrs := map[string]any{"id": key}
+			for k, tpl := range dv.Attributes {
+				if v, err := render(tpl, tdata); err == nil && strings.TrimSpace(v) != "" {
+					attrs[k] = strings.TrimSpace(v)
+				}
+			}
+			out = append(out, Resource{Address: addr, Module: x.res.Module, Type: dv.Resource, Name: Slug(key), Index: strconv.Quote(key),
+				Provider: x.res.Provider, Attributes: attrs})
+		}
+	}
+	return out
 }

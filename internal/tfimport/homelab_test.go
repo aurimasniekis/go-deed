@@ -75,3 +75,62 @@ func TestExtractHomelabProviders(t *testing.T) {
 		}
 	}
 }
+
+// TestDerivedZonesAndDomains: a zone module passes only zone IDs to its records, so the zone is derived from them
+// (named after the records' registrable domain, public-suffix aware); a zone the state looks up wins over the derived
+// one; zones and Google Workspace domains are contained by the hand-declared domain entity with the same FQDN.
+func TestDerivedZonesAndDomains(t *testing.T) {
+	st := load(t, "zones-module-v4.json")
+	domains := map[string]string{"example.com": "ent_dom_com", "example.co.uk": "ent_dom_uk", "example.org": "ent_dom_org", "example.net": "ent_dom_net"}
+	lookup := func(_ context.Context, kinds []string, pointer, value string) (string, bool) {
+		if pointer != "/spec/fqdn" || len(kinds) != 1 || kinds[0] != "domain" {
+			return "", false
+		}
+		id, ok := domains[value]
+		return id, ok
+	}
+	b, d := Extract(context.Background(), st, MustBuiltin(), Options{Lookup: lookup})
+	if d.Mapped["derived.cloudflare_zone"] != 2 || d.Resources != 6 {
+		t.Errorf("mapped %v, %d resources", d.Mapped, d.Resources)
+	}
+	zones := map[string]string{}
+	for _, e := range b.Entities {
+		if e.Kind == "dns_zone" {
+			zones[e.Name] = e.ExternalID
+		}
+	}
+	want := map[string]string{"example.com": `derived.cloudflare_zone["zone-example-com"]`, "example.co.uk": `derived.cloudflare_zone["zone-example-co-uk"]`,
+		"example.org": "data.cloudflare_zone.org"}
+	if len(zones) != len(want) {
+		t.Errorf("zones %v", zones)
+	}
+	for n, ext := range want {
+		if zones[n] != ext {
+			t.Errorf("zone %s: %q, want %q", n, zones[n], ext)
+		}
+	}
+	rels := map[string]bool{}
+	for _, r := range b.Relations {
+		rels[r.Type+" "+r.From.String()+" "+r.To.String()] = true
+	}
+	for _, w := range []string{
+		`contains external:derived.cloudflare_zone["zone-example-com"] external:module.zone["example.com"].cloudflare_dns_record.this["www"]`,
+		`contains external:derived.cloudflare_zone["zone-example-com"] external:module.zone["example.com"].cloudflare_dns_record.this["apex"]`,
+		`contains external:derived.cloudflare_zone["zone-example-co-uk"] external:module.zone["example.co.uk"].cloudflare_dns_record.this["mail"]`,
+		`contains external:data.cloudflare_zone.org external:cloudflare_dns_record.org`,
+		`contains ent_dom_com external:derived.cloudflare_zone["zone-example-com"]`,
+		`contains ent_dom_uk external:derived.cloudflare_zone["zone-example-co-uk"]`,
+		`contains ent_dom_org external:data.cloudflare_zone.org`,
+		`contains ent_dom_com external:googleworkspace_domain.primary`,
+		`contains ent_dom_net external:googleworkspace_domain_alias.alias`,
+	} {
+		if !rels[w] {
+			t.Errorf("missing %s", w)
+		}
+	}
+	if t.Failed() {
+		for r := range rels {
+			t.Log(r)
+		}
+	}
+}

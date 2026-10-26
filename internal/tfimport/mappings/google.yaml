@@ -1,13 +1,31 @@
-# Google Workspace provider (samuzad/googleworkspace).
+# Google Workspace provider (samuzad/googleworkspace). A Workspace domain is a service of its registrable domain: a
+# domain entity (declared by hand, kind domain, /spec/fqdn) contains it, next to the domain's DNS zone.
 mappings:
   - resource: googleworkspace_domain
-    kind: domain
+    kind: service
     icon: simple-icons:google
-    name: '{{ default .name .attr.domain_name | slug }}'
-    display_name: '{{ default .name .attr.domain_name }}'
+    name: 'google-workspace-{{ default .name .attr.domain_name | slug }}'
+    display_name: 'Google Workspace: {{ default .name .attr.domain_name }}'
     fields:
-      /spec/fqdn: domain_name
+      /spec/type: const:google_workspace
+      /spec/domain: domain_name
       /spec/verified: verified
       /spec/primary: is_primary
       /spec/provider: const:google-workspace
     join: [domain_name]
+    relations:
+      - {type: contains, direction: in, attribute: domain_name, target_kinds: [domain], target_pointer: /spec/fqdn}
+  - resource: googleworkspace_domain_alias
+    kind: service
+    icon: simple-icons:google
+    name: 'google-workspace-{{ default .name .attr.domain_alias_name | slug }}'
+    display_name: 'Google Workspace: {{ default .name .attr.domain_alias_name }} (alias of {{ .attr.parent_domain_name }})'
+    fields:
+      /spec/type: const:google_workspace
+      /spec/domain: domain_alias_name
+      /spec/alias_of: parent_domain_name
+      /spec/verified: verified
+      /spec/provider: const:google-workspace
+    join: [domain_alias_name, parent_domain_name]
+    relations:
+      - {type: contains, direction: in, attribute: domain_alias_name, target_kinds: [domain], target_pointer: /spec/fqdn}
