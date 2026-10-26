@@ -24,6 +24,7 @@ import {
   IconInfoCircle,
   IconListDetails,
   IconMap2,
+  IconMask,
   IconRoute,
   IconSearch,
 } from '@tabler/icons-react'
@@ -55,7 +56,8 @@ import { keys, useKinds, useProjects, useRelTypes, useSources } from '@/api/quer
 import { onLiveChanges } from '@/api/useLive'
 import { EmptyState, ErrorState } from '@/components/States'
 import { SavedViewsMenu } from '@/features/views/SavedViews'
-import { useProjectFilter, useTitle } from '@/lib/appStore'
+import { setMasked, useMasked, useProjectFilter, useTitle } from '@/lib/appStore'
+import { alias, maskProject } from '@/lib/mask'
 import { humanize, plural } from '@/lib/format'
 import { compact, decodeList, encodeList, validateMapSearch, type MapSearch } from '@/lib/urlState'
 import { flushSync } from 'react-dom'
@@ -63,6 +65,7 @@ import { buildLegend, edgeVisual, sourceColor, sourcePalette } from './edgeStyle
 import { edgeTypes, LodEdges, type DeedFlowEdge } from './edges'
 import { MapContextMenu, type ContextMenuActions, type MenuTarget } from './ContextMenu'
 import { EdgeInspector, NodeInspector, type InspectorActions } from './Inspector'
+import { maskModel } from './mask'
 import { layoutCache, runLayout, warmLayout } from './layout'
 import type { LayoutResult } from './layoutTypes'
 import { MapLegend } from './Legend'
@@ -246,12 +249,14 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const sources = useSources()
   const kindMap = useMemo(() => new Map((kinds.data ?? []).map((k) => [k.name, k])), [kinds.data])
   const typeMap = useMemo(() => new Map((relTypes.data ?? []).map((t) => [t.name, t])), [relTypes.data])
+  const masked = useMasked()
   const projectName = useCallback(
     (id: string) => {
+      if (masked) return maskProject(id)
       const p = projects.data?.find((x) => x.id === id)
       return p ? p.display_name || p.name : id
     },
-    [projects.data],
+    [projects.data, masked],
   )
   const typeTitle = useCallback((t: string) => typeMap.get(t)?.title ?? humanize(t), [typeMap])
   const typeColor = useCallback((t: string) => typeMap.get(t)?.color, [typeMap])
@@ -278,7 +283,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
 
   const view = useMemo(() => {
     const filtered = applyFilters(data.model, filters)
-    const clustered = clusterModel(filtered, clustering, new Set(collapsed), projectName)
+    // Mask mode replaces names before clustering, so host and project group labels are aliases too.
+    const clustered = clusterModel(masked ? maskModel(filtered) : filtered, clustering, new Set(collapsed), projectName)
     // Members of an expanded cluster stay together in a container (collapsing it undoes the expansion).
     const expanded = groupExpansions(clustered.model)
     const budgeted = enforceBudget(expanded.model)
@@ -289,7 +295,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       ),
     ].filter((g) => !g.collapsed && g.members.some((m) => budgeted.nodes.has(m)))
     return { model: budgeted, groups }
-  }, [data.model, filters, clustering, collapsed, projectName])
+  }, [data.model, filters, clustering, collapsed, projectName, masked])
 
   // Source colours are assigned over every source the user can see (oldest first), so a colour does not depend on
   // what happens to be on screen.
@@ -890,6 +896,9 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       case 'l':
         setPanel('legendOpen', !legendOpen)
         break
+      case 'm':
+        setMasked(!masked)
+        break
       case '+':
       case '=':
         void rf.zoomIn({ duration: reduced ? 0 : 150 })
@@ -935,6 +944,10 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     staleTime: 60_000,
   })
   const nameOf = (id: string) => {
+    if (masked) {
+      const v = view.model.nodes.get(id)
+      return v ? v.name : alias('entity', id)
+    }
     const n = data.model.nodes.get(id)
     if (n) return n.displayName ?? n.name
     const e = trailNames.data?.items.find((x) => x.metadata.id === id)
@@ -1135,6 +1148,18 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
             }
             onApply={applyView}
           />
+          <Tooltip label="Mask mode: replace names, owners and projects with stable aliases for screenshots (m)">
+            <Button
+              variant={masked ? 'filled' : 'default'}
+              color={masked ? 'grape' : undefined}
+              leftSection={<IconMask size={14} />}
+              aria-pressed={masked}
+              onClick={() => setMasked(!masked)}
+              data-testid="map-mask"
+            >
+              {masked ? 'Masked' : 'Mask'}
+            </Button>
+          </Tooltip>
           <Tooltip label="The same relationships as an accessible table">
             <ButtonLink
               variant="default"

@@ -151,6 +151,11 @@ the ADR-011 budget. In the overview a group of a single entity is shown as that 
   collapse button (or *Collapse … expansion* in the status bar) folds them back into one node. Members without
   relationships among themselves are packed in a grid instead of one tall column, and expansions of any size work
   (the member neighbourhood is fetched in batches of 50 roots, the API's limit per request).
+- **Mask mode** (toolbar *Mask*, or `m`) is for screenshots and screen sharing: entity names, display names, owners,
+  labels, project and source names become stable aliases derived from the IDs (`service-k3f9`, `project-2nec`), the
+  inspector stops fetching details (description, owner, project, assertion evidence), and the project switcher and the
+  synthetic-data banner hide project names. Kinds, health, freshness, relationship types, measured rates and common
+  environment names (production, staging, …) stay, so the picture keeps its meaning. It is remembered per browser.
 - Layered layouts place every connected component apart, each on its own faint background region, instead of
   interleaving unrelated chains in one set of layers.
 - Click selects and opens the inspector; double-click or `Enter` expands a node or cluster in place; the arrow keys
@@ -230,6 +235,7 @@ Press `?` anywhere to see them in the app.
 | Map: `Shift F10`, context-menu key    | Quick-actions menu for the selected node (also right-click) |
 | Map: `Esc`                            | Clear selection, close panels                               |
 | Map: `f` / `i` / `l`                  | Fit view / impact of selection / toggle legend              |
+| Map: `m`                              | Mask mode (aliases instead of names, for screenshots)       |
 | Map: `+` / `−`                        | Zoom                                                        |
 | Inventory: `Space`                    | Toggle the focused row's checkbox                           |
 

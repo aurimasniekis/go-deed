@@ -5,6 +5,10 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Added
+- Map mask mode (toolbar *Mask* or `m`) for screenshots: names, owners, labels, project and source names are replaced by
+  stable aliases, and the inspector hides entity details.
+
 ### Changed
 - Map: layered layouts place every connected component in its own region instead of interleaving unrelated chains;
   the members of an expanded group are drawn together in a container (packed in a grid when they are not related to

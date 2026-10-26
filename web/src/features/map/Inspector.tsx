@@ -30,6 +30,7 @@ import { RefIcon } from '@/components/icons'
 import { EvidenceBadge, FreshnessBadge, HealthBadge } from '@/components/StatusBadge'
 import { EvidenceList } from '@/features/findings/FindingItem'
 import { useEntity, useRelationDetail } from '@/features/entity/queries'
+import { useMasked } from '@/lib/appStore'
 import { humanize } from '@/lib/format'
 import { evidenceMeta } from '@/lib/status'
 import { sourceLabel, type GraphModel, type MapEdge, type MapNode } from './types'
@@ -106,7 +107,9 @@ export function NodeInspector({
   onClose: () => void
 }) {
   const isCluster = !!node.cluster
-  const entity = useEntity(isCluster || node.redacted ? '' : node.id)
+  const masked = useMasked()
+  // Mask mode: the entity's details (project, description, owner) are not even fetched.
+  const entity = useEntity(isCluster || node.redacted || masked ? '' : node.id)
   const out = [...model.edges.values()].filter((e) => e.from === node.id)
   const inc = [...model.edges.values()].filter((e) => e.to === node.id)
   const rel = (e: MapEdge, dir: 'out' | 'in') => {
@@ -118,7 +121,15 @@ export function NodeInspector({
           <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
             {dir === 'out' ? '→' : '←'} {typeTitle(e.type)}
           </Text>
-          <Anchor component="button" type="button" size="xs" truncate onClick={() => actions.select(other.id)}>
+          <Anchor
+            component="button"
+            type="button"
+            size="xs"
+            truncate
+            onClick={() => actions.select(other.id)}
+            // 24 px targets (WCAG 2.5.8): the rows are stacked tightly.
+            style={{ minHeight: 24, display: 'inline-flex', alignItems: 'center' }}
+          >
             {other.redacted ? 'restricted' : (other.displayName ?? other.name)}
           </Anchor>
         </Group>
@@ -173,7 +184,7 @@ export function NodeInspector({
             </Text>
             <Text size="xs" c="dimmed" truncate>
               {kindTitle}
-              {e ? ` · ${e.metadata.project}` : ''}
+              {e && !masked ? ` · ${e.metadata.project}` : ''}
             </Text>
           </div>
         </Group>
@@ -205,7 +216,11 @@ export function NodeInspector({
               {evidenceMeta(node.impactEvidence).label})
             </Text>
           )}
-          {entity.isPending ? (
+          {masked ? (
+            <Text size="xs" c="dimmed">
+              Details are hidden in mask mode.
+            </Text>
+          ) : entity.isPending ? (
             <Loader size="xs" />
           ) : e ? (
             <Stack gap={2}>
@@ -327,7 +342,9 @@ export function EdgeInspector({
   projectName: (id: string) => string
   onClose: () => void
 }) {
-  const real = !edge.id.startsWith('agg:') && edge.count <= 1
+  // Mask mode: assertion details (evidence values, source names) are not fetched.
+  const masked = useMasked()
+  const real = !edge.id.startsWith('agg:') && edge.count <= 1 && !masked
   const detail = useRelationDetail(edge.id, real)
   const from = model.nodes.get(edge.from)
   const to = model.nodes.get(edge.to)

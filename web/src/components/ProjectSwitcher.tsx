@@ -1,7 +1,8 @@
 import { MultiSelect } from '@mantine/core'
 import { IconFolders } from '@tabler/icons-react'
 import { useProjects } from '@/api/queries'
-import { setProjectFilter, useProjectFilter } from '@/lib/appStore'
+import { setProjectFilter, useMasked, useProjectFilter } from '@/lib/appStore'
+import { maskProject } from '@/lib/mask'
 
 /**
  * The global project filter: scopes the dashboard, inventory, map overview, findings and sources. Remembered per user in
@@ -10,9 +11,10 @@ import { setProjectFilter, useProjectFilter } from '@/lib/appStore'
 export function ProjectSwitcher() {
   const projects = useProjects()
   const selected = useProjectFilter()
+  const masked = useMasked()
   const data = (projects.data ?? []).map((p) => ({
     value: p.id,
-    label: `${p.display_name || p.name}${p.synthetic ? ' (synthetic)' : ''}`,
+    label: `${masked ? maskProject(p.id) : p.display_name || p.name}${p.synthetic ? ' (synthetic)' : ''}`,
   }))
   const known = new Set(data.map((d) => d.value))
   return (

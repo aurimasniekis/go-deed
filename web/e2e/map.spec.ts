@@ -238,3 +238,27 @@ test('map: a large overview group expands, with its members drawn together; a gr
   await expect(page).not.toHaveURL(/expand=/)
   await expect(page.locator('[data-cluster-key="kind|nats_consumer"]')).toBeVisible()
 })
+
+test('map: mask mode hides names for screenshots', async ({ page }) => {
+  const billing = entityId('service/billing-api')
+  await page.goto(`/map?focus=${billing}&mode=neighborhood&depth=2`)
+  const canvas = page.getByTestId('map-canvas')
+  await expect(canvas).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await expect(canvas).toContainText('Billing API')
+  await page.getByTestId('map-mask').click()
+  await expect(page.getByTestId('map-mask')).toHaveAttribute('aria-pressed', 'true')
+  await expect(canvas.locator(`[data-entity-id="${billing}"]`)).toContainText(/service-[0-9a-z]{4}/)
+  // Nothing identifying anywhere on the page: entity names, project names, owners.
+  await page.locator(`[data-entity-id="${billing}"]`).click()
+  await expect(page.getByTestId('inspector-title')).toHaveText(/service-[0-9a-z]{4}/)
+  await expect(page.getByText('Details are hidden in mask mode.')).toBeVisible()
+  const text = await page.locator('body').innerText()
+  for (const secret of ['Billing API', 'billing-api', 'Home infrastructure', 'payments'])
+    expect(text).not.toContain(secret)
+  await expectAccessible(page, 'map in mask mode')
+  if (process.env.DEED_E2E_SCREENSHOTS) await page.screenshot({ path: `${process.env.DEED_E2E_SCREENSHOTS}/mask.png` })
+  // The shortcut turns it off again (and it is remembered per browser).
+  await canvas.focus()
+  await page.keyboard.press('m')
+  await expect(canvas).toContainText('Billing API')
+})

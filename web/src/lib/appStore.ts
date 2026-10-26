@@ -12,9 +12,26 @@ export interface AppState {
   shortcutsOpen: boolean
   /** The dashboard's synthetic_data flag (drives the persistent banner). */
   syntheticData: boolean
+  /** Mask mode: names and other identifying text replaced by stable aliases (screenshots, screen sharing). */
+  masked: boolean
 }
 
-export const appStore = new Store<AppState>({ user: '', projects: [], shortcutsOpen: false, syntheticData: false })
+export const appStore = new Store<AppState>({
+  user: '',
+  projects: [],
+  shortcutsOpen: false,
+  syntheticData: false,
+  masked: readPref<boolean>('masked', false),
+})
+
+export function setMasked(masked: boolean) {
+  writePref('masked', masked)
+  appStore.setState((s) => ({ ...s, masked }))
+}
+
+export function useMasked(): boolean {
+  return useSelector(appStore, (s) => s.masked)
+}
 
 export function setSyntheticData(v: boolean) {
   if (appStore.state.syntheticData !== v) appStore.setState((s) => ({ ...s, syntheticData: v }))

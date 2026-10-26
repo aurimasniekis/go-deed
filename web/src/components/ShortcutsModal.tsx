@@ -31,6 +31,7 @@ export const SHORTCUTS: { group: string; items: [string[], string][] }[] = [
       [['f'], 'Fit the view'],
       [['i'], 'Impact (downstream) of the selected entity'],
       [['l'], 'Toggle the legend'],
+      [['m'], 'Mask mode: hide names for screenshots'],
       [['+', '−'], 'Zoom in / out'],
     ],
   },
