@@ -13,8 +13,8 @@ provider works with every Deed release at or above its minimum version.
 
 Recorded validation pairs: the provider acceptance suite (`make testacc`) and its scenario passed against go-deed
 `569e2db` (provider `5c8537a`) and against go-deed `v0.1.0` (provider `v0.1.0`); the §18 end-to-end run in
-`docs/VALIDATION.md` names the exact go-deed and provider commits it used. Published releases: go-deed v0.1.0 and
-provider v0.1.0 (2026-10-26).
+`docs/VALIDATION.md` names the exact go-deed and provider commits it used. Published releases: go-deed v0.1.0 and v0.2.0,
+provider v0.1.0 and v0.2.0 (2026-10-26); the provider acceptance suite passed against go-deed `v0.2.0` (provider `v0.2.0`).
 
 The provider reads `GET /api/v1/system/info` during configure and warns when the server is older than its minimum
 version or reports an API major version it does not know.

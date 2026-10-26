@@ -32,6 +32,10 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.2.0** (2026-10-26, `1304838`): release run 40377515163 succeeded in every job; images on GHCR and Docker Hub.
+  Checked before publishing: checksum and SLSA provenance of the linux/amd64 archive and of the image, and an upgrade
+  of a v0.1.0 database (demo data) by the release binary: pre-migration snapshot, migration 7 → 8, data intact,
+  `deed admin token` works.
 - **v0.1.0** (2026-10-26, `3f45d31`): release run 40315870370 succeeded in every job. Image
   `ghcr.io/aurimasniekis/go-deed:0.1.0` = `docker.io/aurimasniekis/deed:0.1.0`
   (`sha256:df73365dd54d3483bd9eb7063d6bf757fa4f46433465fb18dbd507786bc740c9`), both pullable anonymously. Checked
