@@ -346,10 +346,13 @@ func (svc *Service) ConsumeInvite(ctx context.Context, token, displayName, passw
 func (svc *Service) IssueReset(ctx context.Context, actor audit.Actor, userID string, ttl time.Duration) (Link, error) {
 	var l Link
 	err := svc.s.W().TxNamed(ctx, "authn.reset_issue", func(tx *store.Tx) error {
-		if _, err := getUserTx(ctx, tx, userID); err != nil {
+		u, err := getUserTx(ctx, tx, userID)
+		if err != nil {
 			return err
 		}
-		var err error
+		if u.Kind == KindService {
+			return apperr.New(apperr.CodeConflict, "service accounts have no password; issue an API token instead")
+		}
 		if l, err = svc.issueLinkTx(ctx, tx, LinkReset, userID, "", "", actor.ID, ttl); err != nil {
 			return err
 		}

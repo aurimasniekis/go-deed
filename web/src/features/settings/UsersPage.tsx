@@ -24,6 +24,7 @@ import { Page } from '@/components/AppShell'
 import { ConfirmModal, OneTimeSecret, PageHeader, TimeAgo } from '@/components/common'
 import { ErrorState, LoadingRows } from '@/components/States'
 import { useTitle } from '@/lib/appStore'
+import { ServiceAccountsCard } from './ServiceAccounts'
 
 type Role = InstallationRole | ''
 
@@ -207,6 +208,7 @@ export function UsersPage() {
           </Table.ScrollContainer>
         </Card>
       )}
+      <ServiceAccountsCard admin={admin} />
       <Modal opened={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite a user" centered>
         <form
           onSubmit={(e) => {

@@ -102,6 +102,7 @@ the lock (stop the server first) and the KEK.
 | `deed admin bootstrap` | single-use link creating the first owner, valid `auth.setup_token_ttl` (30 min) (offline) |
 | `deed admin recover -email …` | break-glass login link, 15 min, audited, raises a critical finding (offline; docs/SSO.md) |
 | `deed admin create-project -name … [-display-name …]` | create a project (offline) |
+| `deed admin token -service-account NAME [-create] [-role admin\|auditor\|none] [-days N] [-name …]` | API token for a service account, printed once to stdout (offline; docs/SERVICE_ACCOUNTS.md) |
 | `deed backup keygen\|run\|list\|verify\|verify-key` | encrypted backups (docs/BACKUP.md) |
 | `deed restore` | restore a backup (offline; docs/BACKUP.md) |
 | `deed import terraform` | push a Terraform state to a running server (docs/TERRAFORM_IMPORT.md) |

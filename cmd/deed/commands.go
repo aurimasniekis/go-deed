@@ -45,6 +45,7 @@ func rootCommands() []*command {
 			{name: "bootstrap", summary: "print a single-use link that creates the first owner (only while none exists)", run: runBootstrap},
 			{name: "recover", summary: "break-glass: print a single-use 15-minute login link for a user (audited, raises an alert)", run: runRecover},
 			{name: "create-project", summary: "create a project", run: runCreateProject},
+			{name: "token", summary: "issue an API token for a service account, e.g. Terraform's first credential (prints it once; audited)", run: runAdminToken},
 		}},
 		{name: "backup", summary: "encrypted backups (ADR-010)", sub: backupCommands()},
 		{name: "restore", summary: "restore a backup into the data directory (offline)", run: runRestore},

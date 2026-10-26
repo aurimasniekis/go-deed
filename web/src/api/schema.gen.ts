@@ -1330,6 +1330,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/service-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List service accounts (installation owner, admin or auditor) */
+        get: operations["list-service-accounts"];
+        put?: never;
+        /**
+         * Create a service account
+         * @description A non-human user for automation: no password, SSO or sessions, only API tokens. Grant project roles with PUT /projects/{project}/members/{user}.
+         */
+        post: operations["create-service-account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/service-accounts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a service account by ID or name */
+        get: operations["get-service-account"];
+        put?: never;
+        post?: never;
+        /** Delete a service account with its tokens and memberships */
+        delete: operations["delete-service-account"];
+        options?: never;
+        head?: never;
+        /** Change a service account */
+        patch: operations["update-service-account"];
+        trace?: never;
+    };
+    "/service-accounts/{id}/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A service account's API tokens */
+        get: operations["list-service-account-tokens"];
+        put?: never;
+        /**
+         * Create a service account API token (shown once)
+         * @description The token acts as the service account, with at most its installation role and project memberships.
+         */
+        post: operations["create-service-account-token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/service-accounts/{id}/tokens/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a service account API token */
+        delete: operations["revoke-service-account-token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/silences": {
         parameters: {
             query?: never;
@@ -2322,6 +2400,38 @@ export interface components {
             source: string;
             to: components["schemas"]["Ref"];
             type: string;
+        };
+        CreateServiceAccountInputBody: {
+            description?: string;
+            /** @description Defaults to the name. */
+            display_name?: string;
+            /**
+             * @description Installation role; empty = project memberships only.
+             * @enum {string}
+             */
+            installation_role?: "admin" | "auditor" | "";
+            /** @description Unique name (lowercase letters, digits, '-', '_'). */
+            name: string;
+        };
+        CreateServiceTokenInputBody: {
+            /**
+             * Format: int64
+             * @default 90
+             */
+            expires_in_days: number;
+            /**
+             * @description Omit to inherit the service account's installation role; empty for none.
+             * @enum {string}
+             */
+            installation_role?: "admin" | "auditor" | "";
+            name: string;
+            /**
+             * @description Caps every project role of the token.
+             * @enum {string}
+             */
+            project_role?: "viewer" | "editor" | "admin" | "";
+            /** @description Restrict to these project IDs or names (empty = all the service account can access). */
+            projects?: string[];
         };
         CreateSilenceInputBody: {
             comment: string;
@@ -3659,6 +3769,20 @@ export interface components {
             to: string;
             type: string;
         };
+        UpdateServiceAccountInputBody: {
+            description?: string;
+            display_name?: string;
+            /**
+             * @description Empty string removes the installation role.
+             * @enum {string}
+             */
+            installation_role?: "admin" | "auditor" | "";
+            /**
+             * @description Disabling revokes every token.
+             * @enum {string}
+             */
+            status?: "active" | "disabled";
+        };
         UpdateUserInputBody: {
             display_name?: string;
             /**
@@ -3672,14 +3796,19 @@ export interface components {
         User: {
             /** Format: date-time */
             created_at: string;
+            description?: string;
             display_name: string;
             email?: string;
             has_password: boolean;
             id: string;
             installation_role?: string;
+            /** @enum {string} */
+            kind: "human" | "service";
             /** Format: date-time */
             last_login_at?: string;
             mfa_enrolled: boolean;
+            /** @description Service accounts: unique name. */
+            name?: string;
             role_source: string;
             status: string;
         };
@@ -7060,6 +7189,265 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RelType"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "list-service-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"][];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "create-service-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServiceAccountInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "get-service-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Service account ID or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "delete-service-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Service account ID or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "update-service-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Service account ID or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServiceAccountInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "list-service-account-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Service account ID or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Token"][];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "create-service-account-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Service account ID or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServiceTokenInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedToken"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "revoke-service-account-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Service account ID or name. */
+                id: string;
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

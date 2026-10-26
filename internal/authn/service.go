@@ -118,7 +118,11 @@ func (svc *Service) release() { <-svc.sem }
 
 // User is an account.
 type User struct {
-	ID               string     `json:"id"`
+	ID string `json:"id"`
+	// Kind is human or service (a service account: API tokens only).
+	Kind             string     `json:"kind" enum:"human,service"`
+	Name             string     `json:"name,omitempty" doc:"Service accounts: unique name."`
+	Description      string     `json:"description,omitempty"`
 	Email            string     `json:"email,omitempty"`
 	DisplayName      string     `json:"display_name"`
 	Status           string     `json:"status"`
@@ -135,7 +139,7 @@ func (svc *Service) MFARequired(u *User) bool {
 	return u.InstallationRole != "" && slices.Contains(svc.opts.MFARequiredRoles, u.InstallationRole)
 }
 
-const userCols = `u.id, COALESCE(u.email, ''), u.display_name, u.status, COALESCE(u.installation_role, ''), u.role_source, u.created_at,
+const userCols = `u.id, u.kind, COALESCE(u.name, ''), u.description, COALESCE(u.email, ''), u.display_name, u.status, COALESCE(u.installation_role, ''), u.role_source, u.created_at,
 	u.last_login_at, EXISTS (SELECT 1 FROM local_credentials c WHERE c.user_id = u.id), EXISTS (SELECT 1 FROM mfa_totp t WHERE t.user_id = u.id)`
 
 type rowScanner interface{ Scan(dest ...any) error }
@@ -144,7 +148,7 @@ func scanUser(r rowScanner) (*User, error) {
 	var u User
 	var created int64
 	var last sql.NullInt64
-	if err := r.Scan(&u.ID, &u.Email, &u.DisplayName, &u.Status, &u.InstallationRole, &u.RoleSource, &created, &last, &u.HasPassword, &u.MFAEnrolled); err != nil {
+	if err := r.Scan(&u.ID, &u.Kind, &u.Name, &u.Description, &u.Email, &u.DisplayName, &u.Status, &u.InstallationRole, &u.RoleSource, &created, &last, &u.HasPassword, &u.MFAEnrolled); err != nil {
 		return nil, err
 	}
 	u.CreatedAt = clock.FromMicros(created)
@@ -175,9 +179,9 @@ func getUserTx(ctx context.Context, tx *store.Tx, id string) (*User, error) {
 	return u, err
 }
 
-// ListUsers returns every user ordered by display name.
+// ListUsers returns every person ordered by display name (service accounts: ListServiceAccounts).
 func (svc *Service) ListUsers(ctx context.Context) ([]*User, error) {
-	rows, err := svc.s.R().QueryContext(ctx, `SELECT `+userCols+` FROM users u ORDER BY u.display_name, u.id`)
+	rows, err := svc.s.R().QueryContext(ctx, `SELECT `+userCols+` FROM users u WHERE u.kind = 'human' ORDER BY u.display_name, u.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -323,6 +327,7 @@ func checkStrength(pw string) error {
 // UpdateUserInput changes a user (nil fields stay).
 type UpdateUserInput struct {
 	DisplayName      *string
+	Description      *string
 	Status           *string
 	InstallationRole *string
 }
@@ -346,6 +351,16 @@ func (svc *Service) UpdateUser(ctx context.Context, actor audit.Actor, id string
 			}
 			details["display_name_changed"] = true
 		}
+		if in.Description != nil {
+			d, err := validDescription(*in.Description)
+			if err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `UPDATE users SET description = ?, updated_at = ? WHERE id = ?`, d, tx.NowMicros(), id); err != nil {
+				return err
+			}
+			details["description_changed"] = true
+		}
 		demotesOwner := u.InstallationRole == RoleOwner &&
 			((in.InstallationRole != nil && *in.InstallationRole != RoleOwner) || (in.Status != nil && *in.Status == "disabled"))
 		if demotesOwner {
@@ -360,6 +375,9 @@ func (svc *Service) UpdateUser(ctx context.Context, actor audit.Actor, id string
 		if in.InstallationRole != nil {
 			if !ValidInstallationRole(*in.InstallationRole) {
 				return apperr.New(apperr.CodeInvalid, "installation_role must be owner, admin, auditor or empty")
+			}
+			if u.Kind == KindService && *in.InstallationRole == RoleOwner {
+				return errServiceOwner
 			}
 			if _, err := tx.Exec(ctx, `UPDATE users SET installation_role = ?, role_source = 'manual', updated_at = ? WHERE id = ?`,
 				nullStr(*in.InstallationRole), tx.NowMicros(), id); err != nil {

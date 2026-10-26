@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 - **Link** buttons on *Settings → Account & security* to link a single sign-on identity to the signed-in account
   (previously only reachable by URL). A failed link returns to the account page with the reason instead of the
   sign-in page.
+- Service accounts: non-human users for automation that authenticate only with API tokens, bounded by their
+  installation role and project memberships. `/api/v1/service-accounts` (with token issue, list and revoke; an admin
+  token may manage them so automation can rotate its own credential), a *Service accounts* section on the Users page,
+  service accounts in the project member picker, and the host command `deed admin token` for the first credential
+  (docs/SERVICE_ACCOUNTS.md).
 
 ### Fixed
 - The findings page crashed ("Cannot read properties of undefined (reading 'length')") when there were no open

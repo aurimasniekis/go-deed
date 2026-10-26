@@ -3,6 +3,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -332,6 +333,41 @@ func runCreateProject(ctx context.Context, args []string, stdout, stderr io.Writ
 		return err
 	}
 	_, err = fmt.Fprintf(stdout, "created project %s (%s)\n", p.Name, p.ID)
+	return err
+}
+
+func runAdminToken(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	fs := newFlagSet("admin token", stderr)
+	cfgPath := configFlag(fs)
+	account := fs.String("service-account", "", "service account name")
+	create := fs.Bool("create", false, "create the service account (with -role) when missing")
+	role := fs.String("role", "", "installation role of the token, and of the service account when created: admin, auditor or none")
+	name := fs.String("name", "automation", "token name")
+	days := fs.Int("days", 90, "lifetime in days (at most auth.max_token_lifetime, 366 by default)")
+	if err := parseFlags(fs, args); err != nil {
+		return err
+	}
+	if *account == "" {
+		return &exitError{code: 2, err: errors.New("-service-account is required")}
+	}
+	if *role == "none" {
+		*role = ""
+	}
+	a, err := openApp(ctx, *cfgPath, stderr, false)
+	if err != nil {
+		return err
+	}
+	defer a.Close()
+	sa, t, raw, err := a.Authn.IssueServiceTokenOnHost(ctx, *account, *create, *role, *name, time.Duration(*days)*24*time.Hour)
+	if err != nil {
+		return err
+	}
+	// Only the token goes to stdout, so it can be piped into a secret store.
+	if _, err := fmt.Fprintln(stdout, raw); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stderr, "token %s (%s) for service account %s (%s), installation role %s, expires %s. It is shown only once.\n",
+		t.ID, t.Name, sa.Name, sa.ID, cmp.Or(t.InstallationRole, "none"), t.ExpiresAt.UTC().Format(time.RFC3339))
 	return err
 }
 

@@ -102,7 +102,7 @@ scenario against them. Production: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), beh
 | Topic | Document |
 |---|---|
 | Decisions | [Discovery](docs/DISCOVERY.md), [ADRs](docs/adr/README.md), [Threat model](docs/THREAT_MODEL.md) |
-| Operating | [Deployment](docs/DEPLOYMENT.md), [Cloudflare](docs/CLOUDFLARE.md), [SSO](docs/SSO.md), [Backups](docs/BACKUP.md), [Operations](docs/OPERATIONS.md) |
+| Operating | [Deployment](docs/DEPLOYMENT.md), [Cloudflare](docs/CLOUDFLARE.md), [SSO](docs/SSO.md), [Service accounts](docs/SERVICE_ACCOUNTS.md), [Backups](docs/BACKUP.md), [Operations](docs/OPERATIONS.md) |
 | Integrating | [Ingest API](docs/INGEST_API.md), [Terraform import](docs/TERRAFORM_IMPORT.md), [Connectors](docs/CONNECTORS.md), [Pulse](docs/PULSE.md), [Telemetry](docs/TELEMETRY.md), [Agent and SDK](docs/AGENT.md) |
 | Modelling | [Custom kinds](docs/CUSTOM_KINDS.md), [Findings and alerts](docs/FINDINGS.md), [Icons](docs/ICONS.md) |
 | Quality | [Testing](docs/TESTING.md), [Validation](docs/VALIDATION.md), [Performance](docs/PERFORMANCE.md) |

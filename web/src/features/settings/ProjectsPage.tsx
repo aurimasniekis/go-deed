@@ -215,6 +215,11 @@ export function ProjectDetailPage({ project }: { project: string }) {
     queryFn: async () => unwrap(await api.GET('/users')),
     enabled: canReadAllAudit(me),
   })
+  const serviceAccounts = useQuery({
+    queryKey: keys.serviceAccounts(),
+    queryFn: async () => unwrap(await api.GET('/service-accounts')),
+    enabled: canReadAllAudit(me),
+  })
   const [userId, setUserId] = useState<string | null>(null)
   const [role, setRole] = useState<ProjectRole>('viewer')
   const [del, setDel] = useState(false)
@@ -316,9 +321,14 @@ export function ProjectDetailPage({ project }: { project: string }) {
               <Select
                 label="User"
                 searchable
-                data={users.data
-                  .filter((u) => u.status === 'active')
-                  .map((u) => ({ value: u.id, label: `${u.display_name}${u.email ? ` (${u.email})` : ''}` }))}
+                data={[
+                  ...users.data
+                    .filter((u) => u.status === 'active')
+                    .map((u) => ({ value: u.id, label: `${u.display_name}${u.email ? ` (${u.email})` : ''}` })),
+                  ...(serviceAccounts.data ?? [])
+                    .filter((u) => u.status === 'active')
+                    .map((u) => ({ value: u.id, label: `${u.name ?? u.display_name} (service account)` })),
+                ]}
                 value={userId}
                 onChange={setUserId}
                 w={320}

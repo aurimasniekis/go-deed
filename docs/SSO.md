@@ -116,7 +116,7 @@ one (`/auth/oidc/{slug}/start?purpose=link`, from a browser session) and unlink 
 (`DELETE /api/v1/me/identities/{id}`, recent sign-in required; refused when it is the last way to sign in).
 
 To add SSO to an existing password account: sign in with the password, open **Settings → Account & security** and
-press **Link <provider>** under *Single sign-on identities*. After the provider round trip the identity is listed
+press **Link** *(provider name)* under *Single sign-on identities*. After the provider round trip the identity is listed
 there, and the provider's button on the sign-in page reaches the same account (with its roles; group mappings then
 sync on every SSO sign-in). A failed link returns to the account page with the reason (`?sso_error=<code>`): for
 example `conflict` when the identity is already linked to another account. Policy checks (`required_tenant`,

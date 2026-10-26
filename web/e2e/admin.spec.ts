@@ -175,3 +175,24 @@ test('findings: an empty list without filters renders the empty state', async ({
   await page.goto('/findings?severity=critical')
   await expect(page.getByText('Nothing matches these filters.')).toBeVisible()
 })
+
+test('service accounts: create one, issue a token once, and add it to a project', async ({ page }) => {
+  await page.goto('/settings/users')
+  await ready(page)
+  await page.getByTestId('new-service-account').click()
+  await page.getByTestId('service-account-name').fill('e2e-terraform')
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  // Creating opens its tokens.
+  await page.getByTestId('service-token-name').fill('ci')
+  await page.getByTestId('service-token-create').click()
+  await expect(page.getByTestId('one-time-secret')).toContainText('deed_at_')
+  await page.getByRole('button', { name: 'I have stored it' }).click()
+  await expect(page.getByRole('cell', { name: 'ci', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('service-accounts')).toContainText('e2e-terraform')
+
+  await page.goto('/settings/projects/home')
+  await ready(page)
+  await page.getByRole('textbox', { name: 'User', exact: true }).click()
+  await expect(page.getByRole('option', { name: 'e2e-terraform (service account)' })).toBeVisible()
+})

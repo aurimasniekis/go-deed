@@ -1429,6 +1429,86 @@
         ],
         "type": "object"
       },
+      "CreateServiceAccountInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "display_name": {
+            "description": "Defaults to the name.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "installation_role": {
+            "description": "Installation role; empty = project memberships only.",
+            "enum": [
+              "admin",
+              "auditor",
+              ""
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Unique name (lowercase letters, digits, '-', '_').",
+            "maxLength": 63,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateServiceTokenInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_in_days": {
+            "default": 90,
+            "format": "int64",
+            "maximum": 366,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "installation_role": {
+            "description": "Omit to inherit the service account's installation role; empty for none.",
+            "enum": [
+              "admin",
+              "auditor",
+              ""
+            ],
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "project_role": {
+            "description": "Caps every project role of the token.",
+            "enum": [
+              "viewer",
+              "editor",
+              "admin",
+              ""
+            ],
+            "type": "string"
+          },
+          "projects": {
+            "description": "Restrict to these project IDs or names (empty = all the service account can access).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateSilenceInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -5803,6 +5883,37 @@
         ],
         "type": "object"
       },
+      "UpdateServiceAccountInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "installation_role": {
+            "description": "Empty string removes the installation role.",
+            "enum": [
+              "admin",
+              "auditor",
+              ""
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Disabling revokes every token.",
+            "enum": [
+              "active",
+              "disabled"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "UpdateUserInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -5837,6 +5948,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "description": {
+            "type": "string"
+          },
           "display_name": {
             "type": "string"
           },
@@ -5852,12 +5966,23 @@
           "installation_role": {
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "human",
+              "service"
+            ],
+            "type": "string"
+          },
           "last_login_at": {
             "format": "date-time",
             "type": "string"
           },
           "mfa_enrolled": {
             "type": "boolean"
+          },
+          "name": {
+            "description": "Service accounts: unique name.",
+            "type": "string"
           },
           "role_source": {
             "type": "string"
@@ -5868,6 +5993,7 @@
         },
         "required": [
           "id",
+          "kind",
           "display_name",
           "status",
           "role_source",
@@ -12084,6 +12210,421 @@
         "summary": "Change the map colour of a relationship type",
         "tags": [
           "kinds"
+        ]
+      }
+    },
+    "/service-accounts": {
+      "get": {
+        "operationId": "list-service-accounts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List service accounts (installation owner, admin or auditor)",
+        "tags": [
+          "service accounts"
+        ]
+      },
+      "post": {
+        "description": "A non-human user for automation: no password, SSO or sessions, only API tokens. Grant project roles with PUT /projects/{project}/members/{user}.",
+        "operationId": "create-service-account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServiceAccountInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a service account",
+        "tags": [
+          "service accounts"
+        ]
+      }
+    },
+    "/service-accounts/{id}": {
+      "delete": {
+        "operationId": "delete-service-account",
+        "parameters": [
+          {
+            "description": "Service account ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Service account ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a service account with its tokens and memberships",
+        "tags": [
+          "service accounts"
+        ]
+      },
+      "get": {
+        "operationId": "get-service-account",
+        "parameters": [
+          {
+            "description": "Service account ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Service account ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a service account by ID or name",
+        "tags": [
+          "service accounts"
+        ]
+      },
+      "patch": {
+        "operationId": "update-service-account",
+        "parameters": [
+          {
+            "description": "Service account ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Service account ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateServiceAccountInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change a service account",
+        "tags": [
+          "service accounts"
+        ]
+      }
+    },
+    "/service-accounts/{id}/tokens": {
+      "get": {
+        "operationId": "list-service-account-tokens",
+        "parameters": [
+          {
+            "description": "Service account ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Service account ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Token"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A service account's API tokens",
+        "tags": [
+          "service accounts"
+        ]
+      },
+      "post": {
+        "description": "The token acts as the service account, with at most its installation role and project memberships.",
+        "operationId": "create-service-account-token",
+        "parameters": [
+          {
+            "description": "Service account ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Service account ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServiceTokenInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a service account API token (shown once)",
+        "tags": [
+          "service accounts"
+        ]
+      }
+    },
+    "/service-accounts/{id}/tokens/{token}": {
+      "delete": {
+        "operationId": "revoke-service-account-token",
+        "parameters": [
+          {
+            "description": "Service account ID or name.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Service account ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke a service account API token",
+        "tags": [
+          "service accounts"
         ]
       }
     },
