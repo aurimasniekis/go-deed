@@ -32,6 +32,11 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.7.1** (2026-10-27, `afef431`, tag checked against the release commit): release run 40569243471 succeeded.
+  Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and infra's
+  case replayed on a v0.7.0 database: a hallpass_server whose connector (claiming first) sends `labels: {}` next to a
+  Terraform state's labels and a matching label rule had no labels under 0.7.0; started by the release binary, the
+  one-time re-merge (rules version 4) restored the Terraform and rule labels; audit chain verified.
 - **v0.7.0** (2026-10-27, `4275583`, tag checked against the release commit): release run 40563603655 succeeded.
   Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and an upgrade
   of a v0.6.0 database by the release binary: snapshot, migration 10 → 11, the one-time re-merge (13 entities, rules
