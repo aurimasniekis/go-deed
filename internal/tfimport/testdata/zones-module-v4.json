@@ -26,7 +26,7 @@
     {"module": "module.zone[\"example.dev\"]", "mode": "managed", "type": "cloudflare_authenticated_origin_pulls_settings", "name": "this", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
      "instances": [{"attributes": {"id": "zone-example-dev", "zone_id": "zone-example-dev", "enabled": true}}]},
     {"module": "module.zone[\"example.dev\"]", "mode": "managed", "type": "cloudflare_ruleset", "name": "cache_rules", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
-     "instances": [{"attributes": {"id": "rs-cache", "zone_id": "zone-example-dev", "name": "default", "phase": "http_request_cache_settings", "kind": "zone"}}]},
+     "instances": [{"index_key": 0, "attributes": {"id": "rs-cache", "zone_id": "zone-example-dev", "name": "default", "phase": "http_request_cache_settings", "kind": "zone"}}]},
     {"mode": "managed", "type": "cloudflare_ruleset", "name": "account_waf", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
      "instances": [{"attributes": {"id": "rs-account", "account_id": "acc-1", "name": "Account WAF", "phase": "http_request_firewall_custom", "kind": "root"}}]},
     {"mode": "managed", "type": "googleworkspace_domain", "name": "primary", "provider": "provider[\"registry.terraform.io/samuzad/googleworkspace\"]",

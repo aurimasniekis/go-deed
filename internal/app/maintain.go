@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aurimasniekis/go-deed/internal/audit"
+	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/store"
 )
 
@@ -24,6 +25,14 @@ func (a *App) initMaintenance() {
 		return err
 	})
 	a.every("freshness", 5*time.Minute, a.Catalog.RefreshFreshness)
+	// Once per release that changes the merge rules (catalog.MergeRulesVersion); afterwards a settings read.
+	a.every("remerge", time.Hour, func(ctx context.Context) error {
+		n, err := a.Catalog.RemergeIfRulesChanged(ctx)
+		if n > 0 {
+			a.Log.Info("re-merged entities under new merge rules", "event.action", "catalog.remerge", "count", n, "rules", catalog.MergeRulesVersion)
+		}
+		return err
+	})
 	a.every("sessions_prune", time.Hour, a.Authn.PruneSessions)
 	a.every("compact", 6*time.Hour, func(ctx context.Context) error {
 		n, err := a.Catalog.Compact(ctx, a.Clock.Now().Add(-r.Tombstones.D()))

@@ -5,6 +5,20 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-27
+
+No schema migration; nothing to re-sync. On first start every entity is re-merged once in the background (log
+`catalog.remerge`), which clears conflicts recorded before 0.5.0's rules.
+
+### Fixed
+- Conflicts recorded under older merge rules (for example a zone described by two states, whose only differences are
+  `terraform/*` labels and annotations) stayed after upgrading to 0.5.0: re-syncing identical facts never re-merges
+  an entity. A release that changes the merge rules now re-merges every entity once at start-up (in short batches;
+  unchanged entities emit no events), tracked by `catalog.MergeRulesVersion`.
+- Terraform import: zone-module rulesets with `count = 1` were named `example.com-cache_rules-0`; a `count` index is
+  no longer part of the name (the new `.key` template variable is the resource's own `for_each` key). Existing
+  rulesets are renamed on the next sync and keep the old name as an alias.
+
 ## [0.5.0] - 2026-10-27
 
 No schema migration. Re-sync `terraform_state`, HallPass, Porch and `pulse_admin` sources after upgrading: entities
@@ -163,7 +177,8 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/aurimasniekis/go-deed/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/aurimasniekis/go-deed/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/aurimasniekis/go-deed/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/aurimasniekis/go-deed/compare/v0.3.1...v0.3.2

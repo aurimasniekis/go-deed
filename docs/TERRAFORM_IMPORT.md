@@ -212,7 +212,8 @@ override one:
   `int:vlan.id|int:vlan` reads a VLAN given either way), `time:attr` (a timestamp as RFC 3339 in UTC: RFC 3339, Go's
   `2041-10-21 13:26:00 +0000 UTC` form or a bare date; anything else is left out) and `const:value`. Built-in
   mappings read every integer and date-time property of their kind through `int:` and `time:`.
-- `name` and `display_name` are Go templates (≤ 512 characters) over `.name`, `.index`, `.module`, `.address`,
+- `name` and `display_name` are Go templates (≤ 512 characters) over `.name`, `.index`, `.key` (the resource's own
+  `for_each` key; empty for a `count` index), `.module`, `.address`,
   `.type` and `.attr` (allowlisted attributes only), with `slug`, `lower`, `trimSuffix`, `default`, `first` (the first
   element of a list attribute: `origin-{{ first .attr.hostnames | default .name | slug }}`), `registrable`
   (the registrable domain of a host name by public-suffix rules: `app.example.co.uk` → `example.co.uk`) and `indexKey`

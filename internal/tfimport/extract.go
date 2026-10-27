@@ -241,7 +241,12 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 			}
 			setPtr(x.eff, ptr, sv)
 		}
-		tdata := map[string]any{"name": res.Name, "index": strings.Trim(res.Index, `"`), "module": strings.TrimPrefix(res.Module, "module."),
+		// key is the resource's own for_each key; a count index ([0]) has none.
+		forEachKey := ""
+		if strings.HasPrefix(res.Index, `"`) {
+			forEachKey = strings.Trim(res.Index, `"`)
+		}
+		tdata := map[string]any{"name": res.Name, "index": strings.Trim(res.Index, `"`), "key": forEachKey, "module": strings.TrimPrefix(res.Module, "module."),
 			"address": res.Address, "type": res.Type, "attr": allowlistedTree(x.attrs)}
 		name := ""
 		if m.Name != "" {

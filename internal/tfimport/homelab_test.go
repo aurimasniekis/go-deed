@@ -116,7 +116,7 @@ func TestDerivedZonesAndDomains(t *testing.T) {
 			zones[e.Name] = e.ExternalID
 		}
 		// A zone module's ruleset (named "default" like all of them) is named after its zone and resource.
-		if e.Kind == "firewall_rule" && e.ExternalID == `module.zone["example.dev"].cloudflare_ruleset.cache_rules` &&
+		if e.Kind == "firewall_rule" && e.ExternalID == `module.zone["example.dev"].cloudflare_ruleset.cache_rules[0]` &&
 			(e.Name != "example.dev-cache_rules" || e.Metadata["displayName"] != "example.dev http_request_cache_settings") {
 			t.Errorf("zone ruleset %s %v", e.Name, e.Metadata["displayName"])
 		}

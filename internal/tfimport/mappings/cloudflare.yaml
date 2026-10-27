@@ -99,7 +99,8 @@ mappings:
     icon: simple-icons:cloudflare
     # Rulesets in a zone module ("module.zone[\"example.com\"]") are mostly all named "default": there the zone (the
     # module key) and the resource name keep them apart. Elsewhere the ruleset's own name.
-    name: '{{ with indexKey .module }}{{ . }}-{{ $.name }}{{ with $.index }}-{{ . }}{{ end }}{{ else }}{{ default .name .attr.name }}{{ end }}'
+    # A count index ([0]) is left out; two rulesets that would share a name are told apart by the import (-2, -3, …).
+    name: '{{ with indexKey .module }}{{ . }}-{{ $.name }}{{ with $.key }}-{{ . }}{{ end }}{{ else }}{{ default .name .attr.name }}{{ end }}'
     display_name: '{{ with indexKey .module }}{{ . }} {{ default $.name $.attr.phase }}{{ else }}{{ default .name .attr.name }}{{ end }}'
     fields:
       /spec/type: const:ruleset

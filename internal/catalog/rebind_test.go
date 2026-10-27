@@ -5,6 +5,7 @@ import (
 
 	"github.com/aurimasniekis/go-deed/internal/audit"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
+	"github.com/aurimasniekis/go-deed/internal/store"
 	"github.com/aurimasniekis/go-deed/internal/testenv"
 )
 
@@ -111,5 +112,41 @@ func TestNameChangeRebindsExternalID(t *testing.T) {
 	}
 	if err := env.Store.R().QueryRow(`SELECT name FROM entities WHERE id = ?`, merged).Scan(&name); err != nil || name != "events-origin" {
 		t.Fatalf("user rename undone: %s %v", name, err)
+	}
+}
+
+// Conflicts recorded under older merge rules (here: two states' Terraform addresses) disappear once at start-up,
+// without waiting for each entity's facts to change; the second run is a no-op.
+func TestRemergeClearsConflictsOfOldRules(t *testing.T) {
+	env := testenv.New(t)
+	p := env.Project(t, "infra")
+	a := env.Source(t, p.ID, "tf-events", catalog.LayerImported)
+	b := env.Source(t, p.ID, "tf-dns", catalog.LayerImported)
+	var id string
+	for _, s := range []*catalog.Source{a, b} {
+		r, err := env.Apply(t, s, catalog.EntityItem{Kind: "dns_zone", Name: "example.com", Metadata: map[string]any{
+			"annotations": map[string]any{"terraform/address": s.Name + ".zone"}}, Spec: map[string]any{"name": "example.com"}}, catalog.ApplyOpts{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		id = r.EntityID
+	}
+	if err := env.Store.W().Tx(t.Context(), func(tx *store.Tx) error {
+		_, err := tx.Exec(t.Context(), `INSERT INTO conflicts (entity_id, pointer, layer, winner_source, loser_source, winner_value, loser_value,
+			first_seen_at, last_seen_at) VALUES (?, '/metadata/annotations/terraform~1address', 'imported', ?, ?, '"a"', '"b"', 1, 1)`, id, a.ID, b.ID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	n, err := env.Catalog.RemergeIfRulesChanged(t.Context())
+	if err != nil || n == 0 {
+		t.Fatalf("remerge: %d %v", n, err)
+	}
+	var left int
+	if err := env.Store.R().QueryRow(`SELECT COUNT(*) FROM conflicts WHERE entity_id = ?`, id).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("conflicts left: %d %v", left, err)
+	}
+	if n, err := env.Catalog.RemergeIfRulesChanged(t.Context()); err != nil || n != 0 {
+		t.Fatalf("second run: %d %v", n, err)
 	}
 }
