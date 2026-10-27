@@ -5,6 +5,10 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-27
+
+No schema migration. Re-sync terraform_state sources to derive the zones that have no records.
+
 ### Fixed
 - Terraform import: Cloudflare zones without DNS records were not derived. Zone settings, authenticated origin pulls
   and zone rulesets now derive their zone too, named after the `module.zone["<zone>"]` key when no record names it
@@ -111,7 +115,8 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/aurimasniekis/go-deed/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/aurimasniekis/go-deed/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/aurimasniekis/go-deed/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/aurimasniekis/go-deed/compare/v0.1.0...v0.2.0
