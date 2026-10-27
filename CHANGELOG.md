@@ -5,6 +5,30 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Fixed
+- Terraform import: certificates of different states that all named their resource `origin` merged into one
+  `certificate/origin-origin`. Cloudflare origin certificates are now named after their first host
+  (`origin-app.example.com`), and an importer whose name for an item changes now follows it: the entity is renamed
+  when that source is the only one describing it (the old name stays an alias; a rename in the UI is never undone),
+  and split off when other sources describe it too, so entities that collided come apart on the next sync.
+- Terraform import: typed fields. Every integer and date-time property a built-in mapping fills is read through the
+  new `int:` and `time:` field operators, so a Cloudflare origin certificate's `expires_on`
+  (`2041-10-21 13:26:00 +0000 UTC`) becomes RFC 3339 and `unifi_wan`'s `vlan` object gives its `id`, instead of
+  failing the kind's schema (`invalid_schema` findings).
+- Terraform import: `cloudflare_ruleset` resources in a zone module (all named `default`) are named after the zone and
+  resource (`example.com-cache_rules`) instead of `default`, `default-2`, ….
+- Source conflicts: differing icons and `terraform/*` labels and annotations (every state has its own address) are no
+  longer conflicts, and neither is a value a source policy ranks lower (`field_priority`); the Terraform mappings for
+  HallPass servers and roles and Porch applications use the same icons as the HallPass and Porch connectors.
+- `pulse_admin`: a Pulse client's name and description are annotations (`pulse/client-name`,
+  `pulse/client-description`) instead of the service's displayName and description, which conflicted with the
+  service's own connector.
+
+### Added
+- Map: *Copy image* copies the whole current map to the clipboard as a PNG at 1:1 scale (every node as a card at
+  its real size, not the zoomed-out view), or downloads it where the clipboard cannot take images.
+- Mapping field operators `int:` and `time:` and the template function `first` (docs/TERRAFORM_IMPORT.md).
+
 ## [0.4.0] - 2026-10-27
 
 Upgrading from 0.3.x: schema migration 10 (binding `guard`, `when_empty` and `on_map`) runs at start-up after the usual

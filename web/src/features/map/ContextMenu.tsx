@@ -11,6 +11,7 @@ import {
   IconHelpHexagon,
   IconInfoCircle,
   IconMap2,
+  IconPhoto,
   IconPinnedOff,
   IconPlus,
   IconRoute,
@@ -33,6 +34,7 @@ export interface ContextMenuActions extends InspectorActions {
   unpin: (id: string) => void
   isPinned: (id: string) => boolean
   fitView: () => void
+  copyImage: () => void
   overview: () => void
   clearSelection: () => void
   hasSelection: boolean
@@ -113,6 +115,9 @@ export function MapContextMenu({
           <>
             <Menu.Item leftSection={<IconArrowsMaximize size={14} />} onClick={actions.fitView}>
               Fit view
+            </Menu.Item>
+            <Menu.Item leftSection={<IconPhoto size={14} />} onClick={actions.copyImage}>
+              Copy map as image (1:1)
             </Menu.Item>
             {!actions.inOverview && (
               <Menu.Item leftSection={<IconMap2 size={14} />} onClick={actions.overview}>

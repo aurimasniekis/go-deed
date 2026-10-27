@@ -213,6 +213,14 @@ the ADR-011 budget. In the overview a group of a single entity is shown as that 
   binding's health (warning, critical), faded when stale, with the binding title, value and status in the tooltip and
   the accessible name. They patch node data only (no re-layout) and are off for compact cards, clusters, redacted
   stubs, cards dimmed around a selection and the zoomed-out level of detail; the options drawer switches them off.
+- **Copy image** (toolbar, or *Copy map as image (1:1)* in the canvas context menu) puts the whole current drawing on
+  the clipboard as a PNG at zoom 1 — every node as a card at its real size, not the zoomed-out view that fits the
+  screen — with the current filters, styles, selection dimming and mask mode. Controls, minimap, legend and dot grid
+  are left out. It is a clone of the map's DOM inside an SVG image, styled by the page's own stylesheets (fonts and
+  custom icons inlined), so it renders in about a second for the seeded maps and ~13 s for 2,000 cards (10,836 ×
+  4,990 px). Drawings beyond the browser's canvas limits (16,384 px a side, 100 megapixels) are scaled down and the
+  notification says so. Where the clipboard cannot take images (plain HTTP, no `ClipboardItem`), the PNG is
+  downloaded instead.
 - The legend is generated from the styles actually on screen. Options (filters, grouping, layout, colour mode,
   routing, labels, animation, node density) persist per saved view.
 
@@ -334,7 +342,7 @@ this (shared) machine.
   findings (the owner account is enrolled in TOTP during setup), then runs: auth (password + TOTP sign-in with
   return-to, setup-link and SSO error pages), core flows (dashboard → finding → inventory → entity → focused map →
   path; impact; bulk annotations; relations table), map (filters, grouping, inspector, keyboard, provenance, overview
-  expansion, traffic overlay on measured edges only, node metrics), admin (GitHub source create/test/preview against
-  the mock, push-token reveal-once, custom kind with schema dry run, audit hash-chain verification, saved views, version
+  expansion, traffic overlay on measured edges only, node metrics, copy image), admin (GitHub source
+  create/test/preview against the mock, push-token reveal-once, custom kind with schema dry run, audit hash-chain verification, saved views, version
   re-check, custom icon upload, findings re-evaluation), an axe scan of 27 views in both schemes plus the login page
   (screenshots to `web/e2e/screenshots/`), and the perf budgets.

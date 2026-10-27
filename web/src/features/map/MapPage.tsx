@@ -17,6 +17,7 @@ import {
   useComputedColorScheme,
 } from '@mantine/core'
 import { useReducedMotion } from '@mantine/hooks'
+import { notifications } from '@mantine/notifications'
 import { spotlight } from '@mantine/spotlight'
 import {
   IconAdjustmentsHorizontal,
@@ -25,6 +26,7 @@ import {
   IconListDetails,
   IconMap2,
   IconMask,
+  IconPhoto,
   IconRoute,
   IconSearch,
 } from '@tabler/icons-react'
@@ -40,6 +42,7 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
+  getNodesBounds,
   getViewportForBounds,
   useNodesState,
   useReactFlow,
@@ -108,6 +111,7 @@ import { sourceLabel, type MapEdge, type MapNode } from './types'
 import { kindAccent } from '@/theme/chart'
 import { useEdgeRates } from './useEdgeRates'
 import { useNodeMetrics } from './useNodeMetrics'
+import { copyOrDownload, renderMapImage, untilFrame } from './exportImage'
 import { useMapData } from './useMapData'
 import './map.css'
 
@@ -223,6 +227,9 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   // The legend and status bar describe the simplified drawing while any of it is on screen. They follow the swap in a
   // transition, so re-rendering the page never lengthens a swap step.
   const [complete, setComplete] = useState(true)
+  // Copying the map as an image draws every node as a card at zoom 1 (culling off) until the image is rendered.
+  const [exporting, setExporting] = useState(false)
+  const drawState = useRef({ complete: true, zoomedOut: false })
   useEffect(
     () =>
       detail.subscribe(() => {
@@ -1030,6 +1037,50 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const selEdge = selectedEdge ? view.model.edges.get(selectedEdge) : undefined
   const loading = data.base.isPending || (view.model.nodes.size > 0 && layout?.sig !== signature)
   const mode = data.mode
+  useEffect(() => {
+    drawState.current = { complete, zoomedOut: lod }
+  }, [complete, lod])
+
+  // Copy the whole drawing at 1:1 (zoom 1), not what fits on screen: every node as a card, culling off, then the
+  // previous view back. Downloads the PNG where the clipboard cannot take images.
+  const copyImage = () => {
+    const viewport = document.querySelector<HTMLElement>('[data-testid="map-canvas"] .react-flow__viewport')
+    if (!viewport || exporting || rf.getNodes().length === 0) return
+    const saved = rf.getViewport()
+    setExporting(true)
+    const image = (async () => {
+      await rf.setViewport({ ...saved, zoom: 1 })
+      await untilFrame(
+        () =>
+          !drawState.current.zoomedOut &&
+          drawState.current.complete &&
+          viewport.querySelectorAll('.react-flow__node').length >= rf.getNodes().length,
+        15_000,
+      )
+      return renderMapImage(viewport, getNodesBounds(rf.getNodes()))
+    })()
+    const restore = () => {
+      setExporting(false)
+      void rf.setViewport(saved)
+    }
+    void copyOrDownload(image, `deed-map-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`)
+      .then(async (how) => {
+        const { width, height, scale } = await image
+        notifications.show({
+          message: `${how === 'copied' ? 'Map copied to the clipboard' : 'Map image downloaded'} (${width} × ${height} px, ${
+            scale < 1 ? `scaled to ${Math.round(scale * 100)} % to fit the browser's limits` : '1:1'
+          })`,
+        })
+      })
+      .catch((e: unknown) =>
+        notifications.show({
+          color: 'red',
+          message: `Could not copy the map: ${e instanceof Error ? e.message : String(e)}`,
+        }),
+      )
+      .finally(restore)
+  }
+
   const menuActions: ContextMenuActions = {
     ...actions,
     selectEdge: (id) => {
@@ -1041,6 +1092,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     },
     isPinned: (id) => id in mapStore.state.pinned,
     fitView: () => void rf.fitView({ padding: fitPadding(), duration: reduced ? 0 : 250 }),
+    copyImage: () => copyImage(),
     overview: () => go({ focus: undefined, mode: undefined, trail: undefined }),
     clearSelection: () => {
       setSelected(null)
@@ -1209,6 +1261,17 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
               {masked ? 'Masked' : 'Mask'}
             </Button>
           </Tooltip>
+          <Tooltip label="Copy the whole map as an image at 1:1 scale (not the zoomed view); downloads it where the clipboard can't take images">
+            <Button
+              variant="default"
+              leftSection={<IconPhoto size={14} />}
+              loading={exporting}
+              onClick={copyImage}
+              data-testid="map-copy-image"
+            >
+              Copy image
+            </Button>
+          </Tooltip>
           <Tooltip label="The same relationships as an accessible table">
             <ButtonLink
               variant="default"
@@ -1318,7 +1381,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                 colorMode={scheme}
                 minZoom={0.05}
                 maxZoom={2}
-                onlyRenderVisibleElements={nodes.length > 400}
+                onlyRenderVisibleElements={nodes.length > 400 && !exporting}
                 // Blocks of a drawing that opens zoomed out mount without drag set-up (see dragSig).
                 nodesDraggable={dragSig === signature || !lod}
                 disableKeyboardA11y

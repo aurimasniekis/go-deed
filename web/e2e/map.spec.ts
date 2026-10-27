@@ -151,6 +151,49 @@ test('node metrics: on-map bindings under detailed cards', async ({ page }) => {
   await expect(strip).toContainText('req/s')
 })
 
+test('copy image: the whole map at 1:1, on the clipboard', async ({ page }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto('/map?mode=overview')
+  const canvas = page.getByTestId('map-canvas')
+  await expect(canvas).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  const zoom = () =>
+    canvas.locator('.react-flow__viewport').evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).a)
+  // The view once the initial fit has finished animating.
+  let shown = await zoom()
+  for (let prev = -1; Math.abs(prev - shown) > 1e-6;) {
+    prev = shown
+    await page.waitForTimeout(300)
+    shown = await zoom()
+  }
+  await page.getByTestId('map-copy-image').click()
+  await expect(page.getByText(/Map copied to the clipboard \(\d+ × \d+ px, 1:1\)/)).toBeVisible({ timeout: 20_000 })
+  const img = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read()
+    const blob = await items[0]?.getType('image/png')
+    if (!blob) return null
+    const bmp = await createImageBitmap(blob)
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    let bin = ''
+    for (const b of bytes) bin += String.fromCharCode(b)
+    return { width: bmp.width, height: bmp.height, png: btoa(bin) }
+  })
+  if (!img) throw new Error('no image on the clipboard')
+  const box = await canvas.boundingBox()
+  // Drawn at zoom 1: larger than the canvas whenever the map was zoomed out to fit, never a copy of the screen.
+  if (shown < 1 && box) expect(img.width * img.height).toBeGreaterThan(box.width * box.height)
+  if (process.env.DEED_E2E_SCREENSHOTS)
+    (await import('node:fs')).writeFileSync(
+      `${process.env.DEED_E2E_SCREENSHOTS}/map-copy.png`,
+      Buffer.from(img.png, 'base64'),
+    )
+  // The view the user had comes back.
+  await expect
+    .poll(() =>
+      canvas.locator('.react-flow__viewport').evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).a),
+    )
+    .toBeCloseTo(shown, 2)
+})
+
 test('map context menu: right-click quick actions', async ({ page }) => {
   const billing = entityId('service/billing-api')
   await page.goto(`/map?focus=${billing}&mode=neighborhood&depth=1`)
