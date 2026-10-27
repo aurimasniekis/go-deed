@@ -135,6 +135,22 @@ test('traffic overlay shows measured rates only on measured edges', async ({ pag
   await expect(page.locator('.deed-edge-label[data-rate="measured"]').first()).toContainText('req/s')
 })
 
+test('node metrics: on-map bindings under detailed cards', async ({ page }) => {
+  const gateway = entityId('service/api-gateway')
+  await page.goto(`/map?focus=${gateway}&mode=neighborhood&depth=1`)
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  const strip = page.locator(`[data-entity-id="${gateway}"] [data-testid="node-metrics"]`)
+  await expect(strip).toContainText('req/s', { timeout: 20_000 })
+  await expect(strip).toHaveAttribute('aria-label', /Requests per second [\d.]+ req\/s/)
+  await expect(strip).toHaveAttribute('aria-label', /Error ratio [\d.]+%/)
+  // The options drawer switches them off.
+  await page.getByTestId('map-options-button').click()
+  await page.getByTestId('metrics-toggle').click()
+  await expect(strip).toHaveCount(0)
+  await page.getByTestId('metrics-toggle').click()
+  await expect(strip).toContainText('req/s')
+})
+
 test('map context menu: right-click quick actions', async ({ page }) => {
   const billing = entityId('service/billing-api')
   await page.goto(`/map?focus=${billing}&mode=neighborhood&depth=1`)

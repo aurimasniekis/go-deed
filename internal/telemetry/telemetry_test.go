@@ -629,3 +629,52 @@ func TestBindingGuardAndWhenEmpty(t *testing.T) {
 		t.Fatalf("without guard and when_empty: %+v", res)
 	}
 }
+
+// On-map bindings give map node cards their numbers: applicable bindings only, nothing for "not applicable".
+func TestMapMetrics(t *testing.T) {
+	r := newRig(t)
+	prom := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		q := req.FormValue("query")
+		switch {
+		case strings.Contains(q, "node_cpu") && strings.Contains(q, `instance="web-1"`):
+			_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1790000000,"23.5"]}]}}`)
+		case strings.HasPrefix(q, "up{") && strings.Contains(q, `instance="web-1"`):
+			_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1790000000,"1"]}]}}`)
+		default:
+			_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+		}
+	}))
+	defer prom.Close()
+	r.integration(t, "prom", "prometheus", local(prom.URL), nil)
+	ctx := context.Background()
+	on, zero, warn := true, 0.0, 80.0
+	params := []BindingParam{{Name: "h", Type: "label", From: "/spec/hostname"}}
+	guard := `up{instance="{{h}}"}`
+	r.binding(t, BindingInput{Name: "cpu", Title: "CPU", Integration: "prom", Unit: strPtr("percent"), Role: "health",
+		Query: `avg(node_cpu{instance="{{h}}"})`, Params: params, Thresholds: &BindingThresholds{Warning: &warn}, OnMap: &on})
+	r.binding(t, BindingInput{Name: "errors", Title: "5xx", Integration: "prom", Kinds: []string{"server"}, Query: `sum(errs{instance="{{h}}"})`,
+		Params: params, Guard: &guard, WhenEmpty: &WhenEmptyInput{Value: &zero}, OnMap: &on})
+	r.binding(t, BindingInput{Name: "not-on-map", Integration: "prom", Query: `avg(node_cpu{instance="{{h}}"})`, Params: params})
+	web1 := r.entity(t, "home", "server", "web-1", map[string]any{"hostname": "web-1"})
+	web2 := r.entity(t, "home", "server", "web-2", map[string]any{"hostname": "web-2"})
+	svc := r.entity(t, "home", "service", "api", map[string]any{})
+	m, err := r.svc.MapMetrics(ctx, []*catalog.Entity{web1, web2, svc}, "15m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := m[web1.Metadata.ID]
+	if len(got) != 2 || got[0].Binding != "cpu" || *got[0].Value != 23.5 || got[0].Health == nil || got[0].Health.State != "ok" ||
+		got[1].Binding != "errors" || *got[1].Value != 0 {
+		t.Fatalf("web-1: %+v", got)
+	}
+	// web-2 has no CPU series and fails the error binding's guard; the service has no hostname at all.
+	if len(m[web2.Metadata.ID]) != 0 || len(m[svc.Metadata.ID]) != 0 {
+		t.Fatalf("not applicable shown: %+v", m)
+	}
+	if _, err := r.st.CreateBinding(ctx, audit.System, BindingInput{Name: "ts", Integration: "prom", Query: `up`, Shape: ShapeTimeseries, OnMap: &on}); err == nil {
+		t.Fatal("a timeseries binding was put on the map")
+	}
+}
+
+func strPtr(s string) *string { return &s }

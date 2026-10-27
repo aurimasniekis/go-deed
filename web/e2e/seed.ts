@@ -680,6 +680,7 @@ export async function seedTelemetry(c: DeedClient, prometheusURL: string): Promi
       unit: 'req/s',
       role: 'chart',
       freshness_seconds: 30,
+      on_map: true,
     },
     {
       name: 'http-latency',
@@ -705,6 +706,7 @@ export async function seedTelemetry(c: DeedClient, prometheusURL: string): Promi
       role: 'health',
       thresholds: { warning: 0.01, critical: 0.05, direction: 'above' },
       freshness_seconds: 60,
+      on_map: true,
     },
   ]
   for (const b of bindings) await c.post('/bindings', { ...b, integration: 'metrics' })

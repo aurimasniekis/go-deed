@@ -67,6 +67,8 @@ shape, a unit and typed parameters filled from the entity:
   error rate whose counter has no series yet. Together they replace `… or vector(0)`, which made every entity of the
   kind look measured (and healthy) even when nothing about it was scraped. On update, omit to keep, `{}` to remove,
   `{"value": 0}` to set; an empty `guard` string removes the guard.
+- `on_map` (optional, scalar `chart` or `health` bindings): show the value on the entity's map node card (see
+  [Node metrics](#node-metrics)).
 - Bindings are validated on save: unknown placeholders, unbalanced queries, log (non-metric) LogQL, OpenSearch
   scripts and unsupported shapes are refused.
 
@@ -97,6 +99,15 @@ endpoints you can read:
   measured" — Pulse records no per-subscriber delivery;
 - any type with an `edge_rate` binding: the binding's value;
 - everything else: `unavailable`, and the UI does not animate it.
+
+## Node metrics
+`POST /telemetry/map-metrics {"entity_ids": [...], "window": "15m"}` runs the bindings marked `on_map` that apply to
+each entity (up to 200 entities and 6 bindings per entity per request, 8 at a time) and returns, per entity you can
+read, the binding, title, value, unit, status, health (for health bindings) and `measured_at`. Unavailable and
+not-applicable results are left out, so an entity without data has no entry. Results share the binding cache with the
+entity page. The map draws them as a strip under detailed node cards — e.g. CPU, memory and disk usage from
+node_exporter bindings guarded by `up{job="node",instance="{{instance}}"}` — refreshed every minute, coloured by
+health and greyed when stale.
 
 ## Live updates
 `GET /api/v1/stream/telemetry?entity=<id>&relation=<id>…&interval=30&window=1h` is a separate SSE stream from the

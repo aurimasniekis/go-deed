@@ -7,6 +7,7 @@ import { freshnessMeta, healthMeta } from '@/lib/status'
 import { useCard, usePorts } from './lodSwap'
 import { toggleCollapsed } from './mapStore'
 import type { MapNode } from './types'
+import { formatMetric, type MapMetric } from './useNodeMetrics'
 
 export interface EntityNodeData extends Record<string, unknown> {
   node: MapNode
@@ -18,6 +19,8 @@ export interface EntityNodeData extends Record<string, unknown> {
   sourcePos: Position
   targetPos: Position
   dimmed: boolean
+  /** Values of on-map telemetry bindings (CPU, memory, …), drawn in a strip under the card. */
+  metrics?: MapMetric[]
 }
 
 export interface GroupNodeData extends Record<string, unknown> {
@@ -174,9 +177,37 @@ export const EntityNode = memo(function EntityNode({ id, data, selected }: NodeP
           />
         )}
       </div>
+      {/* Dimmed (not next to the selection) cards drop their metrics rather than fade them below legible contrast. */}
+      {!data.dimmed && data.metrics && data.metrics.length > 0 && <MetricStrip metrics={data.metrics} />}
     </div>
   )
 })
+
+/** On-map telemetry values under a card: `CPU 23% · Mem 61%`, each tinted by its health (or greyed when stale). */
+function MetricStrip({ metrics }: { metrics: MapMetric[] }) {
+  const items = metrics.flatMap((m) =>
+    m.value === undefined ? [] : [{ m, text: formatMetric(m.value, m.unit ?? '') }],
+  )
+  return (
+    <div
+      className="deed-node-metrics"
+      data-testid="node-metrics"
+      aria-label={`Metrics: ${items.map(({ m, text }) => `${m.title} ${text}`).join(', ')}`}
+    >
+      {items.map(({ m, text }) => (
+        <span
+          key={m.binding}
+          className="deed-node-metric"
+          data-state={m.health?.state ?? (m.status === 'stale' ? 'stale' : undefined)}
+          title={`${m.title}: ${text}${m.health ? ` (${m.health.state}: ${m.health.reason})` : ''}${m.status !== 'measured' ? ` · ${m.status}` : ''}`}
+        >
+          <span className="deed-node-metric-title">{m.title}</span>
+          <b>{text}</b>
+        </span>
+      ))}
+    </div>
+  )
+}
 
 /** Server cluster (overview group or high-degree fan) or a collapsed visual group: expands on click/Enter. */
 export const ClusterNode = memo(function ClusterNode({ id, data, selected }: NodeProps<ClusterFlowNode>) {

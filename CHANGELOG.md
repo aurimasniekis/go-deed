@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 - Telemetry bindings: `guard` (the binding applies to an entity only when the guard query returns data; otherwise
   "not applicable") and `when_empty` (the value of an empty scalar result), replacing `or vector(0)` tricks that made
   every entity of a kind look measured and healthy. Editable in *Settings → Telemetry*. Schema migration 10.
+- Node metrics on the map: bindings marked `on_map` (scalar chart or health bindings, e.g. CPU, memory and disk
+  usage) are drawn in a strip under detailed node cards, tinted by health and refreshed every minute
+  (`POST /telemetry/map-metrics`; *Node metrics* in the map options).
 
 ### Changed
 - Grafana link bindings whose search matches no dashboard return a link to Grafana's own search for the same terms

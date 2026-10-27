@@ -10,6 +10,7 @@
 }
 
 .deed-node {
+  position: relative;
   background: var(--deed-surface);
   border: 1px solid var(--deed-border);
   border-left: 4px solid var(--mantine-color-gray-5);
@@ -334,4 +335,60 @@
   opacity: 1;
   color: var(--mantine-color-text);
   cursor: default;
+}
+
+/* On-map telemetry values: a strip just under the card, in the gap the layout leaves between rows. */
+.deed-node-metrics {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 9.5px;
+  line-height: 13px;
+  pointer-events: none;
+}
+
+.deed-node-metric {
+  display: inline-flex;
+  min-width: 0;
+  overflow: hidden;
+  gap: 3px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-dark-0));
+  font-variant-numeric: tabular-nums;
+}
+
+.deed-node-metric-title {
+  min-width: 0;
+  max-width: 7em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The first metric keeps its size; later ones shorten their titles (never their values) to fit the card. */
+.deed-node-metric:first-child {
+  flex-shrink: 0;
+}
+
+.deed-node-metric b {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.deed-node-metric[data-state='warning'] {
+  background: light-dark(var(--mantine-color-yellow-1), rgba(250, 176, 5, 0.18));
+}
+
+.deed-node-metric[data-state='critical'] {
+  background: light-dark(var(--mantine-color-red-1), rgba(250, 82, 82, 0.2));
+}
+
+.deed-node-metric[data-state='stale'] {
+  opacity: 0.6;
 }

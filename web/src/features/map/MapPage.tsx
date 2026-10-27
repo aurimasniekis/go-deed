@@ -107,6 +107,7 @@ import { PathFinder } from './PathFinder'
 import { sourceLabel, type MapEdge, type MapNode } from './types'
 import { kindAccent } from '@/theme/chart'
 import { useEdgeRates } from './useEdgeRates'
+import { useNodeMetrics } from './useNodeMetrics'
 import { useMapData } from './useMapData'
 import './map.css'
 
@@ -453,6 +454,12 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
 
   const big = view.model.nodes.size >= LOD.minNodes
   const lod = zoomedOut && big
+  // Node metrics: on-map bindings for the entities drawn as detailed cards (never clusters or redacted stubs).
+  const metricIds = useMemo(
+    () => [...view.model.nodes.values()].filter((n) => !n.cluster && !n.redacted).map((n) => n.id),
+    [view.model],
+  )
+  const metrics = useNodeMetrics(metricIds, style.metrics && !compactCards && !lod)
   const lodShown = lod || !complete
   // Setting up dragging costs ~15 ms per 2,000 mounted nodes, and dragging a block is never useful: a drawing that
   // opens zoomed out mounts its blocks without it and turns it on once the browser is idle (switching it on or off
@@ -560,6 +567,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           sourcePos: hp.source,
           targetPos: hp.target,
           dimmed: !!neighbourSet && !neighbourSet.has(n.id),
+          metrics: metrics.get(n.id),
         },
         ariaLabel: `${n.cluster ? 'Cluster' : (k?.title ?? n.kind)} ${n.displayName ?? n.name}, health ${n.health}, freshness ${n.freshness}`,
       }
@@ -619,6 +627,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     typeColor,
     typeTitle,
     traffic.rates,
+    metrics,
     now,
     sourceColors,
     projectName,

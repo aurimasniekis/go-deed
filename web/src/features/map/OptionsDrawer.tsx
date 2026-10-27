@@ -276,6 +276,16 @@ export function OptionsDrawer({
             aria-label="Edge routing"
           />
           <Switch
+            label="Node metrics (CPU, memory, … under cards)"
+            checked={style.metrics}
+            disabled={style.nodeMode === 'compact'}
+            onChange={(e) => setStyle({ metrics: e.currentTarget.checked })}
+            data-testid="metrics-toggle"
+          />
+          <Text size="xs" c="dimmed">
+            Values of telemetry bindings marked “on map”, refreshed every minute; detailed cards only.
+          </Text>
+          <Switch
             label="Mid-edge type labels"
             checked={style.labels}
             onChange={(e) => setStyle({ labels: e.currentTarget.checked })}

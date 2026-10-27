@@ -498,6 +498,10 @@
           "name": {
             "type": "string"
           },
+          "on_map": {
+            "description": "Show the value on map node cards (scalar chart or health bindings).",
+            "type": "boolean"
+          },
           "params": {
             "items": {
               "$ref": "#/components/schemas/BindingParam"
@@ -552,6 +556,7 @@
           "thresholds",
           "freshness_seconds",
           "role",
+          "on_map",
           "created_at",
           "updated_at",
           "resource_version"
@@ -587,6 +592,10 @@
           "name": {
             "maxLength": 63,
             "type": "string"
+          },
+          "on_map": {
+            "description": "Show the value on map node cards.",
+            "type": "boolean"
           },
           "params": {
             "items": {
@@ -3667,6 +3676,97 @@
         "required": [
           "email",
           "password"
+        ],
+        "type": "object"
+      },
+      "MapMetric": {
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/TelemetryHealth"
+          },
+          "measured_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "measured",
+              "inferred",
+              "stale",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "value": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "binding",
+          "title",
+          "status"
+        ],
+        "type": "object"
+      },
+      "MapMetricsInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "window": {
+            "description": "Default 15m.",
+            "enum": [
+              "15m",
+              "1h",
+              "6h",
+              "24h",
+              "7d",
+              ""
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_ids"
+        ],
+        "type": "object"
+      },
+      "MapMetricsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "entities": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/MapMetric"
+              },
+              "type": "array"
+            },
+            "description": "Per entity ID, the values of its on-map bindings (only entities with values).",
+            "type": "object"
+          },
+          "window": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "window",
+          "entities"
         ],
         "type": "object"
       },
@@ -14173,6 +14273,56 @@
           }
         ],
         "summary": "Measured activity of relationships for traffic overlays",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/telemetry/map-metrics": {
+      "post": {
+        "description": "Runs the scalar chart and health bindings marked on_map for each entity (at most 6 per entity), with the entity page's caching and limits. Entities you cannot read are omitted.",
+        "operationId": "get-map-metrics",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapMetricsInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapMetricsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Values of on-map bindings for map node cards",
         "tags": [
           "telemetry"
         ]

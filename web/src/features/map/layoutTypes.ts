@@ -318,7 +318,7 @@ export function arrangeComponents(
 }
 
 /** Space between the cards of a packed group (x, y). */
-export const PACK_GAP = { x: 16, y: 14 }
+export const PACK_GAP = { x: 16, y: 20 }
 
 /** A group laid out as one block: its members in a grid (cells relative to the block's top-left corner). */
 export interface PackedGroup {

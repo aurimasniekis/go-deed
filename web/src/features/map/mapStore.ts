@@ -14,6 +14,8 @@ export interface MapStyle {
   directionHint: boolean
   /** Traffic overlay (measured edge rates). */
   traffic: boolean
+  /** Values of on-map telemetry bindings (CPU, memory, …) under detailed node cards. */
+  metrics: boolean
   nodeMode: 'compact' | 'detailed'
   iconSize: number
   minimap: boolean
@@ -37,6 +39,7 @@ export const DEFAULT_STYLE: MapStyle = {
   labels: false,
   directionHint: false,
   traffic: true,
+  metrics: true,
   nodeMode: 'detailed',
   iconSize: 18,
   minimap: true,

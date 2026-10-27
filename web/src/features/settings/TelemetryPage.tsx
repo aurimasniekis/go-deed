@@ -370,6 +370,7 @@ function BindingModal({
           freshness_seconds: b.freshness_seconds,
           guard: b.guard ?? '',
           when_empty: b.when_empty != null ? { value: b.when_empty } : {},
+          on_map: b.on_map,
         }
       : {
           name: '',
@@ -384,6 +385,7 @@ function BindingModal({
           freshness_seconds: 60,
           guard: '',
           when_empty: {},
+          on_map: false,
         },
   )
   const integ = integrations.find((i) => i.id === v.integration || i.name === v.integration)
@@ -391,11 +393,15 @@ function BindingModal({
   const params = v.params ?? []
   const setParam = (i: number, p: Partial<Param>) =>
     setV({ ...v, params: params.map((x, j) => (j === i ? { ...x, ...p } : x)) })
+  const onMapAllowed = (v.shape ?? 'scalar') === 'scalar' && (v.role === 'chart' || v.role === 'health')
   const save = useMutation({
-    mutationFn: async () =>
-      b
-        ? unwrap(await api.PATCH('/bindings/{id}', { params: { path: { id: b.id } }, body: v }))
-        : unwrap(await api.POST('/bindings', { body: v })),
+    mutationFn: async () => {
+      // A binding switched to a shape or role the map can't show drops on_map instead of failing validation.
+      const body = { ...v, on_map: onMapAllowed && !!v.on_map }
+      return b
+        ? unwrap(await api.PATCH('/bindings/{id}', { params: { path: { id: b.id } }, body }))
+        : unwrap(await api.POST('/bindings', { body }))
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: tkeys.bindings })
       onClose()
@@ -510,6 +516,14 @@ function BindingModal({
             data-testid="binding-when-empty"
           />
         </SimpleGrid>
+        <Switch
+          label="Show on the map"
+          description="Draw the value under the entity's node card (scalar chart or health bindings; up to six per entity)."
+          checked={!!v.on_map}
+          onChange={(e) => setV({ ...v, on_map: e.currentTarget.checked })}
+          disabled={!onMapAllowed}
+          data-testid="binding-on-map"
+        />
         <Stack gap={4}>
           <Group justify="space-between">
             <div>

@@ -1805,6 +1805,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/telemetry/map-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Values of on-map bindings for map node cards
+         * @description Runs the scalar chart and health bindings marked on_map for each entity (at most 6 per entity), with the entity page's caching and limits. Entities you cannot read are omitted.
+         */
+        post: operations["get-map-metrics"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -2123,6 +2143,8 @@ export interface components {
             /** @description Entity kinds the binding applies to (empty = every kind). */
             kinds: string[];
             name: string;
+            /** @description Show the value on map node cards (scalar chart or health bindings). */
+            on_map: boolean;
             params: components["schemas"]["BindingParam"][];
             /** @description Template with {{param}} placeholders and the built-ins {{window}} and {{step}}. Returned to admins only. */
             query?: string;
@@ -2151,6 +2173,8 @@ export interface components {
             integration?: string;
             kinds?: string[];
             name?: string;
+            /** @description Show the value on map node cards. */
+            on_map?: boolean;
             params?: components["schemas"]["BindingParam"][];
             query?: string;
             relationship_type?: string;
@@ -3103,6 +3127,33 @@ export interface components {
         LoginInputBody: {
             email: string;
             password: string;
+        };
+        MapMetric: {
+            binding: string;
+            health?: components["schemas"]["TelemetryHealth"];
+            /** Format: date-time */
+            measured_at?: string;
+            /** @enum {string} */
+            status: "measured" | "inferred" | "stale" | "unavailable";
+            title: string;
+            unit?: string;
+            /** Format: double */
+            value?: number;
+        };
+        MapMetricsInputBody: {
+            entity_ids: string[];
+            /**
+             * @description Default 15m.
+             * @enum {string}
+             */
+            window?: "15m" | "1h" | "6h" | "24h" | "7d" | "";
+        };
+        MapMetricsOutputBody: {
+            /** @description Per entity ID, the values of its on-map bindings (only entities with values). */
+            entities: {
+                [key: string]: components["schemas"]["MapMetric"][];
+            };
+            window: string;
         };
         Matcher: {
             classes?: string[];
@@ -8354,6 +8405,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EdgeRatesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "get-map-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MapMetricsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapMetricsOutputBody"];
                 };
             };
             /** @description Error */

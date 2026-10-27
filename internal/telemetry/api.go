@@ -106,6 +106,20 @@ type edgeRatesInput struct {
 	}
 }
 
+type mapMetricsInput struct {
+	Body struct {
+		EntityIDs []string `json:"entity_ids" maxItems:"200"`
+		Window    string   `json:"window,omitempty" enum:"15m,1h,6h,24h,7d," doc:"Default 15m."`
+	}
+}
+
+type mapMetricsOutput struct {
+	Body struct {
+		Window   string                 `json:"window"`
+		Entities map[string][]MapMetric `json:"entities" doc:"Per entity ID, the values of its on-map bindings (only entities with values)."`
+	}
+}
+
 type edgeRatesOutput struct {
 	Body struct {
 		Window string     `json:"window"`
@@ -350,6 +364,38 @@ func (a *API) Register(api huma.API, d *httpapi.Deps) {
 			}
 			out := &entityTelemetryOutput{}
 			out.Body.EntityID, out.Body.Window, out.Body.Results = e.Metadata.ID, window, res
+			return out, nil
+		})
+	huma.Register(api, huma.Operation{OperationID: "get-map-metrics", Method: http.MethodPost, Path: "/telemetry/map-metrics", Tags: []string{"telemetry"},
+		Summary: "Values of on-map bindings for map node cards", Description: "Runs the scalar chart and health bindings marked on_map for " +
+			"each entity (at most 6 per entity), with the entity page's caching and limits. Entities you cannot read are omitted.", Security: sec},
+		func(ctx context.Context, in *mapMetricsInput) (*mapMetricsOutput, error) {
+			if _, err := httpapi.RequireUser(ctx); err != nil {
+				return nil, d.Fail("get-map-metrics", err)
+			}
+			p := httpapi.PrincipalFrom(ctx)
+			ents := make([]*catalog.Entity, 0, len(in.Body.EntityIDs))
+			if len(in.Body.EntityIDs) > 0 {
+				page, err := a.Service.Catalog.ListEntities(ctx, catalog.EntityFilter{IDs: in.Body.EntityIDs, Limit: len(in.Body.EntityIDs)})
+				if err != nil {
+					return nil, d.Fail("get-map-metrics", err)
+				}
+				for _, e := range page.Items {
+					if authz.Can(p, e.Metadata.ProjectID, authz.Viewer) {
+						ents = append(ents, e)
+					}
+				}
+			}
+			window := in.Body.Window
+			if window == "" {
+				window = "15m"
+			}
+			m, err := a.Service.MapMetrics(ctx, ents, window)
+			if err != nil {
+				return nil, d.Fail("get-map-metrics", err)
+			}
+			out := &mapMetricsOutput{}
+			out.Body.Window, out.Body.Entities = window, m
 			return out, nil
 		})
 	huma.Register(api, huma.Operation{OperationID: "get-edge-rates", Method: http.MethodPost, Path: "/telemetry/edge-rates", Tags: []string{"telemetry"},
