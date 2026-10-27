@@ -5,6 +5,12 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-27
+
+Upgrading from 0.3.x: schema migration 10 (binding `guard`, `when_empty` and `on_map`) runs at start-up after the usual
+pre-migration snapshot. Existing bindings keep their behaviour; mark the ones to show on the map in *Settings →
+Telemetry*.
+
 ### Added
 - Telemetry bindings: `guard` (the binding applies to an entity only when the guard query returns data; otherwise
   "not applicable") and `when_empty` (the value of an empty scalar result), replacing `or vector(0)` tricks that made
@@ -127,7 +133,8 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/aurimasniekis/go-deed/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/aurimasniekis/go-deed/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/aurimasniekis/go-deed/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/aurimasniekis/go-deed/compare/v0.2.0...v0.3.0
