@@ -5,6 +5,12 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-27
+
+Upgrading from 0.6.x: schema migration 11 (label rules) runs at start-up after the usual pre-migration snapshot, then
+every entity is re-merged once in the background (merge rules version 3): entities that only annotations or overrides
+kept alive are tombstoned (their facets stay and apply again if a source describes the entity again).
+
 ### Added
 - Label rules: project rules that add labels (such as `group=github`) to entities other sources own, matched by kind,
   describing source and existing labels (globs allowed), below every source and never keeping an entity alive
@@ -209,7 +215,8 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/aurimasniekis/go-deed/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/aurimasniekis/go-deed/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/aurimasniekis/go-deed/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/aurimasniekis/go-deed/compare/v0.4.0...v0.5.0

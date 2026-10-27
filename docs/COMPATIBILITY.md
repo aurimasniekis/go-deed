@@ -8,7 +8,8 @@ provider works with every Deed release at or above its minimum version.
 
 | Provider | Minimum Deed | Tested against (CI pin) | Terraform |
 |---|---|---|---|
-| 0.5.x | 0.1.0; 0.2.0 for the service account resources; 0.3.0 for `deed_kind.grouping_relationship_types`; 0.4.0 for `deed_telemetry_binding` `guard`, `when_empty` and `on_map` | go-deed `v0.4.0` (`DEED_COMMIT` in the provider `Makefile` and `test.yml`) |
+| 0.6.x | 0.1.0; 0.2.0 for the service account resources; 0.3.0 for `deed_kind.grouping_relationship_types`; 0.4.0 for `deed_telemetry_binding` `guard`, `when_empty` and `on_map`; 0.7.0 for `deed_label_rule` and `deed_entity_override` | go-deed `v0.7.0` (`DEED_COMMIT` in the provider `Makefile` and `test.yml`) |
+| 0.5.x | 0.1.0; 0.2.0 for the service account resources; 0.3.0 for `deed_kind.grouping_relationship_types`; 0.4.0 for `deed_telemetry_binding` `guard`, `when_empty` and `on_map` | go-deed `v0.4.0` |
 | 0.4.x | 0.1.0; 0.2.0 for the service account resources; 0.3.0 for `deed_kind.grouping_relationship_types` | go-deed `v0.3.2` |
 | 0.3.x | 0.1.0; 0.2.0 for the service account resources; 0.3.0 for `deed_kind.grouping_relationship_types` | go-deed `v0.3.0` |
 | 0.2.x | 0.1.0; 0.2.0 for `deed_service_account` and `deed_service_account_token` | go-deed `v0.2.0` |
