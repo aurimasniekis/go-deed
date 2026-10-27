@@ -209,10 +209,20 @@ the ADR-011 budget. In the overview a group of a single entity is shown as that 
   labelled "sampled, N-min window"); `inferred` rates are labelled with their note and never animate; `unavailable`
   edges are never animated. All animation stops under `prefers-reduced-motion` or the user toggle.
 - **Node metrics**: detailed cards show the values of telemetry bindings marked *Show on the map* (CPU, memory, disk,
-  request rate, …) in a strip under the card, from `/telemetry/map-metrics`, refreshed every minute: tinted by the
-  binding's health (warning, critical), faded when stale, with the binding title, value and status in the tooltip and
-  the accessible name. They patch node data only (no re-layout) and are off for compact cards, clusters, redacted
-  stubs, cards dimmed around a selection and the zoomed-out level of detail; the options drawer switches them off.
+  request rate, …) inside the card, under a hairline below the name: the value over the binding's title, up to three
+  per row (two rows at most), from `/telemetry/map-metrics`, refreshed every minute; tinted by the binding's health
+  (warning, critical), faded when stale, with title, value and status in the tooltip and the accessible name. A card
+  with metrics is taller (30 px per row), and the layout sizes it so: which entities have how many values is part of
+  the layout signature, so the first values re-lay the map out once in place (the view is only fitted when the
+  topology changes), and values load at every zoom level so zooming never changes sizes. They are off for compact
+  cards, clusters and redacted stubs; dimmed cards keep the space but hide the values; the options drawer switches
+  them off.
+- **Show / hide** (toolbar, or `v`): a panel listing the kinds and relationship types on the loaded map with their
+  counts. Unticking hides them (the focus entity always stays; hiding a kind also hides its overview group), *only*
+  keeps just that one, *Show all* brings everything back, and hidden entries stay listed, struck through. With colour by
+  relationship type, the legend's entries do the same: click one to hide its relationships, click the struck-through
+  entry to show them again. Hidden kinds and types are filters (`hideKind`, `hideType` in the URL), so they are saved
+  with views; the toolbar button counts them.
 - **Copy image** (toolbar, or *Copy map as image (1:1)* in the canvas context menu) puts the whole current drawing on
   the clipboard as a PNG at zoom 1 — every node as a card at its real size, not the zoomed-out view that fits the
   screen — with the current filters, styles, selection dimming and mask mode. Controls, minimap, legend and dot grid
@@ -253,6 +263,7 @@ Press `?` anywhere to see them in the app.
 | Map: `Esc`                            | Clear selection, close panels                               |
 | Map: `f` / `i` / `l`                  | Fit view / impact of selection / toggle legend              |
 | Map: `m`                              | Mask mode (aliases instead of names, for screenshots)       |
+| Map: `v`                              | Show / hide kinds and relationship types                    |
 | Map: `+` / `−`                        | Zoom                                                        |
 | Inventory: `Space`                    | Toggle the focused row's checkbox                           |
 
@@ -337,12 +348,12 @@ this (shared) machine.
 
 - **Unit** (Vitest): API session/CSRF/reauth handling, SSE reconnect and invalidation mapping, URL codecs, schema
   forms, edge styling, map model and layout helpers, provenance rendering.
-- **End-to-end** (Playwright, Chromium): `e2e/global-setup.ts` starts a fresh `deed` with a temporary data dir and
-  mock upstreams (Prometheus, GitHub API), seeds projects, kinds, sources, entities, relations, telemetry and
-  findings (the owner account is enrolled in TOTP during setup), then runs: auth (password + TOTP sign-in with
-  return-to, setup-link and SSO error pages), core flows (dashboard → finding → inventory → entity → focused map →
-  path; impact; bulk annotations; relations table), map (filters, grouping, inspector, keyboard, provenance, overview
-  expansion, traffic overlay on measured edges only, node metrics, copy image), admin (GitHub source
-  create/test/preview against the mock, push-token reveal-once, custom kind with schema dry run, audit hash-chain verification, saved views, version
-  re-check, custom icon upload, findings re-evaluation), an axe scan of 27 views in both schemes plus the login page
-  (screenshots to `web/e2e/screenshots/`), and the perf budgets.
+- **End-to-end** (Playwright, Chromium): `e2e/global-setup.ts` starts a fresh `deed` with a temporary data dir and mock
+  upstreams (Prometheus, GitHub API), seeds projects, kinds, sources, entities, relations, telemetry and findings (the
+  owner account is enrolled in TOTP during setup), then runs: auth (password + TOTP sign-in with return-to, setup-link
+  and SSO error pages), core flows (dashboard → finding → inventory → entity → focused map → path; impact; bulk
+  annotations; relations table), map (filters, grouping, inspector, keyboard, provenance, overview expansion, traffic
+  overlay on measured edges only, node metrics, copy image, legend toggles, show / hide), admin (GitHub source
+  create/test/preview against the mock, push-token reveal-once, custom kind with schema dry run, audit hash-chain
+  verification, saved views, version re-check, custom icon upload, findings re-evaluation), an axe scan of 27 views in
+  both schemes plus the login page (screenshots to `web/e2e/screenshots/`), and the perf budgets.

@@ -12,6 +12,7 @@ import {
   NumberInput,
   SegmentedControl,
   Select,
+  Stack,
   Text,
   Tooltip,
   useComputedColorScheme,
@@ -25,6 +26,7 @@ import {
   IconInfoCircle,
   IconListDetails,
   IconMap2,
+  IconEye,
   IconMask,
   IconPhoto,
   IconRoute,
@@ -64,7 +66,7 @@ import { alias, maskProject } from '@/lib/mask'
 import { humanize, plural } from '@/lib/format'
 import { compact, decodeList, encodeList, validateMapSearch, type MapSearch } from '@/lib/urlState'
 import { flushSync } from 'react-dom'
-import { buildLegend, edgeVisual, sourceColor, sourcePalette } from './edgeStyle'
+import { buildLegend, edgeVisual, FALLBACK_TYPE_COLOR, sourceColor, sourcePalette } from './edgeStyle'
 import { edgeTypes, LodEdges, type DeedFlowEdge } from './edges'
 import { MapContextMenu, type ContextMenuActions, type MenuTarget } from './ContextMenu'
 import { EdgeInspector, NodeInspector, type InspectorActions } from './Inspector'
@@ -72,6 +74,7 @@ import { maskModel } from './mask'
 import { layoutCache, runLayout, warmLayout } from './layout'
 import type { LayoutResult } from './layoutTypes'
 import { MapLegend } from './Legend'
+import { VisibilityPanel, visibilityItems } from './VisibilityPanel'
 import {
   ALL_DETAIL,
   DetailContext,
@@ -104,7 +107,7 @@ import {
   topologySignature,
   type MapFilters,
 } from './model'
-import { LOD, NODE_SIZE, nodeTypes, type EntityNodeData, type GroupNodeData } from './nodes'
+import { cardSize, LOD, metricRows, nodeTypes, type EntityNodeData, type GroupNodeData } from './nodes'
 import { OptionsDrawer } from './OptionsDrawer'
 import { PathFinder } from './PathFinder'
 import { sourceLabel, type MapEdge, type MapNode } from './types'
@@ -135,11 +138,6 @@ const handlePos: Record<string, { source: Position; target: Position }> = {
   LEFT: { source: Position.Left, target: Position.Right },
   DOWN: { source: Position.Bottom, target: Position.Top },
   UP: { source: Position.Top, target: Position.Bottom },
-}
-
-function sizeOf(n: MapNode, compactCards: boolean) {
-  if (n.cluster) return NODE_SIZE.cluster
-  return compactCards ? NODE_SIZE.compact : NODE_SIZE.detailed
 }
 
 interface Patch {
@@ -208,6 +206,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const selected = useSelector(mapStore, (s) => s.selected)
   const collapsed = useSelector(mapStore, (s) => s.collapsed)
   const legendOpen = useSelector(mapStore, (s) => s.legendOpen)
+  const visibilityOpen = useSelector(mapStore, (s) => s.visibilityOpen)
   const optionsOpen = useSelector(mapStore, (s) => s.optionsOpen)
   const pathOpen = useSelector(mapStore, (s) => s.pathOpen)
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
@@ -282,6 +281,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       evidence: decodeList(search.evidence),
       sourceIds: data.sourceIds,
       stale: search.stale !== false,
+      hideKind: decodeList(search.hideKind),
+      hideType: decodeList(search.hideType),
     }),
     [search, data.sourceIds],
   )
@@ -331,13 +332,44 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   }, [sources.data, view.model])
   const colorOfSource = useCallback((id: string) => sourceColor(id, sourceColors), [sourceColors])
 
-  const signature = useMemo(
+  // Node metrics: on-map bindings for the entities drawn as detailed cards (never clusters or redacted stubs). They
+  // load at every zoom level: a card's metric rows are part of its size, so the layout must not change with the zoom.
+  const metricIds = useMemo(
+    () => [...view.model.nodes.values()].filter((n) => !n.cluster && !n.redacted).map((n) => n.id),
+    [view.model],
+  )
+  const metrics = useNodeMetrics(metricIds, style.metrics && !compactCards)
+  const rowsById = useMemo(() => {
+    const out = new Map<string, number>()
+    if (!style.metrics || compactCards) return out
+    for (const [id, ms] of metrics) {
+      const r = metricRows(ms)
+      // Placeholder data may still hold entities of the previous map.
+      if (r > 0 && view.model.nodes.has(id)) out.set(id, r)
+    }
+    return out
+  }, [metrics, style.metrics, compactCards, view.model])
+  const rowsSig = useMemo(
+    () =>
+      [...rowsById]
+        .map(([id, r]) => `${id}:${r}`)
+        .sort()
+        .join(','),
+    [rowsById],
+  )
+
+  // The topology (fits the view when it changes) and, for the layout, the cards' metric rows (re-laid out in place).
+  const baseSignature = useMemo(
     () =>
       topologySignature(
         view.model,
         `${algorithm}|${rankdir}|${style.nodeMode}|${view.groups.map((g) => g.key).join(',')}`,
       ),
     [view, algorithm, rankdir, style.nodeMode],
+  )
+  const signature = useMemo(
+    () => (rowsSig ? `${baseSignature}|m${hashString(rowsSig)}` : baseSignature),
+    [baseSignature, rowsSig],
   )
 
   // Layout runs only when the topology signature changes (never for observation-only patches).
@@ -346,7 +378,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     let cancelled = false
     const nodes = [...view.model.nodes.values()].map((n) => ({
       id: n.id,
-      ...sizeOf(n, compactCards),
+      ...cardSize(!!n.cluster, compactCards, rowsById.get(n.id)),
       ...(n.group ? { group: n.group } : {}),
     }))
     const edges = [...view.model.edges.values()].map((e) => ({ id: e.id, source: e.from, target: e.to }))
@@ -461,12 +493,6 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
 
   const big = view.model.nodes.size >= LOD.minNodes
   const lod = zoomedOut && big
-  // Node metrics: on-map bindings for the entities drawn as detailed cards (never clusters or redacted stubs).
-  const metricIds = useMemo(
-    () => [...view.model.nodes.values()].filter((n) => !n.cluster && !n.redacted).map((n) => n.id),
-    [view.model],
-  )
-  const metrics = useNodeMetrics(metricIds, style.metrics && !compactCards && !lod)
   const lodShown = lod || !complete
   // Setting up dragging costs ~15 ms per 2,000 mounted nodes, and dragging a block is never useful: a drawing that
   // opens zoomed out mounts its blocks without it and turns it on once the browser is idle (switching it on or off
@@ -556,7 +582,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       const n = p ? { ...raw, ...p } : raw
       const { k, title } = describeNode(n)
       const pos = layout.positions[n.id] ?? { x: 0, y: 0 }
-      const size = sizeOf(n, compactCards)
+      const size = cardSize(!!n.cluster, compactCards, rowsById.get(n.id))
       return {
         id: n.id,
         type: n.cluster ? 'cluster' : 'entity',
@@ -575,6 +601,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
           targetPos: hp.target,
           dimmed: !!neighbourSet && !neighbourSet.has(n.id),
           metrics: metrics.get(n.id),
+          metricRows: rowsById.get(n.id) ?? 0,
         },
         ariaLabel: `${n.cluster ? 'Cluster' : (k?.title ?? n.kind)} ${n.displayName ?? n.name}, health ${n.health}, freshness ${n.freshness}`,
       }
@@ -635,6 +662,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     typeTitle,
     traffic.rates,
     metrics,
+    rowsById,
     now,
     sourceColors,
     projectName,
@@ -770,11 +798,12 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     }
   }, [lod, big, built.edges, detail, flowStore, ensurePorts])
 
-  // Fit the view when the topology changes; record render timings for the budget measurements.
+  // Fit the view when the topology changes (not when cards grow metric rows and are re-laid out in place); record
+  // render timings for the budget measurements.
   const lastFit = useRef('')
   useEffect(() => {
-    if (!layout || built.nodes.length === 0 || lastFit.current === layout.sig) return
-    lastFit.current = layout.sig
+    if (!layout || built.nodes.length === 0 || layout.sig !== signature || lastFit.current === baseSignature) return
+    lastFit.current = baseSignature
     requestAnimationFrame(() => {
       void rf.fitView({ padding: fitPadding(), duration: reduced ? 0 : 250, maxZoom: 1.25 })
       requestAnimationFrame(() => {
@@ -798,11 +827,45 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         }
       })
     })
-  }, [layout, built.nodes.length, rf, reduced, view.model])
+  }, [layout, built.nodes.length, rf, reduced, view.model, signature, baseSignature])
 
   const patch = useCallback(
     (p: Partial<MapSearch>) => setSearch(compact({ ...search, ...p }), true),
     [search, setSearch],
+  )
+
+  // Show / hide: kinds and relationship types of the loaded map, with what is hidden (legend and visibility panel).
+  const visibility = useMemo(
+    () =>
+      visibilityItems(
+        data.model,
+        filters.hideKind,
+        filters.hideType,
+        (k) => {
+          const kd = kindMap.get(k)
+          return { title: kd?.title ?? humanize(k), ...(kd?.icon ? { icon: kd.icon } : {}) }
+        },
+        (t) => {
+          const c = style.typeColors[t] ?? typeColor(t)
+          return { title: typeTitle(t), ...(c ? { color: c } : {}) }
+        },
+      ),
+    [data.model, filters.hideKind, filters.hideType, kindMap, typeTitle, typeColor, style.typeColors],
+  )
+  const setHidden = useCallback(
+    (h: { hideKind?: string[]; hideType?: string[] }) =>
+      patch({
+        ...(h.hideKind ? { hideKind: encodeList(h.hideKind) } : {}),
+        ...(h.hideType ? { hideType: encodeList(h.hideType) } : {}),
+      }),
+    [patch],
+  )
+  const toggleType = useCallback(
+    (t: string) =>
+      setHidden({
+        hideType: filters.hideType.includes(t) ? filters.hideType.filter((x) => x !== t) : [...filters.hideType, t],
+      }),
+    [filters.hideType, setHidden],
   )
 
   const go = useCallback(
@@ -947,6 +1010,9 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         break
       case 'l':
         setPanel('legendOpen', !legendOpen)
+        break
+      case 'v':
+        setPanel('visibilityOpen', !visibilityOpen)
         break
       case 'm':
         setMasked(!masked)
@@ -1249,6 +1315,19 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
             }
             onApply={applyView}
           />
+          <Tooltip label="Show or hide kinds and relationship types (v)">
+            <Button
+              variant={visibilityOpen || filters.hideKind.length + filters.hideType.length > 0 ? 'light' : 'default'}
+              leftSection={<IconEye size={14} />}
+              aria-pressed={visibilityOpen}
+              onClick={() => setPanel('visibilityOpen', !visibilityOpen)}
+              data-testid="map-visibility-toggle"
+            >
+              {filters.hideKind.length + filters.hideType.length > 0
+                ? `Hidden ${filters.hideKind.length + filters.hideType.length}`
+                : 'Show / hide'}
+            </Button>
+          </Tooltip>
           <Tooltip label="Mask mode: replace names, owners and projects with stable aliases for screenshots (m)">
             <Button
               variant={masked ? 'filled' : 'default'}
@@ -1487,13 +1566,36 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                   )}
                 </Panel>
                 <Panel position="bottom-left">
-                  {legendOpen ? (
-                    <MapLegend legend={legend} onClose={() => setPanel('legendOpen', false)} showNodes lod={lodShown} />
-                  ) : (
-                    <Button size="xs" variant="default" onClick={() => setPanel('legendOpen', true)}>
-                      Show legend (l)
-                    </Button>
-                  )}
+                  <Stack gap={8} align="flex-start">
+                    {visibilityOpen && (
+                      <VisibilityPanel
+                        kinds={visibility.kinds}
+                        types={visibility.types}
+                        onChange={setHidden}
+                        onClose={() => setPanel('visibilityOpen', false)}
+                      />
+                    )}
+                    {legendOpen ? (
+                      <MapLegend
+                        legend={legend}
+                        onClose={() => setPanel('legendOpen', false)}
+                        showNodes
+                        lod={lodShown}
+                        {...(style.colorMode === 'type'
+                          ? {
+                              onToggleType: toggleType,
+                              hiddenTypes: visibility.types
+                                .filter((t) => t.hidden)
+                                .map((t) => ({ key: t.key, label: t.label, color: t.color ?? FALLBACK_TYPE_COLOR })),
+                            }
+                          : {})}
+                      />
+                    ) : (
+                      <Button size="xs" variant="default" onClick={() => setPanel('legendOpen', true)}>
+                        Show legend (l)
+                      </Button>
+                    )}
+                  </Stack>
                 </Panel>
                 <Panel position="top-right" style={{ maxHeight: 'calc(100% - 30px)', display: 'flex' }}>
                   {selNode ? (

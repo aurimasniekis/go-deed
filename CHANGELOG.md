@@ -5,6 +5,17 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Added
+- Map: a *Show / hide* panel (toolbar, `v`) lists the kinds and relationship types on the map with counts; untick to
+  hide them, *only* to keep one, *Show all* to reset. Hidden ones stay listed and go to the URL (`hideKind`,
+  `hideType`), so saved views keep them.
+- Map legend: with colour by relationship type, clicking an entry hides that type's relationships; clicking the
+  struck-through entry shows them again.
+
+### Changed
+- Node metrics are drawn inside the card (value over title, up to three per row) instead of a strip under it; cards
+  with metrics are taller and the layout makes room for them.
+
 ## [0.5.1] - 2026-10-27
 
 No schema migration; nothing to re-sync. On first start every entity is re-merged once in the background (log

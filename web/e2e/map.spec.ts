@@ -135,12 +135,18 @@ test('traffic overlay shows measured rates only on measured edges', async ({ pag
   await expect(page.locator('.deed-edge-label[data-rate="measured"]').first()).toContainText('req/s')
 })
 
-test('node metrics: on-map bindings under detailed cards', async ({ page }) => {
+test('node metrics: on-map bindings inside detailed cards', async ({ page }) => {
   const gateway = entityId('service/api-gateway')
   await page.goto(`/map?focus=${gateway}&mode=neighborhood&depth=1`)
   await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
-  const strip = page.locator(`[data-entity-id="${gateway}"] [data-testid="node-metrics"]`)
+  const card = page.locator(`.deed-node[data-entity-id="${gateway}"]`)
+  const strip = card.locator('[data-testid="node-metrics"]')
   await expect(strip).toContainText('req/s', { timeout: 20_000 })
+  // Inside the card, which the layout made taller for its metric row.
+  await expect.poll(async () => (await card.boundingBox())?.height ?? 0).toBeGreaterThan(80)
+  const cardBox = await card.boundingBox()
+  const stripBox = await strip.boundingBox()
+  expect(cardBox && stripBox && stripBox.y + stripBox.height <= cardBox.y + cardBox.height + 1).toBe(true)
   await expect(strip).toHaveAttribute('aria-label', /Requests per second [\d.]+ req\/s/)
   await expect(strip).toHaveAttribute('aria-label', /Error ratio [\d.]+%/)
   // The options drawer switches them off.
@@ -149,6 +155,47 @@ test('node metrics: on-map bindings under detailed cards', async ({ page }) => {
   await expect(strip).toHaveCount(0)
   await page.getByTestId('metrics-toggle').click()
   await expect(strip).toContainText('req/s')
+})
+
+test('legend: clicking a relationship type hides its edges, clicking again shows them', async ({ page }) => {
+  await page.goto(`/map?focus=${entityId('service/api-gateway')}&mode=neighborhood&depth=1`)
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  const edges = () => page.locator('.react-flow__edge').count()
+  const before = await edges()
+  const entry = page.getByTestId('map-legend').locator('[data-legend-key="routes_to"]')
+  await expect(entry).toHaveAttribute('aria-pressed', 'true')
+  await entry.click()
+  await expect(page).toHaveURL(/hideType=routes_to/)
+  await expect(entry).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(edges).toBeLessThan(before)
+  await expect(page.getByTestId('map-visibility-toggle')).toContainText('Hidden 1')
+  await entry.click()
+  await expect(page).not.toHaveURL(/hideType=/)
+  await expect.poll(edges).toBe(before)
+})
+
+test('show / hide panel: kinds and relationship types', async ({ page }) => {
+  await page.goto(`/map?focus=${entityId('service/billing-api')}&mode=neighborhood&depth=2`)
+  const canvas = page.getByTestId('map-canvas')
+  await expect(canvas).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await canvas.focus()
+  await page.keyboard.press('v')
+  const panel = page.getByTestId('map-visibility')
+  await expect(panel).toBeVisible()
+  const kinds = panel.getByTestId('map-visibility-kinds')
+  const nodes = () => page.locator('.react-flow__node[data-id^="ent_"]').count()
+  const before = await nodes()
+  // Hide one kind: its entities leave the map (the focus stays), the entry stays listed to show it again.
+  const box = kinds.locator('input[type="checkbox"]').nth(1)
+  const kind = await box.getAttribute('data-key')
+  await box.click()
+  await expect(page).toHaveURL(new RegExp(`hideKind=${kind}`))
+  await expect.poll(nodes).toBeLessThan(before)
+  await expect(kinds.locator(`input[data-key="${kind}"]`)).not.toBeChecked()
+  await expectAccessible(page, 'map show / hide panel')
+  await kinds.getByRole('button', { name: 'Show all' }).click()
+  await expect.poll(nodes).toBe(before)
+  await expect(page).not.toHaveURL(/hideKind=/)
 })
 
 test('copy image: the whole map at 1:1, on the clipboard', async ({ page }) => {

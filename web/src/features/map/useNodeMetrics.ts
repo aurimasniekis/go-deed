@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { api, unwrap, type Schemas } from '@/api/client'
 
@@ -13,7 +13,7 @@ const NO_METRICS = new Map<string, MapMetric[]>()
 /**
  * Node-card metrics: POST /telemetry/map-metrics for the entities on screen (batches of 200, refreshed every minute).
  * Values come from bindings marked on_map (CPU, memory, disk, request rates …); entities without any are absent.
- * Like traffic rates they patch node data only and never re-run layout.
+ * Cards with values are taller (metric rows), so which entities have how many values is part of the layout.
  */
 export function useNodeMetrics(entityIds: string[], enabled: boolean, window = '15m') {
   const ids = useMemo(
@@ -35,6 +35,9 @@ export function useNodeMetrics(entityIds: string[], enabled: boolean, window = '
       return out
     },
     enabled: enabled && ids.length > 0,
+    // The previous map's values while a changed set of entities loads: cards keep their metric rows (and the layout
+    // its sizes) instead of dropping them for a moment.
+    placeholderData: keepPreviousData,
     refetchInterval: 60_000,
     staleTime: 30_000,
     retry: false,

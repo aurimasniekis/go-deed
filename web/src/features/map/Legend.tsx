@@ -1,4 +1,4 @@
-import { ActionIcon, Group, ScrollArea, Stack, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Group, ScrollArea, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core'
 import { IconX } from '@tabler/icons-react'
 import { MetaBadge } from '@/components/StatusBadge'
 import { FRESHNESS, HEALTH } from '@/lib/status'
@@ -30,13 +30,23 @@ export function MapLegend({
   onClose,
   showNodes,
   lod = false,
+  onToggleType,
+  hiddenTypes,
 }: {
   legend: LegendModel
   onClose: () => void
   showNodes: boolean
   /** The simplified zoomed-out drawing is on screen (nodes as blocks). */
   lod?: boolean
+  /** Colour by relationship type: clicking an entry hides (or shows again) that type's relationships. */
+  onToggleType?: (type: string) => void
+  /** Relationship types hidden on this map, listed (struck through) so they can be shown again. */
+  hiddenTypes?: { key: string; label: string; color: string }[]
 }) {
+  const entries = [
+    ...legend.colors.map((c) => ({ ...c, hidden: false })),
+    ...(onToggleType ? (hiddenTypes ?? []).map((h) => ({ ...h, description: undefined, hidden: true })) : []),
+  ]
   return (
     <div className="deed-panel" style={{ width: 260 }} data-testid="map-legend" role="region" aria-label="Map legend">
       <Group justify="space-between" px="sm" pt={6}>
@@ -57,23 +67,58 @@ export function MapLegend({
         viewportProps={{ tabIndex: 0, 'aria-label': 'Legend entries' }}
       >
         <Stack gap={8}>
-          {legend.colors.length > 0 && (
+          {entries.length > 0 && (
             <Stack gap={3}>
               <Text size="xs" fw={600}>
                 Edge colour
-              </Text>
-              {legend.colors.map((c) => (
-                <Group key={c.key} gap={6} wrap="nowrap" data-legend-color={c.color} data-legend-key={c.key}>
-                  <span
-                    style={{ width: 14, height: 4, borderRadius: 2, background: c.color, flexShrink: 0 }}
-                    aria-hidden
-                  />
-                  <Text size="xs" lineClamp={2} title={c.description ? `${c.label} (${c.description})` : c.label}>
-                    {c.label}
-                    {c.description ? ` (${c.description})` : ''}
+                {onToggleType && (
+                  <Text span size="xs" c="dimmed" fw={400}>
+                    {' '}
+                    · click to hide
                   </Text>
-                </Group>
-              ))}
+                )}
+              </Text>
+              {entries.map((c) => {
+                const content = (
+                  <>
+                    <span
+                      style={{
+                        width: 14,
+                        height: 4,
+                        borderRadius: 2,
+                        background: c.color,
+                        flexShrink: 0,
+                        opacity: c.hidden ? 0.35 : 1,
+                      }}
+                      aria-hidden
+                    />
+                    <Text size="xs" lineClamp={2} title={c.description ? `${c.label} (${c.description})` : c.label}>
+                      {c.label}
+                      {c.description ? ` (${c.description})` : ''}
+                    </Text>
+                  </>
+                )
+                return onToggleType ? (
+                  <UnstyledButton
+                    key={c.key}
+                    className="deed-legend-toggle"
+                    data-hidden={c.hidden || undefined}
+                    data-legend-color={c.color}
+                    data-legend-key={c.key}
+                    aria-pressed={!c.hidden}
+                    aria-label={`${c.label}: ${c.hidden ? 'hidden, click to show' : 'shown, click to hide'}`}
+                    onClick={() => {
+                      onToggleType(c.key)
+                    }}
+                  >
+                    {content}
+                  </UnstyledButton>
+                ) : (
+                  <Group key={c.key} gap={6} wrap="nowrap" data-legend-color={c.color} data-legend-key={c.key}>
+                    {content}
+                  </Group>
+                )
+              })}
             </Stack>
           )}
           {legend.strokes.length > 0 && (

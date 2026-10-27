@@ -80,6 +80,9 @@ export interface MapFilters {
   sourceIds: Set<string> | null
   /** Show observed relationships not seen for 7 days (dotted). */
   stale: boolean
+  /** Kinds and relationship types switched off in the legend or the visibility panel (the rest stays shown). */
+  hideKind: string[]
+  hideType: string[]
 }
 
 export const NO_FILTERS: MapFilters = {
@@ -93,10 +96,15 @@ export const NO_FILTERS: MapFilters = {
   evidence: [],
   sourceIds: null,
   stale: true,
+  hideKind: [],
+  hideType: [],
 }
 
 function nodeMatches(n: MapNode, f: MapFilters): boolean {
-  if (n.root || n.cluster) return true
+  // A hidden kind hides its overview group too; the focus entity always stays.
+  if (n.cluster) return !(n.cluster.groupBy === 'kind' && f.hideKind.includes(n.cluster.value))
+  if (n.root) return true
+  if (f.hideKind.includes(n.kind)) return false
   if (f.kind.length && !f.kind.includes(n.kind)) return false
   if (f.project.length && !f.project.includes(n.projectId)) return false
   if (f.environment.length && !f.environment.includes(n.environment ?? '')) return false
@@ -118,6 +126,7 @@ export function applyFilters(model: GraphModel, f: MapFilters, now = Date.now())
     [...model.edges].filter(([, e]) => {
       if (!nodes.has(e.from) || !nodes.has(e.to)) return false
       if (f.type.length && !f.type.includes(e.type)) return false
+      if (f.hideType.includes(e.type)) return false
       if (f.evidence.length && !f.evidence.includes(e.evidence)) return false
       if (!f.stale && edgeIsStale(e, now)) return false
       return true

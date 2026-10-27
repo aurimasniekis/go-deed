@@ -337,58 +337,108 @@
   cursor: default;
 }
 
-/* On-map telemetry values: a strip just under the card, in the gap the layout leaves between rows. */
-.deed-node-metrics {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 6px;
-  right: 6px;
+/* On-map telemetry values inside a detailed card: the card's main row keeps its 66 px, the metric rows (30 px each,
+   the layout sizes the card with them) sit below a hairline, three values per row. */
+.deed-node[data-metrics] {
   display: flex;
-  gap: 4px;
-  overflow: hidden;
-  white-space: nowrap;
-  font-size: 9.5px;
-  line-height: 13px;
-  pointer-events: none;
+  flex-direction: column;
 }
 
-.deed-node-metric {
-  display: inline-flex;
-  min-width: 0;
-  overflow: hidden;
-  gap: 3px;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
-  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-dark-0));
+.deed-node[data-metrics] .deed-node-row {
+  flex: none;
+  height: 64px;
+}
+
+.deed-node-metrics {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 6px;
+  align-items: center;
+  margin-inline: 8px;
+  border-top: 1px solid var(--deed-border);
   font-variant-numeric: tabular-nums;
 }
 
-.deed-node-metric-title {
+.deed-node-metrics[data-hidden] {
+  visibility: hidden;
+}
+
+.deed-node-metric {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  max-width: 7em;
+  line-height: 1.15;
+}
+
+.deed-node-metric b {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mantine-color-text);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* The first metric keeps its size; later ones shorten their titles (never their values) to fit the card. */
-.deed-node-metric:first-child {
-  flex-shrink: 0;
+.deed-node-metric-title {
+  font-size: 9.5px;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.deed-node-metric b {
-  flex-shrink: 0;
-  font-weight: 600;
+.deed-node-metric[data-state='warning'] b {
+  /* ≥ 4.5:1 on the card in both schemes (Mantine's yellow-9 is ~3:1 on white). */
+  color: light-dark(#8a4b00, var(--mantine-color-yellow-4));
 }
 
-.deed-node-metric[data-state='warning'] {
-  background: light-dark(var(--mantine-color-yellow-1), rgba(250, 176, 5, 0.18));
-}
-
-.deed-node-metric[data-state='critical'] {
-  background: light-dark(var(--mantine-color-red-1), rgba(250, 82, 82, 0.2));
+.deed-node-metric[data-state='critical'] b {
+  color: light-dark(var(--mantine-color-red-9), var(--mantine-color-red-4));
 }
 
 .deed-node-metric[data-state='stale'] {
   opacity: 0.6;
+}
+
+/* Show / hide panel: hidden entries stay listed, struck through; "only" appears on hover or keyboard focus. Rows are
+   24 px, the WCAG 2.2 minimum target size. */
+.deed-visibility-row {
+  min-height: 24px;
+}
+
+.deed-visibility-row[data-hidden] .mantine-Text-root {
+  color: var(--mantine-color-dimmed);
+  text-decoration: line-through;
+}
+
+.deed-visibility-only {
+  opacity: 0;
+}
+
+.deed-visibility-row:hover .deed-visibility-only,
+.deed-visibility-only:focus-visible {
+  opacity: 1;
+}
+
+/* Legend entries that hide their relationship type on click. */
+/* 24 px rows: the WCAG 2.2 minimum target size. */
+.deed-legend-toggle {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  border-radius: 3px;
+  padding-inline: 2px;
+  margin-inline: -2px;
+}
+
+.deed-legend-toggle:hover {
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+}
+
+.deed-legend-toggle[data-hidden] .mantine-Text-root {
+  color: var(--mantine-color-dimmed);
+  text-decoration: line-through;
 }

@@ -105,9 +105,9 @@ endpoints you can read:
 each entity (up to 200 entities and 6 bindings per entity per request, 8 at a time) and returns, per entity you can
 read, the binding, title, value, unit, status, health (for health bindings) and `measured_at`. Unavailable and
 not-applicable results are left out, so an entity without data has no entry. Results share the binding cache with the
-entity page. The map draws them as a strip under detailed node cards — e.g. CPU, memory and disk usage from
-node_exporter bindings guarded by `up{job="node",instance="{{instance}}"}` — refreshed every minute, coloured by
-health and greyed when stale.
+entity page. The map draws them inside detailed node cards, up to three per row under the name — e.g. CPU, memory
+and disk usage from node_exporter bindings guarded by `up{job="node",instance="{{instance}}"}` — refreshed every
+minute, coloured by health and greyed when stale.
 
 ## Live updates
 `GET /api/v1/stream/telemetry?entity=<id>&relation=<id>…&interval=30&window=1h` is a separate SSE stream from the

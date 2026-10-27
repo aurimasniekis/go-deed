@@ -191,6 +191,9 @@ export interface MapSearch {
   freshness?: string
   evidence?: string
   stale?: boolean
+  /** Kinds and relationship types switched off (legend, visibility panel). */
+  hideKind?: string
+  hideType?: string
   /** Expanded cluster keys. */
   expand?: string
   /** Breadcrumb trail of focus IDs. */
@@ -228,6 +231,8 @@ export function validateMapSearch(s: Record<string, unknown>): MapSearch {
     freshness: encodeList(decodeList(s.freshness)),
     evidence: encodeList(decodeList(s.evidence)),
     stale: decodeBool(s.stale),
+    hideKind: encodeList(decodeList(s.hideKind).slice(0, 200)),
+    hideType: encodeList(decodeList(s.hideType).slice(0, 200)),
     expand: encodeList(decodeList(s.expand).slice(0, 50)),
     trail: encodeList(decodeList(s.trail).slice(-12)),
     sel: decodeString(s.sel, 128),

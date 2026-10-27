@@ -19,8 +19,10 @@ export interface EntityNodeData extends Record<string, unknown> {
   sourcePos: Position
   targetPos: Position
   dimmed: boolean
-  /** Values of on-map telemetry bindings (CPU, memory, …), drawn in a strip under the card. */
+  /** Values of on-map telemetry bindings (CPU, memory, …), drawn inside the card in metricRows rows. */
   metrics?: MapMetric[]
+  /** Rows the card was laid out with for its metrics (metricRows); its height includes them. */
+  metricRows?: number
 }
 
 export interface GroupNodeData extends Record<string, unknown> {
@@ -39,6 +41,23 @@ export const NODE_SIZE = {
   detailed: { width: 224, height: 66 },
   compact: { width: 176, height: 38 },
   cluster: { width: 210, height: 58 },
+}
+
+/** On-map metrics inside a detailed card: up to three per row, each row this much taller (value over title). */
+export const METRICS_PER_ROW = 3
+export const METRIC_ROW_HEIGHT = 30
+
+/** Rows a detailed card needs for its metrics (values only; at most two rows: Deed sends six per entity). */
+export function metricRows(metrics: MapMetric[] | undefined): number {
+  const n = metrics?.filter((m) => m.value !== undefined).length ?? 0
+  return Math.min(2, Math.ceil(n / METRICS_PER_ROW))
+}
+
+/** The size of an entity or cluster card; the layout uses the same, so cards never overlap. */
+export function cardSize(cluster: boolean, compact: boolean, rows = 0): { width: number; height: number } {
+  if (cluster) return NODE_SIZE.cluster
+  if (compact) return NODE_SIZE.compact
+  return { width: NODE_SIZE.detailed.width, height: NODE_SIZE.detailed.height + rows * METRIC_ROW_HEIGHT }
 }
 
 /**
@@ -99,7 +118,7 @@ function Ports({ sourcePos, targetPos }: { sourcePos: Position; targetPos: Posit
 function LodBlock({ data, selected }: { data: EntityNodeData; selected: boolean }) {
   const ports = usePorts()
   const n = data.node
-  const size = n.cluster ? NODE_SIZE.cluster : data.compact ? NODE_SIZE.compact : NODE_SIZE.detailed
+  const size = cardSize(!!n.cluster, data.compact, data.metricRows)
   return (
     <div
       className="deed-node-lod"
@@ -126,7 +145,8 @@ export const EntityNode = memo(function EntityNode({ id, data, selected }: NodeP
   const n = data.node
   const h = healthMeta(n.health)
   const f = freshnessMeta(n.freshness)
-  const size = data.compact ? NODE_SIZE.compact : NODE_SIZE.detailed
+  const size = cardSize(false, data.compact, data.metricRows)
+  const rows = data.compact ? 0 : (data.metricRows ?? 0)
   return (
     <div
       className="deed-node"
@@ -137,6 +157,7 @@ export const EntityNode = memo(function EntityNode({ id, data, selected }: NodeP
       style={{ width: size.width, height: size.height, borderLeftColor: data.kindColor }}
       data-testid="map-node"
       data-entity-id={n.id}
+      data-metrics={rows > 0 || undefined}
     >
       <Ports sourcePos={data.sourcePos} targetPos={data.targetPos} />
       <div className="deed-node-row">
@@ -177,33 +198,42 @@ export const EntityNode = memo(function EntityNode({ id, data, selected }: NodeP
           />
         )}
       </div>
-      {/* Dimmed (not next to the selection) cards drop their metrics rather than fade them below legible contrast. */}
-      {!data.dimmed && data.metrics && data.metrics.length > 0 && <MetricStrip metrics={data.metrics} />}
+      {rows > 0 && <MetricGrid metrics={data.metrics ?? []} rows={rows} dimmed={data.dimmed} />}
     </div>
   )
 })
 
-/** On-map telemetry values under a card: `CPU 23% · Mem 61%`, each tinted by its health (or greyed when stale). */
-function MetricStrip({ metrics }: { metrics: MapMetric[] }) {
-  const items = metrics.flatMap((m) =>
-    m.value === undefined ? [] : [{ m, text: formatMetric(m.value, m.unit ?? '') }],
-  )
+/**
+ * On-map telemetry values inside a card, up to three per row: the value (tinted by its health, faded when stale) over
+ * the binding's title. Dimmed cards (not next to the selection) keep the space but hide the values, which would fade
+ * below legible contrast.
+ */
+function MetricGrid({ metrics, rows, dimmed }: { metrics: MapMetric[]; rows: number; dimmed: boolean }) {
+  const items = metrics
+    .flatMap((m) => (m.value === undefined ? [] : [{ m, text: formatMetric(m.value, m.unit ?? '') }]))
+    .slice(0, rows * METRICS_PER_ROW)
   return (
     <div
       className="deed-node-metrics"
       data-testid="node-metrics"
+      data-hidden={dimmed || undefined}
+      // As many columns as values (up to three), so one or two values get the room for their full titles.
+      style={{
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
+        gridTemplateColumns: `repeat(${Math.max(1, Math.min(METRICS_PER_ROW, items.length))}, minmax(0, 1fr))`,
+      }}
       aria-label={`Metrics: ${items.map(({ m, text }) => `${m.title} ${text}`).join(', ')}`}
     >
       {items.map(({ m, text }) => (
-        <span
+        <div
           key={m.binding}
           className="deed-node-metric"
           data-state={m.health?.state ?? (m.status === 'stale' ? 'stale' : undefined)}
           title={`${m.title}: ${text}${m.health ? ` (${m.health.state}: ${m.health.reason})` : ''}${m.status !== 'measured' ? ` · ${m.status}` : ''}`}
         >
-          <span className="deed-node-metric-title">{m.title}</span>
           <b>{text}</b>
-        </span>
+          <span className="deed-node-metric-title">{m.title}</span>
+        </div>
       ))}
     </div>
   )

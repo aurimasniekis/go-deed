@@ -29,6 +29,7 @@ export interface MapState {
   /** Positions the user dragged nodes to (or restored from a saved layout). */
   pinned: Record<string, { x: number; y: number }>
   legendOpen: boolean
+  visibilityOpen: boolean
   optionsOpen: boolean
   pathOpen: boolean
 }
@@ -57,6 +58,7 @@ export const mapStore = new Store<MapState>({
   collapsed: [],
   pinned: {},
   legendOpen: true,
+  visibilityOpen: false,
   optionsOpen: false,
   pathOpen: false,
 })
@@ -88,6 +90,6 @@ export function setPinned(pinned: Record<string, { x: number; y: number }>) {
   mapStore.setState((s) => ({ ...s, pinned }))
 }
 
-export function setPanel(panel: 'legendOpen' | 'optionsOpen' | 'pathOpen', open: boolean) {
+export function setPanel(panel: 'legendOpen' | 'visibilityOpen' | 'optionsOpen' | 'pathOpen', open: boolean) {
   mapStore.setState((s) => ({ ...s, [panel]: open }))
 }
