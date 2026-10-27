@@ -200,3 +200,37 @@ func TestMergeConflictsIgnoreExpectedDifferences(t *testing.T) {
 		t.Fatalf("policy-ranked field: %+v %v", res.Conflicts, res.Effective)
 	}
 }
+
+// A source that sends `labels: {}` asserts no label: other sources' labels (and label rules) merge per key. An empty
+// object only stands when nothing sets anything at or inside its pointer.
+func TestMergeEmptyObjectsAssertNothing(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	facet := func(id string, l Layer, fields map[string]any) MergeFacet {
+		return MergeFacet{FacetID: "f_" + id, SourceID: id, SourceName: id, Layer: l, Priority: l.DefaultPriority(), FirstClaimedAt: base,
+			ObservedAt: base, Fields: fields}
+	}
+	res := Merge([]MergeFacet{
+		facet("connector", LayerImported, map[string]any{"metadata": map[string]any{"labels": map[string]any{}, "annotations": map[string]any{}},
+			"spec": map[string]any{"config": map[string]any{}}}),
+		facet("tf", LayerImported, map[string]any{"metadata": map[string]any{"labels": map[string]any{"terraform/type": "hallpass_server"}}}),
+		facet("lbr_rule", LayerRule, map[string]any{"metadata": map[string]any{"labels": map[string]any{"group": "hallpass"}}}),
+	})
+	md := res.Effective["metadata"].(map[string]any)
+	labels := md["labels"].(map[string]any)
+	if labels["terraform/type"] != "hallpass_server" || labels["group"] != "hallpass" {
+		t.Fatalf("labels wiped by an empty object: %v (provenance %v)", labels, res.Provenance)
+	}
+	if _, ok := res.Provenance["/metadata/labels"]; ok {
+		t.Fatalf("empty labels won the whole map: %v", res.Provenance["/metadata/labels"])
+	}
+	// Nothing else sets them: the empty objects stand (a kind schema may require the object).
+	if a, ok := md["annotations"].(map[string]any); !ok || len(a) != 0 {
+		t.Fatalf("empty annotations: %v", md["annotations"])
+	}
+	if c, ok := res.Effective["spec"].(map[string]any)["config"].(map[string]any); !ok || len(c) != 0 {
+		t.Fatalf("empty spec object: %v", res.Effective["spec"])
+	}
+	if len(res.Conflicts) != 0 {
+		t.Fatalf("conflicts: %+v", res.Conflicts)
+	}
+}

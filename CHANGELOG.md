@@ -5,6 +5,17 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-27
+
+No schema migration. On first start every entity is re-merged once in the background (merge rules version 4), which
+restores the labels the bug below hid.
+
+### Fixed
+- A source that sends an empty object (`labels: {}`, as the HallPass connector does for servers without labels) won
+  the whole `/metadata/labels` pointer, wiping other sources' labels and label-rule labels. Empty objects now assert
+  nothing per key: labels, annotations and spec objects merge per key, and an empty object only stands when no source
+  sets anything at or inside its pointer.
+
 ## [0.7.0] - 2026-10-27
 
 Upgrading from 0.6.x: schema migration 11 (label rules) runs at start-up after the usual pre-migration snapshot, then
@@ -215,7 +226,8 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/aurimasniekis/go-deed/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/aurimasniekis/go-deed/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/aurimasniekis/go-deed/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/aurimasniekis/go-deed/compare/v0.5.0...v0.5.1

@@ -134,6 +134,9 @@ func Merge(facets []MergeFacet) MergeResult {
 	res := MergeResult{Effective: map[string]any{}, Observed: map[string]any{}, Provenance: map[string]Provenance{}}
 	byPtr := map[string][]leaf{}
 	unions := map[string][]leaf{}
+	// Empty objects ({} labels, an empty spec section) assert nothing per field: they only fill their pointer when no
+	// source sets anything at, inside or above it, so they never wipe other sources' keys.
+	empties := map[string][]leaf{}
 	var obs []leaf
 	var health []leaf
 	for i := range facets {
@@ -157,6 +160,10 @@ func Merge(facets []MergeFacet) MergeResult {
 				l := leaf{ptr: p, value: v, f: f, prio: priorityFor(f, p)}
 				if _, u := unionPointers[p]; u {
 					unions[p] = append(unions[p], l)
+					return
+				}
+				if m, ok := v.(map[string]any); ok && len(m) == 0 {
+					empties[p] = append(empties[p], l)
 					return
 				}
 				byPtr[p] = append(byPtr[p], l)
@@ -208,6 +215,21 @@ func Merge(facets []MergeFacet) MergeResult {
 			pv.Candidates = append(pv.Candidates, Candidate{SourceID: c.f.SourceID, Source: c.f.SourceName, Layer: c.f.Layer, Value: c.value})
 		}
 		res.Provenance[w.ptr] = pv
+	}
+	eptrs := make([]string, 0, len(empties))
+	for p := range empties {
+		eptrs = append(eptrs, p)
+	}
+	sort.Strings(eptrs)
+	for _, p := range eptrs {
+		if clashes(taken, p) {
+			continue
+		}
+		ls := empties[p]
+		sort.SliceStable(ls, func(i, j int) bool { return better(ls[i], ls[j]) })
+		taken[p] = true
+		setPointer(res.Effective, p, map[string]any{})
+		res.Provenance[p] = provenanceOf(ls[0])
 	}
 	// Union arrays: entries from every facet, deduplicated by key (or by value), ordered by precedence then value.
 	for p, ls := range unions {

@@ -15,7 +15,8 @@ import (
 //
 //	2 (0.5.0): icons, terraform/* labels and annotations, and values a source policy ranks lower are not conflicts.
 //	3 (0.7.0): annotations and overrides alone no longer keep an entity alive.
-const MergeRulesVersion = "3"
+//	4 (0.7.1): an empty object ({} labels) no longer wins its pointer over other sources' keys.
+const MergeRulesVersion = "4"
 
 const mergeRulesKey = "catalog.merge_rules_version"
 
