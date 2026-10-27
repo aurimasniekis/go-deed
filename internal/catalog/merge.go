@@ -106,6 +106,13 @@ var unionPointers = map[string]string{
 	"/metadata/tags":  "",
 }
 
+// quietPointer reports whether disagreement at ptr is expected rather than a conflict: every Terraform state that
+// describes an entity has its own address and resource type, and icons are presentation.
+func quietPointer(ptr string) bool {
+	return ptr == "/metadata/icon" || strings.HasPrefix(ptr, "/metadata/labels/terraform~1") ||
+		strings.HasPrefix(ptr, "/metadata/annotations/terraform~1")
+}
+
 type leaf struct {
 	ptr   string
 	value any
@@ -164,7 +171,10 @@ func Merge(facets []MergeFacet) MergeResult {
 		sort.SliceStable(ls, func(i, j int) bool { return better(ls[i], ls[j]) })
 		winners = append(winners, win{leaf: ls[0], cands: ls[1:]})
 		for _, c := range ls[1:] {
-			if c.f.Layer == ls[0].f.Layer && c.f.SourceID != ls[0].f.SourceID && !jsonEqual(c.value, ls[0].value) {
+			// A conflict is a disagreement that only claim order settles: same layer, same priority (a source policy that
+			// ranks a field lower has decided it), and not an expected per-source difference.
+			if c.f.Layer == ls[0].f.Layer && c.prio == ls[0].prio && c.f.SourceID != ls[0].f.SourceID && !quietPointer(p) &&
+				!jsonEqual(c.value, ls[0].value) {
 				res.Conflicts = append(res.Conflicts, Conflict{Pointer: p, Layer: c.f.Layer, WinnerSource: ls[0].f.SourceID, LoserSource: c.f.SourceID,
 					WinnerValue: compact(ls[0].value), LoserValue: compact(c.value)})
 			}

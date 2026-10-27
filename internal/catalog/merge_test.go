@@ -173,3 +173,30 @@ func TestSchemaLimits(t *testing.T) {
 		t.Errorf("RE2 pattern rejected: %v", err)
 	}
 }
+
+// Two imported states that describe one zone differ in their Terraform address and type and may differ in icon:
+// expected, not conflicts. A real disagreement is one, unless a source policy ranks the field lower.
+func TestMergeConflictsIgnoreExpectedDifferences(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	facet := func(id string, prio map[string]int, desc string) MergeFacet {
+		return MergeFacet{FacetID: "f_" + id, SourceID: id, SourceName: id, Layer: LayerImported, Priority: LayerImported.DefaultPriority(),
+			FieldPriority: prio, FirstClaimedAt: base, ObservedAt: base, Fields: map[string]any{"metadata": map[string]any{
+				"icon":        "tabler:" + id,
+				"description": desc,
+				"labels":      map[string]any{"terraform/type": id, "team": "net"},
+				"annotations": map[string]any{"terraform/address": id + ".zone"},
+			}}}
+	}
+	res := Merge([]MergeFacet{facet("a", nil, "same"), facet("b", nil, "same")})
+	if len(res.Conflicts) != 0 {
+		t.Fatalf("expected differences reported: %+v", res.Conflicts)
+	}
+	res = Merge([]MergeFacet{facet("a", nil, "one"), facet("b", nil, "two")})
+	if len(res.Conflicts) != 1 || res.Conflicts[0].Pointer != "/metadata/description" {
+		t.Fatalf("description disagreement: %+v", res.Conflicts)
+	}
+	res = Merge([]MergeFacet{facet("a", nil, "one"), facet("b", map[string]int{"/metadata/description": 10}, "two")})
+	if len(res.Conflicts) != 0 || res.Effective["metadata"].(map[string]any)["description"] != "one" {
+		t.Fatalf("policy-ranked field: %+v %v", res.Conflicts, res.Effective)
+	}
+}

@@ -31,7 +31,7 @@ mappings:
       /spec/fqdn: fqdn|name
       /spec/type: type
       /spec/content: first:records
-      /spec/ttl: ttl
+      /spec/ttl: int:ttl
       /spec/zone: zone_id
     join: [zone_id, records]
     relations:
@@ -54,5 +54,5 @@ mappings:
       /spec/engine: engine
       /spec/version: engine_version
       /spec/host: address
-      /spec/port: port
+      /spec/port: int:port
       /spec/database: db_name

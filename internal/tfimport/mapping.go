@@ -5,12 +5,14 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"math"
 	"path"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 	"golang.org/x/net/publicsuffix"
@@ -31,7 +33,9 @@ type Mapping struct {
 	// DisplayName is an optional template for metadata.displayName.
 	DisplayName string `yaml:"display_name,omitempty" json:"display_name,omitempty"`
 	// Fields maps target JSON pointers to attribute paths; "a|b" falls back left to right; "json:attr.key" reads a
-	// key from a JSON-encoded string attribute; "first:list" takes the first list element; "lower:attr" lowercases.
+	// key from a JSON-encoded string attribute; "first:list" takes the first list element; "lower:attr" lowercases;
+	// "int:attr" takes a whole number only (a number or a numeric string, never an object); "time:attr" reads a
+	// timestamp (RFC 3339, Go's time.String form "2041-10-21 13:26:00 +0000 UTC", or a date) as RFC 3339 in UTC.
 	Fields map[string]string `yaml:"fields" json:"fields"`
 	// Join lists extra attribute paths kept in memory (never stored) for relationship joins.
 	Join []string `yaml:"join,omitempty" json:"join,omitempty"`
@@ -239,7 +243,14 @@ func Slug(s string) string {
 }
 
 var funcs = template.FuncMap{
-	"slug":       Slug,
+	"slug": Slug,
+	// first is the first element of a list attribute as a string, or "".
+	"first": func(v any) string {
+		if l, ok := v.([]any); ok && len(l) > 0 && l[0] != nil {
+			return fmt.Sprint(l[0])
+		}
+		return ""
+	},
 	"lower":      strings.ToLower,
 	"trimSuffix": func(suffix, s string) string { return strings.TrimSuffix(s, suffix) },
 	// indexKey is the last string index key in a module path or address (zone["example.com"] → example.com), or "".
@@ -331,6 +342,18 @@ func resolve(attrs map[string]any, expr string) (any, bool) {
 			if s, isStr := raw.(string); found && isStr {
 				v, ok = strings.ToLower(s), true
 			}
+		case "int":
+			raw, found := getPath(attrs, arg)
+			if n, isInt := wholeNumber(raw); found && isInt {
+				v, ok = n, true
+			}
+		case "time":
+			raw, found := getPath(attrs, arg)
+			if s, isStr := raw.(string); found && isStr {
+				if t, parsed := parseTime(s); parsed {
+					v, ok = t.UTC().Format(time.RFC3339), true
+				}
+			}
 		case "const":
 			v, ok = arg, true
 		default:
@@ -341,6 +364,42 @@ func resolve(attrs map[string]any, expr string) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+// wholeNumber reads an integer from a number (scrubbed attributes hold int64) or a numeric string.
+func wholeNumber(v any) (int64, bool) {
+	switch t := v.(type) {
+	case int64:
+		return t, true
+	case int:
+		return int64(t), true
+	case float64:
+		if t == math.Trunc(t) && math.Abs(t) < 1<<53 {
+			return int64(t), true
+		}
+	case json.Number:
+		n, err := t.Int64()
+		return n, err == nil
+	case string:
+		n, err := strconv.ParseInt(strings.TrimSpace(t), 10, 64)
+		return n, err == nil
+	}
+	return 0, false
+}
+
+// timeLayouts are the timestamp forms providers store: RFC 3339, Go's time.String (Cloudflare's origin CA expires_on),
+// and a bare date.
+var timeLayouts = []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999999 -0700 MST", "2006-01-02 15:04:05 -0700 MST",
+	"2006-01-02 15:04:05 -0700", "2006-01-02T15:04:05", "2006-01-02 15:04:05", "2006-01-02"}
+
+func parseTime(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	for _, l := range timeLayouts {
+		if t, err := time.Parse(l, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // pathsOf lists the attribute paths an expression reads (for sensitivity checks).

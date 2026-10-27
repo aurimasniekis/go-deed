@@ -208,9 +208,13 @@ override one:
 - `resource` is a type name or glob (`[a-z0-9_*?]`); `kind` is required.
 - `fields` map JSON pointers under `/spec/` or `/metadata/` to expressions: dotted paths with numeric indexes
   (`network_data.0.ip_address`), `a|b` fallbacks, `first:list`, `lower:attr`, `json:attr.key` (a key inside a
-  JSON-encoded string attribute) and `const:value`.
+  JSON-encoded string attribute), `int:attr` (a whole number only: a number or numeric string, never an object, so
+  `int:vlan.id|int:vlan` reads a VLAN given either way), `time:attr` (a timestamp as RFC 3339 in UTC: RFC 3339, Go's
+  `2041-10-21 13:26:00 +0000 UTC` form or a bare date; anything else is left out) and `const:value`. Built-in
+  mappings read every integer and date-time property of their kind through `int:` and `time:`.
 - `name` and `display_name` are Go templates (≤ 512 characters) over `.name`, `.index`, `.module`, `.address`,
-  `.type` and `.attr` (allowlisted attributes only), with `slug`, `lower`, `trimSuffix`, `default`, `registrable`
+  `.type` and `.attr` (allowlisted attributes only), with `slug`, `lower`, `trimSuffix`, `default`, `first` (the first
+  element of a list attribute: `origin-{{ first .attr.hostnames | default .name | slug }}`), `registrable`
   (the registrable domain of a host name by public-suffix rules: `app.example.co.uk` → `example.co.uk`) and `indexKey`
   (the last string index of a module path or address: `zone["example.com"]` → `example.com`).
 - `join`, `relations` (`type`, `direction` `out`/`in`, `attribute`, `target_kinds`, `target_attribute` or
@@ -222,6 +226,13 @@ override one:
   `attributes: {name: '{{ registrable .attr.name }}'}`, `unless_types: [cloudflare_zone, data.cloudflare_zone]`.
   When several resources derive the same resource, attributes one of them could not render are filled in by another.
 - `derive_only: true` maps a resource only for its `derive` rules (no `kind`, `fields` or `relations`; no entity).
+
+When a mapping (built-in after an upgrade, or custom) changes the name of an item a source has imported before, the
+source's entity follows it: renamed when that source is the only one describing it (the old name stays an alias, so a
+rename in the UI is never undone), or split off when other sources describe it too — resources of different states
+that once collided on one name come apart. A data source without a usable name (`data "vsphere_host"` for a standalone
+ESXi host has none) can be named with a custom mapping for its type, e.g. `"name": "esxi.example.com"` with the
+built-in mapping's fields and `"join": ["id"]` so VMs and datastores still find it.
 
 Invalid mappings — and unknown keys anywhere in the source config — are refused when the source is saved
 (`mapping <resource>: …`, `invalid terraform_state config: unknown field …`).

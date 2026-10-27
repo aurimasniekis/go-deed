@@ -17,8 +17,8 @@ mappings:
     fields:
       /spec/hostname: name
       /spec/ipv4: default_ip_address
-      /spec/cpu_cores: num_cpus
-      /spec/memory_mb: memory
+      /spec/cpu_cores: int:num_cpus
+      /spec/memory_mb: int:memory
       /spec/os: guest_id
       /spec/provider: const:vsphere
     join: [host_system_id, datastore_id]
@@ -61,7 +61,7 @@ mappings:
     fields:
       /spec/type: const:port_group
       /spec/provider: const:vsphere
-      /spec/vlan: vlan_id
+      /spec/vlan: int:vlan_id
       /spec/virtual_switch: virtual_switch_name
     join: [virtual_switch_name, host_system_id, name]
     relations:

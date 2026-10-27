@@ -120,7 +120,10 @@ skipped. Stream and consumer settings are copied as Pulse reports them (`storage
 
 What it models:
 - the Pulse server as a `nats_system` (health `failed` when pulsed is not ready or NATS is disconnected);
-- every non-revoked client as a `service` with `spec.pulse_client_id`; a status other than `active` is a warning;
+- every non-revoked client as a `service` with `spec.pulse_client_id`; a status other than `active` is a warning.
+  The client's name and description go into the annotations `pulse/client-name` and `pulse/client-description` (they
+  describe the Pulse credentials, not the service), so they never compete with the displayName and description the
+  service's own connector or declaration gives it;
 - publish/request grants as `publishes` and subscribe/reply grants as `subscribes_to` edges to `nats_subject`
   entities (evidence class **declared**, basis `pulse_grant`);
 - streams (`nats_stream`, `contains`-ed by the system) and durable consumers (`nats_consumer`, `contains`-ed by

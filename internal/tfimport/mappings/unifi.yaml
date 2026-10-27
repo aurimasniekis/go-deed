@@ -8,7 +8,7 @@ mappings:
     display_name: '{{ default .name .attr.name }}'
     fields:
       /spec/cidr: subnet
-      /spec/vlan: vlan
+      /spec/vlan: int:vlan
       /spec/type: purpose
       /spec/domain: domain_name
       /spec/provider: const:unifi
@@ -20,7 +20,7 @@ mappings:
     display_name: '{{ default .name .attr.name }}'
     fields:
       /spec/type: const:wan
-      /spec/vlan: vlan
+      /spec/vlan: int:vlan.id|int:vlan
       /spec/provider: const:unifi
     join: [name]
 

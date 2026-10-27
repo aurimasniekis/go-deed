@@ -53,9 +53,9 @@ mappings:
       /spec/fqdn: hostname|name
       /spec/type: type
       /spec/content: content|value
-      /spec/ttl: ttl
+      /spec/ttl: int:ttl
       /spec/proxied: proxied
-      /spec/priority: priority
+      /spec/priority: int:priority
       /spec/zone: zone_id
     join: [zone_id]
     derive:
@@ -78,9 +78,9 @@ mappings:
       /spec/fqdn: name
       /spec/type: type
       /spec/content: content
-      /spec/ttl: ttl
+      /spec/ttl: int:ttl
       /spec/proxied: proxied
-      /spec/priority: priority
+      /spec/priority: int:priority
       /spec/zone: zone_id
     join: [zone_id]
     derive:
@@ -97,8 +97,10 @@ mappings:
   - resource: cloudflare_ruleset
     kind: firewall_rule
     icon: simple-icons:cloudflare
-    name: '{{ default .name .attr.name | slug }}'
-    display_name: '{{ default .name .attr.name }}'
+    # Rulesets in a zone module ("module.zone[\"example.com\"]") are mostly all named "default": there the zone (the
+    # module key) and the resource name keep them apart. Elsewhere the ruleset's own name.
+    name: '{{ with indexKey .module }}{{ . }}-{{ $.name }}{{ with $.index }}-{{ . }}{{ end }}{{ else }}{{ default .name .attr.name }}{{ end }}'
+    display_name: '{{ with indexKey .module }}{{ . }} {{ default $.name $.attr.phase }}{{ else }}{{ default .name .attr.name }}{{ end }}'
     fields:
       /spec/type: const:ruleset
       /spec/phase: phase
@@ -130,11 +132,14 @@ mappings:
   - resource: cloudflare_origin_ca_certificate
     kind: certificate
     icon: simple-icons:cloudflare
-    name: 'origin-{{ .name | slug }}'
+    # Named after the first host it covers: every host's state tends to call it "origin", and one name per state would
+    # merge different certificates.
+    name: 'origin-{{ first .attr.hostnames | default .name | slug }}'
+    display_name: '{{ first .attr.hostnames | default .name }} (origin CA)'
     fields:
       /spec/sans: hostnames
       /spec/common_name: first:hostnames
-      /spec/not_after: expires_on
+      /spec/not_after: time:expires_on
       /spec/issuer: const:cloudflare-origin-ca
     join: [hostnames]
     relations:

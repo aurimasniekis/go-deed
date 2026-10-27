@@ -3,12 +3,12 @@
 mappings:
   - resource: hallpass_server
     kind: hallpass_server
-    icon: tabler:door-enter
+    icon: tabler:server-bolt
     name: '{{ default .name .attr.alias | slug }}'
     display_name: '{{ default .name .attr.display_name }}'
     fields:
       /spec/address: address
-      /spec/port: port
+      /spec/port: int:port
       /metadata/description: description
     join: [id, address, alias, display_name]
     relations:
@@ -17,7 +17,7 @@ mappings:
       - {type: protected_by, direction: in, attribute: address, target_kinds: [server, vm, hypervisor], target_pointer: /spec/hostname}
   - resource: hallpass_role
     kind: hallpass_role
-    icon: tabler:key
+    icon: tabler:id-badge
     name: '{{ default .name .attr.alias | slug }}'
     display_name: '{{ default .name .attr.display_name }}'
     fields:
@@ -28,7 +28,7 @@ mappings:
       - {type: contains, direction: in, attribute: server_id, target_kinds: [hallpass_server], target_attribute: id, confidence: 1}
   - resource: porch_application
     kind: porch_app
-    icon: tabler:door
+    icon: tabler:key
     name: '{{ default .name .attr.slug | slug }}'
     display_name: '{{ default .name .attr.name }}'
     fields:

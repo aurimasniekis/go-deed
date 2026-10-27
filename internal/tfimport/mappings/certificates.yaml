@@ -7,7 +7,7 @@ mappings:
     fields:
       /spec/common_name: common_name
       /spec/sans: subject_alternative_names
-      /spec/not_after: certificate_not_after
+      /spec/not_after: time:certificate_not_after
       /spec/issuer: const:acme
   - resource: tls_self_signed_cert
     kind: certificate
@@ -16,14 +16,14 @@ mappings:
     fields:
       /spec/common_name: subject.0.common_name
       /spec/sans: dns_names
-      /spec/not_before: validity_start_time
-      /spec/not_after: validity_end_time
+      /spec/not_before: time:validity_start_time
+      /spec/not_after: time:validity_end_time
       /spec/issuer: const:self-signed
   - resource: tls_locally_signed_cert
     kind: certificate
     icon: tabler:certificate
     name: '{{ .name | slug }}'
     fields:
-      /spec/not_before: validity_start_time
-      /spec/not_after: validity_end_time
+      /spec/not_before: time:validity_start_time
+      /spec/not_after: time:validity_end_time
       /spec/issuer: const:local-ca

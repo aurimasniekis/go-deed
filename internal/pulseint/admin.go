@@ -297,11 +297,15 @@ func (Admin) Sync(ctx context.Context, env sources.Env, em sources.Emitter) erro
 		}
 		ref := catalog.Ref{ExternalID: "client:" + cl.ID}
 		byClient[cl.ID] = ref
+		// The client's name and description describe its Pulse credentials ("Porch domain events, …"), not the service,
+		// which its own connector or declaration usually names: they go into annotations, so they never compete with
+		// the service's displayName and description.
 		labels := map[string]any{"pulse/client": "true"}
-		md := map[string]any{"displayName": cl.Name, "labels": labels}
+		annotations := map[string]any{"pulse/client-name": cl.Name}
 		if cl.Description != "" {
-			md["description"] = cl.Description
+			annotations["pulse/client-description"] = cl.Description
 		}
+		md := map[string]any{"labels": labels, "annotations": annotations}
 		if len(cl.Tags) > 0 {
 			tags := []any{}
 			for _, t := range cl.Tags {

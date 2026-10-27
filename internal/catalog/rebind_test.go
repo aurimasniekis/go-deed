@@ -3,6 +3,7 @@ package catalog_test
 import (
 	"testing"
 
+	"github.com/aurimasniekis/go-deed/internal/audit"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/testenv"
 )
@@ -50,5 +51,65 @@ func TestKindChangeRebindsExternalID(t *testing.T) {
 		Spec: map[string]any{"type": "google_workspace", "domain": "example.com"}}, catalog.ApplyOpts{})
 	if err != nil || again.EntityID != second.EntityID || again.Action == catalog.ActionCreated {
 		t.Fatalf("re-apply: %+v %v", again, err)
+	}
+}
+
+// Resources of different states that collided on one name (three origin certificates all named after their resource,
+// "origin") come apart when the mapping names them after their hosts; the last state renames the old entity instead
+// of leaving it empty. A user rename (the importer's name is now an alias) is left alone.
+func TestNameChangeRebindsExternalID(t *testing.T) {
+	env := testenv.New(t)
+	p := env.Project(t, "infra")
+	hosts := []string{"porch.example.com", "hallpass.example.com", "events.example.com"}
+	srcs := make([]*catalog.Source, len(hosts))
+	var merged string
+	for i := range hosts {
+		srcs[i] = env.Source(t, p.ID, "tf-host-"+string(rune('a'+i)), catalog.LayerImported)
+		r, err := env.Apply(t, srcs[i], catalog.EntityItem{Kind: "certificate", Name: "origin-origin", ExternalID: "cloudflare_origin_ca_certificate.origin",
+			Spec: map[string]any{"common_name": hosts[i]}}, catalog.ApplyOpts{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i > 0 && r.EntityID != merged {
+			t.Fatalf("setup: not merged")
+		}
+		merged = r.EntityID
+	}
+	seen := map[string]bool{}
+	for i, h := range hosts {
+		r, err := env.Apply(t, srcs[i], catalog.EntityItem{Kind: "certificate", Name: "origin-" + h, ExternalID: "cloudflare_origin_ca_certificate.origin",
+			Spec: map[string]any{"common_name": h}}, catalog.ApplyOpts{})
+		if err != nil {
+			t.Fatalf("%s: %v", h, err)
+		}
+		seen[r.EntityID] = true
+		last := i == len(hosts)-1
+		if last != (r.EntityID == merged) {
+			t.Fatalf("%s: entity %s (merged %s, last %v)", h, r.EntityID, merged, last)
+		}
+	}
+	if len(seen) != 3 {
+		t.Fatalf("certificates: %d entities", len(seen))
+	}
+	var name string
+	var facets int
+	if err := env.Store.R().QueryRow(`SELECT name, (SELECT COUNT(*) FROM facets WHERE entity_id = entities.id AND tombstoned_at IS NULL)
+		FROM entities WHERE id = ?`, merged).Scan(&name, &facets); err != nil {
+		t.Fatal(err)
+	}
+	if name != "origin-events.example.com" || facets != 1 {
+		t.Fatalf("old entity: %s with %d facets", name, facets)
+	}
+	// A user renames the entity: the importer's name is now an alias and is not "changed".
+	if err := env.Catalog.Rename(t.Context(), audit.System, merged, "events-origin"); err != nil {
+		t.Fatal(err)
+	}
+	r, err := env.Apply(t, srcs[2], catalog.EntityItem{Kind: "certificate", Name: "origin-events.example.com", ExternalID: "cloudflare_origin_ca_certificate.origin",
+		Spec: map[string]any{"common_name": "events.example.com"}}, catalog.ApplyOpts{})
+	if err != nil || r.EntityID != merged {
+		t.Fatalf("after user rename: %+v %v", r, err)
+	}
+	if err := env.Store.R().QueryRow(`SELECT name FROM entities WHERE id = ?`, merged).Scan(&name); err != nil || name != "events-origin" {
+		t.Fatalf("user rename undone: %s %v", name, err)
 	}
 }

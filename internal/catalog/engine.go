@@ -200,7 +200,7 @@ func (s *Service) applyEntity(ctx context.Context, tx *store.Tx, src *Source, it
 		return nil, err
 	}
 	if entityID != "" && it.Ref.ID == "" && ref.ExternalID != "" && it.Kind != "" && !it.Delete {
-		if entityID, err = s.rebindChangedKind(ctx, tx, src, entityID, ref, o); err != nil {
+		if entityID, err = s.rebindChangedIdentity(ctx, tx, src, entityID, ref, o); err != nil {
 			return nil, err
 		}
 	}
@@ -485,18 +485,59 @@ func (s *Service) checkCapacity(ctx context.Context, tx *store.Tx) error {
 	return nil
 }
 
-// rebindChangedKind handles a source whose mapping changed an item's kind (an importer that now maps a resource to a
-// service instead of a domain): when the source's own external ID is bound to an entity of another kind, the source
-// withdraws its facet from that entity and the item resolves by its new kind and name (or creates a new entity, which
-// rebinds the external ID). Other sources' facets on the old entity are untouched.
-func (s *Service) rebindChangedKind(ctx context.Context, tx *store.Tx, src *Source, entityID string, ref Ref, o ApplyOpts) (string, error) {
-	var kind, bound string
-	if err := tx.QueryRow(ctx, `SELECT kind FROM entities WHERE id = ?`, entityID).Scan(&kind); err != nil || kind == ref.Kind {
+// rebindChangedIdentity handles a source whose mapping changed an item's kind or name (an importer that now maps a
+// resource to a service instead of a domain, or names a certificate after its host instead of its resource name) while
+// the source's own external ID is still bound to the old entity:
+//   - another kind: the source withdraws its facet from that entity and the item resolves by its new kind and name (or
+//     creates a new entity, which rebinds the external ID);
+//   - another name (not one of the entity's aliases, which a user rename leaves behind): the same, when another
+//     source also describes the entity (resources of different states that collided on one name come apart); when
+//     this source is its only describing source the entity is renamed instead, keeping its ID, annotations and the old
+//     name as an alias.
+//
+// Other sources' facets on the old entity are untouched.
+func (s *Service) rebindChangedIdentity(ctx context.Context, tx *store.Tx, src *Source, entityID string, ref Ref, o ApplyOpts) (string, error) {
+	var kind, name, bound string
+	if err := tx.QueryRow(ctx, `SELECT kind, name FROM entities WHERE id = ?`, entityID).Scan(&kind, &name); err != nil {
 		return entityID, nil //nolint:nilerr // a missing row is reported by the caller's own load
+	}
+	renamed := kind == ref.Kind && ref.Name != "" && ref.Name != name
+	if kind == ref.Kind && !renamed {
+		return entityID, nil
 	}
 	err := tx.QueryRow(ctx, `SELECT entity_id FROM entity_external_ids WHERE source_id = ? AND external_id = ?`, src.ID, ref.ExternalID).Scan(&bound)
 	if err != nil || bound != entityID {
 		return entityID, nil //nolint:nilerr // not bound through this external ID: the kind check reports the mismatch
+	}
+	if renamed {
+		var alias, others int
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM entity_aliases WHERE entity_id = ? AND name = ?`, entityID, ref.Name).Scan(&alias); err != nil {
+			return "", err
+		}
+		if alias > 0 {
+			return entityID, nil
+		}
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM facets WHERE entity_id = ? AND source_id != ? AND tombstoned_at IS NULL
+			AND layer IN ('declared', 'imported', 'discovered')`, entityID, src.ID).Scan(&others); err != nil {
+			return "", err
+		}
+		if others == 0 {
+			taken, err := byNaturalKey(ctx, tx, src.ProjectID, ref.Kind, ref.Name)
+			if err != nil {
+				return "", err
+			}
+			if taken == "" {
+				row, err := loadEntityRow(ctx, tx, entityID)
+				if err != nil {
+					return "", err
+				}
+				actor := o.Actor
+				if actor.Type == "" {
+					actor = audit.Actor{Type: audit.ActorSource, ID: src.ID}
+				}
+				return entityID, s.renameTx(ctx, tx, actor, row, ref.Name)
+			}
+		}
 	}
 	if _, err := s.deleteFacet(ctx, tx, src, entityID, 0, ApplyOpts{Actor: o.Actor}); err != nil {
 		return "", err
@@ -1007,27 +1048,33 @@ func (s *Service) Rename(ctx context.Context, actor audit.Actor, entityID, newNa
 		} else if id != "" && id != entityID {
 			return apperr.New(apperr.CodeAlreadyExists, "%s/%s already exists", row.kind, newName)
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM entity_aliases WHERE project_id = ? AND kind = ? AND name = ?`, row.project, row.kind, newName); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `INSERT OR REPLACE INTO entity_aliases (project_id, kind, name, entity_id, created_at) VALUES (?, ?, ?, ?, ?)`,
-			row.project, row.kind, row.name, entityID, tx.NowMicros()); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE entities SET name = ?, updated_at = ?, version = version + 1 WHERE id = ?`, newName, tx.NowMicros(), entityID); err != nil {
-			return err
-		}
-		row.name = newName
-		if err := s.syncSearch(ctx, tx, row, decodeObject(row.effective)); err != nil {
-			return err
-		}
-		if _, err := s.Audit.Append(ctx, tx, audit.Event{Actor: actor, ProjectID: row.project, Action: "entity.renamed", Target: audit.Target{Type: "entity", ID: entityID},
-			Details: map[string]any{"to": newName}}); err != nil {
-			return err
-		}
-		return s.changeTx(ctx, tx, change{project: row.project, typ: "entity", id: entityID, action: "renamed", actor: actor,
-			summary: map[string]any{"kind": row.kind, "name": newName}})
+		return s.renameTx(ctx, tx, actor, row, newName)
 	})
+}
+
+// renameTx renames an entity whose new name is free (or one of its own aliases), keeping the old name as an alias.
+func (s *Service) renameTx(ctx context.Context, tx *store.Tx, actor audit.Actor, row *entityRow, newName string) error {
+	entityID := row.id
+	if _, err := tx.Exec(ctx, `DELETE FROM entity_aliases WHERE project_id = ? AND kind = ? AND name = ?`, row.project, row.kind, newName); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `INSERT OR REPLACE INTO entity_aliases (project_id, kind, name, entity_id, created_at) VALUES (?, ?, ?, ?, ?)`,
+		row.project, row.kind, row.name, entityID, tx.NowMicros()); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE entities SET name = ?, updated_at = ?, version = version + 1 WHERE id = ?`, newName, tx.NowMicros(), entityID); err != nil {
+		return err
+	}
+	row.name = newName
+	if err := s.syncSearch(ctx, tx, row, decodeObject(row.effective)); err != nil {
+		return err
+	}
+	if _, err := s.Audit.Append(ctx, tx, audit.Event{Actor: actor, ProjectID: row.project, Action: "entity.renamed", Target: audit.Target{Type: "entity", ID: entityID},
+		Details: map[string]any{"to": newName}}); err != nil {
+		return err
+	}
+	return s.changeTx(ctx, tx, change{project: row.project, typ: "entity", id: entityID, action: "renamed", actor: actor,
+		summary: map[string]any{"kind": row.kind, "name": newName}})
 }
 
 // Merge moves every facet, relation, alias and external ID of `from` onto `into` and tombstones `from` (Q-11).

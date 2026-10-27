@@ -34,12 +34,26 @@ func TestExtractHomelabProviders(t *testing.T) {
 		kinds[e.Name] = e.Kind
 	}
 	for name, kind := range map[string]string{"esxi-01.example.com": "hypervisor", "ssd-1": "storage", "vswitch0-ha-host": "network_device",
-		"servers-ha-host": "network", "app-1": "vm", "example.com": "dns_zone", "custom-waf": "firewall_rule", "origin-origin": "certificate",
-		"servers": "network", "wlan-example-home": "network", "nas": "network_client", "gateway": "network_device",
+		"servers-ha-host": "network", "app-1": "vm", "example.com": "dns_zone", "custom-waf": "firewall_rule", "origin-app.example.com": "certificate",
+		"internet-1": "network",
+		"servers":    "network", "wlan-example-home": "network", "nas": "network_client", "gateway": "network_device",
 		"forward-https-to-nas": "firewall_rule", "servers-to-internet": "firewall_rule", "peer-laptop": "network_client", "vpn-wireguard": "service",
 		"docs-pages": "application", "app-1-admin": "hallpass_role"} {
 		if kinds[name] != kind {
 			t.Errorf("%s: kind %q, want %q (have %v)", name, kinds[name], kind, kinds)
+		}
+	}
+	// Provider formats are converted to the kind's types: Go's time.String timestamp, the WAN's VLAN object.
+	for _, e := range b.Entities {
+		switch e.Name {
+		case "origin-app.example.com":
+			if e.Spec["not_after"] != "2041-01-01T00:00:00Z" {
+				t.Errorf("origin certificate not_after %v", e.Spec["not_after"])
+			}
+		case "internet-1":
+			if e.Spec["vlan"] != int64(300) {
+				t.Errorf("WAN vlan %#v", e.Spec["vlan"])
+			}
 		}
 	}
 	rels := map[string]bool{}
@@ -93,13 +107,18 @@ func TestDerivedZonesAndDomains(t *testing.T) {
 	b, d := Extract(context.Background(), st, MustBuiltin(), Options{Lookup: lookup})
 	// example.dev has no records, only zone settings and origin pulls in module.zone["example.dev"]: named by the module
 	// key. The account-level ruleset has no zone and derives nothing.
-	if d.Mapped["derived.cloudflare_zone"] != 3 || d.Resources != 10 || len(d.Unsupported) != 0 {
+	if d.Mapped["derived.cloudflare_zone"] != 3 || d.Resources != 11 || len(d.Unsupported) != 0 {
 		t.Errorf("mapped %v, %d resources", d.Mapped, d.Resources)
 	}
 	zones := map[string]string{}
 	for _, e := range b.Entities {
 		if e.Kind == "dns_zone" {
 			zones[e.Name] = e.ExternalID
+		}
+		// A zone module's ruleset (named "default" like all of them) is named after its zone and resource.
+		if e.Kind == "firewall_rule" && e.ExternalID == `module.zone["example.dev"].cloudflare_ruleset.cache_rules` &&
+			(e.Name != "example.dev-cache_rules" || e.Metadata["displayName"] != "example.dev http_request_cache_settings") {
+			t.Errorf("zone ruleset %s %v", e.Name, e.Metadata["displayName"])
 		}
 	}
 	want := map[string]string{"example.com": `derived.cloudflare_zone["zone-example-com"]`, "example.co.uk": `derived.cloudflare_zone["zone-example-co-uk"]`,

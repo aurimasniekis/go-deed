@@ -30,7 +30,7 @@ is:
 | `stale_observation` | info | stale | an entity's freshness is `stale` |
 | `missing_owner` | info | confirmed | a `service`, `application`, `repository`, `server`, `vm`, `database` or `domain` has no `metadata.owner` and no `owned_by` relationship |
 | `declared_observed_drift` | warning | confirmed | declared and observed versions differ (ignoring a leading `v`), or a declared `/spec/…` value differs from an imported or discovered candidate (evidence lists pointer, both values and source) |
-| `source_conflict` | warning | confirmed | sources in the same layer assert different values for an entity's fields |
+| `source_conflict` | warning | confirmed | sources in the same layer and priority assert different values for an entity's fields (not icons or `terraform/*` labels and annotations, which differ per state) |
 | `duplicate_candidate` | info | warning | several entities of one kind in one project share an identity key |
 | `missing_relationship_target` | warning | confirmed | a source referenced an entity that does not exist (an unresolved reference) |
 | `stale_source` | warning | stale | an enabled source had no successful sync or heartbeat within 3× its expected interval |
