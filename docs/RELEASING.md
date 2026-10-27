@@ -32,6 +32,11 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.4.0** (2026-10-27, `e8f12b4`, tag checked against the release commit): release run 40505500552 succeeded.
+  Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and an upgrade
+  of a v0.3.2 database (a Terraform-imported project, a Prometheus integration and a binding) by the release binary:
+  snapshot, migration 9 → 10, entities and the binding intact, `guard`, `when_empty` and `on_map` set on the old
+  binding, audit chain verified.
 - **v0.3.2** (2026-10-27, `4f1ef6f`, tag checked against the release commit): release run 40483001616 succeeded.
   Checked before publishing: checksums, provenance of the archive and the image, and infra's failing case replayed: a
   v0.3.0 database whose Workspace import had bound `domain` entities (one adopted by a hand-declared hub domain),
