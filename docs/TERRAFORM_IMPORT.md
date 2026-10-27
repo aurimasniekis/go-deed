@@ -133,7 +133,7 @@ Mappings are embedded from `internal/tfimport/mappings/*.yaml`:
 | | `aws_s3_bucket` | storage | |
 | | `aws_db_instance` | database | |
 | `certificates.yaml` | `acme_certificate`, `tls_self_signed_cert`, `tls_locally_signed_cert` | certificate | |
-| `cloudflare.yaml` | `cloudflare_zone`, `data.cloudflare_zone`, and zones derived from records (`derived.cloudflare_zone`: the records' `zone_id`, named after their registrable domain) | dns_zone | a `domain` entity with the same `/spec/fqdn` `contains` the zone |
+| `cloudflare.yaml` | `cloudflare_zone`, `data.cloudflare_zone`, and zones derived from the `zone_id` of records, zone rulesets, `cloudflare_zone_setting` and `cloudflare_authenticated_origin_pulls*` (`derived.cloudflare_zone`, named after the records' registrable domain or the `module.zone["<zone>"]` key; settings and origin pulls create no entities) | dns_zone | a `domain` entity with the same `/spec/fqdn` `contains` the zone |
 | | `cloudflare_record` (v4), `cloudflare_dns_record` (v5) | dns_record | zone `contains` record (`zone_id` = zone `id`); record `resolves_to` server/vm/hypervisor/docker_host (`/spec/ipv4`, `/spec/ipv6`) |
 | | `cloudflare_ruleset` | firewall_rule | zone `protected_by` ruleset (`zone_id`) |
 | | `cloudflare_r2_bucket` | storage | |
@@ -176,7 +176,7 @@ it (`contains`, inferred from the catalog), so `example.com` shows both.
 
 Not mapped on purpose: secrets and key material (`onepassword_item`, `tls_private_key`, `random_*`, `gpg_private_key`,
 `*_access_token`, `github_actions_secret`, HallPass login and host keys) and per-setting resources without inventory
-value (`cloudflare_zone_setting`).
+value (`cloudflare_zone_setting` only derives its zone).
 
 Certificate mappings read public metadata only (names, SANs, validity), never key or certificate PEM.
 `GET /api/v1/providers` lists the kinds the provider can produce.
@@ -210,8 +210,9 @@ override one:
   (`network_data.0.ip_address`), `a|b` fallbacks, `first:list`, `lower:attr`, `json:attr.key` (a key inside a
   JSON-encoded string attribute) and `const:value`.
 - `name` and `display_name` are Go templates (≤ 512 characters) over `.name`, `.index`, `.module`, `.address`,
-  `.type` and `.attr` (allowlisted attributes only), with `slug`, `lower`, `trimSuffix`, `default` and `registrable`
-  (the registrable domain of a host name by public-suffix rules: `app.example.co.uk` → `example.co.uk`).
+  `.type` and `.attr` (allowlisted attributes only), with `slug`, `lower`, `trimSuffix`, `default`, `registrable`
+  (the registrable domain of a host name by public-suffix rules: `app.example.co.uk` → `example.co.uk`) and `indexKey`
+  (the last string index of a module path or address: `zone["example.com"]` → `example.com`).
 - `join`, `relations` (`type`, `direction` `out`/`in`, `attribute`, `target_kinds`, `target_attribute` or
   `target_pointer`, `confidence`), `dependencies` (`resource`, `type`, `direction`) and static `labels`.
 - `derive` declares synthetic resources built from this resource (`resource: derived.<type>`, a `key` template, and
@@ -219,6 +220,8 @@ override one:
   when a resource of one of `unless_types` in the same state has that `id`. The built-in Cloudflare mappings use it to
   derive a zone from the records of a zone module that only passes the zone ID: `key: '{{ .attr.zone_id }}'`,
   `attributes: {name: '{{ registrable .attr.name }}'}`, `unless_types: [cloudflare_zone, data.cloudflare_zone]`.
+  When several resources derive the same resource, attributes one of them could not render are filled in by another.
+- `derive_only: true` maps a resource only for its `derive` rules (no `kind`, `fields` or `relations`; no entity).
 
 Invalid mappings — and unknown keys anywhere in the source config — are refused when the source is saved
 (`mapping <resource>: …`, `invalid terraform_state config: unknown field …`).

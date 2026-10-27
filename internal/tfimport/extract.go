@@ -159,6 +159,7 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 		extPrefix = o.Workspace + ":"
 	}
 	d.Resources = 0
+	var deriveOnly []*extracted
 	process := func(res Resource) {
 		data := strings.HasPrefix(res.Type, "data.") || strings.HasPrefix(res.Type, "derived.")
 		if !data {
@@ -214,6 +215,10 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 				continue
 			}
 			x.attrs[p] = sv
+		}
+		if m.DeriveOnly {
+			deriveOnly = append(deriveOnly, x) // only a source of derived resources: no entity of its own
+			return
 		}
 		tree := allowlistedTree(x.attrs)
 		for k, v := range raw {
@@ -292,7 +297,7 @@ func Extract(ctx context.Context, st *State, cat *Catalog, o Options) (ingest.Ba
 	for _, res := range st.Resources {
 		process(res)
 	}
-	for _, res := range derive(items) {
+	for _, res := range derive(append(append([]*extracted{}, items...), deriveOnly...)) {
 		process(res)
 	}
 	var b ingest.Batch
@@ -479,21 +484,32 @@ func contains(list []string, s string) bool {
 // (a zone that the state manages or looks up wins over the zone derived from its records).
 func derive(items []*extracted) []Resource {
 	var out []Resource
-	seen := map[string]bool{}
+	seen := map[string]int{} // address → index in out
 	for _, x := range items {
 		for _, dv := range x.m.Derive {
 			tdata := map[string]any{"name": x.res.Name, "module": strings.TrimPrefix(x.res.Module, "module."), "address": x.res.Address,
 				"type": x.res.Type, "attr": allowlistedTree(x.attrs)}
 			key, err := render(dv.Key, tdata)
-			key = strings.TrimSpace(key)
+			key = noValue(key)
 			if err != nil || key == "" {
 				continue
 			}
 			addr := dv.Resource + "[" + strconv.Quote(key) + "]"
-			if seen[addr] {
+			if i, ok := seen[addr]; ok {
+				if i < 0 { // the state has the real resource
+					continue
+				}
+				// Another resource derived it already: fill in what that one could not tell (a zone name from a module key).
+				for k, tpl := range dv.Attributes {
+					if _, has := out[i].Attributes[k]; has {
+						continue
+					}
+					if v, err := render(tpl, tdata); err == nil && noValue(v) != "" {
+						out[i].Attributes[k] = noValue(v)
+					}
+				}
 				continue
 			}
-			seen[addr] = true
 			real := false
 			for _, y := range items {
 				if contains(dv.UnlessTypes, y.res.Type) && fmt.Sprint(y.attrs["id"]) == key {
@@ -502,17 +518,28 @@ func derive(items []*extracted) []Resource {
 				}
 			}
 			if real {
+				seen[addr] = -1
 				continue
 			}
 			attrs := map[string]any{"id": key}
 			for k, tpl := range dv.Attributes {
-				if v, err := render(tpl, tdata); err == nil && strings.TrimSpace(v) != "" {
-					attrs[k] = strings.TrimSpace(v)
+				if v, err := render(tpl, tdata); err == nil && noValue(v) != "" {
+					attrs[k] = noValue(v)
 				}
 			}
+			seen[addr] = len(out)
 			out = append(out, Resource{Address: addr, Module: x.res.Module, Type: dv.Resource, Name: Slug(key), Index: strconv.Quote(key),
 				Provider: x.res.Provider, Attributes: attrs})
 		}
 	}
 	return out
+}
+
+// noValue trims a rendered template and treats text/template's rendering of a missing attribute as empty.
+func noValue(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "<no value>" {
+		return ""
+	}
+	return s
 }

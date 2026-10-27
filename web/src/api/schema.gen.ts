@@ -2975,6 +2975,8 @@ export interface components {
             error?: components["schemas"]["ItemError"];
             /** Format: int64 */
             index: number;
+            /** @description On errors: the item (kind/name or external ID; type from -> to for a relationship). */
+            item?: string;
             relation_id?: string;
             type: string;
         };

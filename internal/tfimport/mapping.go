@@ -42,6 +42,8 @@ type Mapping struct {
 	// Derive declares synthetic resources built from this resource's allowlisted attributes, mapped by their own
 	// mapping (for example a DNS zone derived from its records when the state only passes the zone ID around).
 	Derive []Derive `yaml:"derive,omitempty" json:"derive,omitempty"`
+	// DeriveOnly maps a resource only for its Derive rules (a zone setting that names its zone): no entity of its own.
+	DeriveOnly bool `yaml:"derive_only,omitempty" json:"derive_only,omitempty"`
 	// Environment and Labels set static metadata.
 	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
@@ -139,13 +141,19 @@ func (c *Catalog) With(custom []Mapping) (*Catalog, error) {
 
 // resourceRE: a resource type or glob, optionally "data." for a data source (mapped only when named explicitly) or
 // "derived." for a synthetic resource (Mapping.Derive).
+var indexKeyRE = regexp.MustCompile(`\["((?:[^"\\]|\\.)*)"\]`)
+
 var resourceRE = regexp.MustCompile(`^((data|derived)\.)?[a-z0-9_*?]+$`)
 
 func (m *Mapping) validate() error {
 	if !resourceRE.MatchString(m.Resource) {
 		return fmt.Errorf("resource must be a type name or glob")
 	}
-	if m.Kind == "" {
+	if m.DeriveOnly {
+		if m.Kind != "" || len(m.Fields) > 0 || len(m.Relations) > 0 || len(m.Derive) == 0 {
+			return fmt.Errorf("a derive_only mapping has derive rules and no kind, fields or relations")
+		}
+	} else if m.Kind == "" {
 		return fmt.Errorf("kind is required")
 	}
 	for ptr := range m.Fields {
@@ -234,6 +242,18 @@ var funcs = template.FuncMap{
 	"slug":       Slug,
 	"lower":      strings.ToLower,
 	"trimSuffix": func(suffix, s string) string { return strings.TrimSuffix(s, suffix) },
+	// indexKey is the last string index key in a module path or address (zone["example.com"] → example.com), or "".
+	"indexKey": func(v any) string {
+		m := indexKeyRE.FindAllStringSubmatch(fmt.Sprint(v), -1)
+		if len(m) == 0 {
+			return ""
+		}
+		k, err := strconv.Unquote(`"` + m[len(m)-1][1] + `"`)
+		if err != nil {
+			return ""
+		}
+		return k
+	},
 	// registrable is the registrable domain of a host name (public-suffix rules: app.example.co.uk → example.co.uk), or "".
 	"registrable": func(v any) string {
 		host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(fmt.Sprint(v))), ".")

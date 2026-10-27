@@ -78,6 +78,33 @@ type Diagnostic struct {
 	Count   int    `json:"count,omitempty"`
 }
 
+// maxItemErrors bounds the per-item errors a run keeps in its diagnostics.
+const maxItemErrors = 20
+
+// ItemErrors turns the first per-item errors of a commit into run diagnostics (item, code and message), so a
+// "partial" run says what failed without a preview.
+func ItemErrors(res *ingest.CommitResult) []Diagnostic {
+	if res == nil {
+		return nil
+	}
+	var out []Diagnostic
+	n := 0
+	for _, r := range res.Results {
+		if r.Error == nil {
+			continue
+		}
+		n++
+		if n <= maxItemErrors {
+			out = append(out, Diagnostic{Level: "error", Code: "item_" + r.Error.Code, Message: r.Type + " " + r.Item + ": " + r.Error.Message})
+		}
+	}
+	if n > maxItemErrors {
+		out = append(out, Diagnostic{Level: "error", Code: "item_errors", Message: fmt.Sprintf("%d more item errors (see a preview)", n-maxItemErrors),
+			Count: n - maxItemErrors})
+	}
+	return out
+}
+
 // Env is what a provider gets for one call.
 type Env struct {
 	Source  *catalog.Source
@@ -431,7 +458,7 @@ func (r *Runner) Sync(ctx context.Context, src *catalog.Source, trigger string, 
 		}
 		res, syncErr = r.Ingest.RunSnapshot(ctx, src, col.b, col.partial == "", ingest.CommitOptions{DryRun: dryRun}, actor)
 	}
-	run.Diagnostics = col.diagnostics()
+	run.Diagnostics = append(col.diagnostics(), ItemErrors(res)...)
 	now := r.Clock.Now()
 	run.FinishedAt = &now
 	switch {
@@ -664,6 +691,7 @@ func (r *Runner) RecordPush(ctx context.Context, src *catalog.Source, trigger st
 	if res != nil {
 		run.Stats, _ = json.Marshal(res.Summary)
 	}
+	run.Diagnostics = append(run.Diagnostics, ItemErrors(res)...)
 	if run.Diagnostics == nil {
 		run.Diagnostics = []Diagnostic{}
 	}

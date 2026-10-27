@@ -3203,6 +3203,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "item": {
+            "description": "On errors: the item (kind/name or external ID; type from -\u003e to for a relationship).",
+            "type": "string"
+          },
           "relation_id": {
             "type": "string"
           },

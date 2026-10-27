@@ -1,6 +1,8 @@
 # Cloudflare provider v4 (cloudflare_record, cloudflare_zone.zone) and v5 (cloudflare_dns_record, cloudflare_zone.name).
 # Zones that are only looked up (data "cloudflare_zone") are mapped too, so records, rulesets and certificates hang off
-# their zone. cloudflare_zone_setting is deliberately not mapped (one resource per setting; no inventory value).
+# their zone. A zone that the state only passes around by ID is derived from its records, rulesets, settings and
+# authenticated origin pulls (named after the records' registrable domain, or the module key such as
+# module.zone["example.com"]). Zone settings and origin pulls create no entities of their own.
 mappings:
   - resource: data.cloudflare_zone
     kind: dns_zone
@@ -61,7 +63,7 @@ mappings:
       # their registrable domain, unless the state manages or looks up the zone itself.
       - resource: derived.cloudflare_zone
         key: '{{ .attr.zone_id }}'
-        attributes: {name: '{{ registrable .attr.hostname }}'}
+        attributes: {name: '{{ default (registrable (indexKey .module)) (registrable .attr.hostname) }}'}
         unless_types: [cloudflare_zone, data.cloudflare_zone]
     relations:
       - {type: contains, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
@@ -86,7 +88,7 @@ mappings:
       # their registrable domain, unless the state manages or looks up the zone itself.
       - resource: derived.cloudflare_zone
         key: '{{ .attr.zone_id }}'
-        attributes: {name: '{{ registrable .attr.name }}'}
+        attributes: {name: '{{ default (registrable (indexKey .module)) (registrable .attr.name) }}'}
         unless_types: [cloudflare_zone, data.cloudflare_zone]
     relations:
       - {type: contains, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
@@ -104,6 +106,11 @@ mappings:
       /spec/provider: const:cloudflare
       /metadata/description: description
     join: [zone_id, name]
+    derive:
+      - resource: derived.cloudflare_zone
+        key: '{{ .attr.zone_id }}'
+        attributes: {name: '{{ registrable (indexKey .module) }}'}
+        unless_types: [cloudflare_zone, data.cloudflare_zone]
     relations:
       - {type: protected_by, direction: in, attribute: zone_id, target_kinds: [dns_zone], target_attribute: id, confidence: 1}
   - resource: cloudflare_r2_bucket
@@ -132,3 +139,19 @@ mappings:
     join: [hostnames]
     relations:
       - {type: secured_by_certificate, direction: in, attribute: hostnames, target_kinds: [dns_record], target_pointer: /spec/fqdn}
+  - resource: cloudflare_zone_setting
+    derive_only: true
+    join: [zone_id]
+    derive:
+      - resource: derived.cloudflare_zone
+        key: '{{ .attr.zone_id }}'
+        attributes: {name: '{{ registrable (indexKey .module) }}'}
+        unless_types: [cloudflare_zone, data.cloudflare_zone]
+  - resource: cloudflare_authenticated_origin_pulls*
+    derive_only: true
+    join: [zone_id]
+    derive:
+      - resource: derived.cloudflare_zone
+        key: '{{ .attr.zone_id }}'
+        attributes: {name: '{{ registrable (indexKey .module) }}'}
+        unless_types: [cloudflare_zone, data.cloudflare_zone]

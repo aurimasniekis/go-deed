@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -124,6 +125,36 @@ func TestTerraformStatePushHomelab(t *testing.T) {
 			if bytes.Contains([]byte(s), []byte(secret)) {
 				t.Fatalf("%s persisted: %s", secret, s)
 			}
+		}
+	}
+}
+
+// A partial run keeps its per-item errors (item, code, message) in the run history, not only a count.
+func TestTerraformRunKeepsItemErrors(t *testing.T) {
+	h := newHarness(t)
+	owner := h.owner()
+	owner.must("POST", "/projects", map[string]any{"name": "infra"}, 201)
+	src := owner.must("POST", "/sources", map[string]any{"project": "infra", "name": "tf-dns", "provider": "terraform_state",
+		"config": map[string]any{"backend": "push"}, "policy": map[string]any{"allowed_kinds": []string{"dns_record", "service"}}}, 201)
+	sid := src["id"].(string)
+	tok := owner.must("POST", "/sources/"+sid+"/tokens", map[string]any{"name": "ci"}, 201)["token"].(string)
+	state, err := os.ReadFile("../tfimport/testdata/zones-module-v4.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, h.srv.URL+"/api/v1/sources/"+sid+"/terraform/state", bytes.NewReader(state))
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	_, runs, _ := owner.do("GET", "/sources/"+sid+"/runs", nil, nil)
+	raw, _ := json.Marshal(runs)
+	for _, want := range []string{`"result\":\"partial\"`, `item_validation_failed`, `entity dns_zone/example.com: kind: source policy does not allow kind`} {
+		if !bytes.Contains(raw, []byte(want)) && !bytes.Contains(raw, []byte(strings.ReplaceAll(want, `\"`, `"`))) {
+			t.Errorf("runs lack %s: %s", want, raw)
 		}
 	}
 }

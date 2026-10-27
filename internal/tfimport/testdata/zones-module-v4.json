@@ -18,6 +18,15 @@
      "instances": [{"attributes": {"id": "zone-example-org", "name": "example.org"}}]},
     {"mode": "managed", "type": "cloudflare_dns_record", "name": "org", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
      "instances": [{"attributes": {"id": "r4", "zone_id": "zone-example-org", "name": "app.example.org", "type": "CNAME", "content": "example.net"}}]},
+    {"module": "module.zone[\"example.dev\"]", "mode": "managed", "type": "cloudflare_zone_setting", "name": "this", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
+     "instances": [
+       {"index_key": "ssl", "attributes": {"id": "ssl", "zone_id": "zone-example-dev", "setting_id": "ssl", "value": "strict"}},
+       {"index_key": "tls_1_3", "attributes": {"id": "tls_1_3", "zone_id": "zone-example-dev", "setting_id": "tls_1_3", "value": "on"}}
+     ]},
+    {"module": "module.zone[\"example.dev\"]", "mode": "managed", "type": "cloudflare_authenticated_origin_pulls_settings", "name": "this", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
+     "instances": [{"attributes": {"id": "zone-example-dev", "zone_id": "zone-example-dev", "enabled": true}}]},
+    {"mode": "managed", "type": "cloudflare_ruleset", "name": "account_waf", "provider": "provider[\"registry.terraform.io/cloudflare/cloudflare\"]",
+     "instances": [{"attributes": {"id": "rs-account", "account_id": "acc-1", "name": "Account WAF", "phase": "http_request_firewall_custom", "kind": "root"}}]},
     {"mode": "managed", "type": "googleworkspace_domain", "name": "primary", "provider": "provider[\"registry.terraform.io/samuzad/googleworkspace\"]",
      "instances": [{"attributes": {"id": "example.com", "domain_name": "example.com", "verified": true, "is_primary": true}}]},
     {"mode": "managed", "type": "googleworkspace_domain_alias", "name": "alias", "provider": "provider[\"registry.terraform.io/samuzad/googleworkspace\"]",

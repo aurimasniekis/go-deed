@@ -199,6 +199,11 @@ func (s *Service) applyEntity(ctx context.Context, tx *store.Tx, src *Source, it
 	if err != nil {
 		return nil, err
 	}
+	if entityID != "" && it.Ref.ID == "" && ref.ExternalID != "" && it.Kind != "" && !it.Delete {
+		if entityID, err = s.rebindChangedKind(ctx, tx, src, entityID, ref, o); err != nil {
+			return nil, err
+		}
+	}
 	if it.Delete {
 		if entityID == "" {
 			return &ApplyResult{Action: ActionNotFound}, nil
@@ -478,6 +483,31 @@ func (s *Service) checkCapacity(ctx context.Context, tx *store.Tx) error {
 		return apperr.New(apperr.CodeUnavailable, "the catalog reached its configured limit of %d entities", s.MaxEntities)
 	}
 	return nil
+}
+
+// rebindChangedKind handles a source whose mapping changed an item's kind (an importer that now maps a resource to a
+// service instead of a domain): when the source's own external ID is bound to an entity of another kind, the source
+// withdraws its facet from that entity and the item resolves by its new kind and name (or creates a new entity, which
+// rebinds the external ID). Other sources' facets on the old entity are untouched.
+func (s *Service) rebindChangedKind(ctx context.Context, tx *store.Tx, src *Source, entityID string, ref Ref, o ApplyOpts) (string, error) {
+	var kind, bound string
+	if err := tx.QueryRow(ctx, `SELECT kind FROM entities WHERE id = ?`, entityID).Scan(&kind); err != nil || kind == ref.Kind {
+		return entityID, nil //nolint:nilerr // a missing row is reported by the caller's own load
+	}
+	err := tx.QueryRow(ctx, `SELECT entity_id FROM entity_external_ids WHERE source_id = ? AND external_id = ?`, src.ID, ref.ExternalID).Scan(&bound)
+	if err != nil || bound != entityID {
+		return entityID, nil //nolint:nilerr // not bound through this external ID: the kind check reports the mismatch
+	}
+	if _, err := s.deleteFacet(ctx, tx, src, entityID, 0, ApplyOpts{Actor: o.Actor}); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM entity_external_ids WHERE source_id = ? AND external_id = ?`, src.ID, ref.ExternalID); err != nil {
+		return "", err
+	}
+	if ref.Name == "" {
+		return "", nil
+	}
+	return byNaturalKey(ctx, tx, src.ProjectID, ref.Kind, ref.Name)
 }
 
 func (s *Service) mapExternalID(ctx context.Context, tx *store.Tx, src *Source, entityID, ext string) error {

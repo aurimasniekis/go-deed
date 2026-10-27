@@ -53,13 +53,31 @@ type ItemError struct {
 
 // ItemResult is the outcome of one item.
 type ItemResult struct {
-	Index      int        `json:"index"`
-	Type       string     `json:"type"` // entity or relation
-	Action     string     `json:"action"`
-	EntityID   string     `json:"entity_id,omitempty"`
-	RelationID string     `json:"relation_id,omitempty"`
-	Detail     string     `json:"detail,omitempty"`
-	Error      *ItemError `json:"error,omitempty"`
+	Index      int    `json:"index"`
+	Type       string `json:"type"` // entity or relation
+	Action     string `json:"action"`
+	EntityID   string `json:"entity_id,omitempty"`
+	RelationID string `json:"relation_id,omitempty"`
+	Detail     string `json:"detail,omitempty"`
+	// Item names the item on errors: kind/name or the external ID for an entity, "type from -> to" for a relationship.
+	Item  string     `json:"item,omitempty" doc:"On errors: the item (kind/name or external ID; type from -> to for a relationship)."`
+	Error *ItemError `json:"error,omitempty"`
+}
+
+// EntityLabel names an entity item for errors and diagnostics.
+func EntityLabel(it *catalog.EntityItem) string {
+	switch {
+	case it.Kind != "" && it.Name != "":
+		return it.Kind + "/" + it.Name
+	case it.ExternalID != "":
+		return it.ExternalID
+	}
+	return it.Ref.String()
+}
+
+// RelationLabel names a relationship item for errors and diagnostics.
+func RelationLabel(it *catalog.RelationItem) string {
+	return it.Type + " " + it.From.String() + " -> " + it.To.String()
 }
 
 // Batch is a set of items.
@@ -135,7 +153,7 @@ func (s *Service) CheckSize(b Batch) error {
 // applyBatch applies items inside tx, isolating each with a savepoint so one bad item never leaves partial writes.
 func (s *Service) applyBatch(ctx context.Context, tx *store.Tx, src *catalog.Source, b Batch, o catalog.ApplyOpts, offset int) ([]ItemResult, error) {
 	results := make([]ItemResult, 0, b.Len())
-	run := func(idx int, typ string, fn func() (ItemResult, error)) error {
+	run := func(idx int, typ, label string, fn func() (ItemResult, error)) error {
 		if _, err := tx.Exec(ctx, `SAVEPOINT item`); err != nil {
 			return err
 		}
@@ -150,6 +168,7 @@ func (s *Service) applyBatch(ctx context.Context, tx *store.Tx, src *catalog.Sou
 				return rerr
 			}
 			r.Error = ie
+			r.Item = label
 		}
 		if _, err := tx.Exec(ctx, `RELEASE item`); err != nil {
 			return err
@@ -159,7 +178,7 @@ func (s *Service) applyBatch(ctx context.Context, tx *store.Tx, src *catalog.Sou
 	}
 	for i := range b.Entities {
 		it := &b.Entities[i]
-		if err := run(offset+i, "entity", func() (ItemResult, error) {
+		if err := run(offset+i, "entity", EntityLabel(it), func() (ItemResult, error) {
 			res, err := s.Catalog.ApplyEntity(ctx, tx, src, it, o)
 			if err != nil {
 				return ItemResult{}, err
@@ -171,7 +190,7 @@ func (s *Service) applyBatch(ctx context.Context, tx *store.Tx, src *catalog.Sou
 	}
 	for i := range b.Relations {
 		it := &b.Relations[i]
-		if err := run(offset+len(b.Entities)+i, "relation", func() (ItemResult, error) {
+		if err := run(offset+len(b.Entities)+i, "relation", RelationLabel(it), func() (ItemResult, error) {
 			res, err := s.Catalog.ApplyRelation(ctx, tx, src, it, o)
 			if err != nil {
 				return ItemResult{}, err
@@ -432,7 +451,7 @@ func (s *Service) validate(src *catalog.Source, b Batch) []ItemResult {
 		}
 		catalog.ValidateMetadata(it.Metadata, true, v)
 		if err := v.Err(); err != nil {
-			out = append(out, ItemResult{Index: i, Type: "entity", Error: toItemError(err)})
+			out = append(out, ItemResult{Index: i, Type: "entity", Item: EntityLabel(&b.Entities[i]), Error: toItemError(err)})
 		}
 	}
 	for i, it := range b.Relations {
@@ -440,7 +459,7 @@ func (s *Service) validate(src *catalog.Source, b Batch) []ItemResult {
 			continue
 		}
 		if s.Catalog.RelType(it.Type) == nil {
-			out = append(out, ItemResult{Index: len(b.Entities) + i, Type: "relation", Error: &ItemError{Code: string(apperr.CodeInvalid),
+			out = append(out, ItemResult{Index: len(b.Entities) + i, Type: "relation", Item: RelationLabel(&b.Relations[i]), Error: &ItemError{Code: string(apperr.CodeInvalid),
 				Message: fmt.Sprintf("unknown relationship type %q", it.Type)}})
 		}
 	}

@@ -5,6 +5,17 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Fixed
+- Terraform import: Cloudflare zones without DNS records were not derived. Zone settings, authenticated origin pulls
+  and zone rulesets now derive their zone too, named after the `module.zone["<zone>"]` key when no record names it
+  (new `derive_only` mappings and `indexKey` template function).
+- Ingest: when a source's mapping changes the kind of an item (as `googleworkspace_domain` did from `domain` to
+  `service` in 0.3.1), the source's external ID stayed bound to the old entity and every sync failed with "entity … is
+  a domain, not a service". The source now withdraws its facet from the old entity and the item resolves by its new
+  kind and name.
+- Source runs now keep their per-item errors (the first 20: item, code and message) in the run diagnostics, and item
+  results name the item, instead of only counting errors.
+
 ## [0.3.1] - 2026-10-26
 
 No schema migration. Re-sync terraform_state sources to derive their DNS zones.

@@ -22,8 +22,9 @@ func TestExtractHomelabProviders(t *testing.T) {
 			}
 		}
 	}
-	if d.Unsupported["data.vsphere_datacenter"] != 0 || d.Unsupported["cloudflare_zone_setting"] != 1 {
-		t.Errorf("unsupported %v", d.Unsupported)
+	// Zone settings only derive their zone; this state looks the zone up, so nothing is derived.
+	if len(d.Unsupported) != 0 || d.Mapped["cloudflare_zone_setting"] != 1 || d.Mapped["derived.cloudflare_zone"] != 0 {
+		t.Errorf("unsupported %v, mapped %v", d.Unsupported, d.Mapped)
 	}
 	if d.Mapped["data.vsphere_host"] != 1 || d.Mapped["data.cloudflare_zone"] != 1 {
 		t.Errorf("mapped %v", d.Mapped)
@@ -81,7 +82,7 @@ func TestExtractHomelabProviders(t *testing.T) {
 // one; zones and Google Workspace domains are contained by the hand-declared domain entity with the same FQDN.
 func TestDerivedZonesAndDomains(t *testing.T) {
 	st := load(t, "zones-module-v4.json")
-	domains := map[string]string{"example.com": "ent_dom_com", "example.co.uk": "ent_dom_uk", "example.org": "ent_dom_org", "example.net": "ent_dom_net"}
+	domains := map[string]string{"example.dev": "ent_dom_dev", "example.com": "ent_dom_com", "example.co.uk": "ent_dom_uk", "example.org": "ent_dom_org", "example.net": "ent_dom_net"}
 	lookup := func(_ context.Context, kinds []string, pointer, value string) (string, bool) {
 		if pointer != "/spec/fqdn" || len(kinds) != 1 || kinds[0] != "domain" {
 			return "", false
@@ -90,7 +91,9 @@ func TestDerivedZonesAndDomains(t *testing.T) {
 		return id, ok
 	}
 	b, d := Extract(context.Background(), st, MustBuiltin(), Options{Lookup: lookup})
-	if d.Mapped["derived.cloudflare_zone"] != 2 || d.Resources != 6 {
+	// example.dev has no records, only zone settings and origin pulls in module.zone["example.dev"]: named by the module
+	// key. The account-level ruleset has no zone and derives nothing.
+	if d.Mapped["derived.cloudflare_zone"] != 3 || d.Resources != 10 || len(d.Unsupported) != 0 {
 		t.Errorf("mapped %v, %d resources", d.Mapped, d.Resources)
 	}
 	zones := map[string]string{}
@@ -100,7 +103,7 @@ func TestDerivedZonesAndDomains(t *testing.T) {
 		}
 	}
 	want := map[string]string{"example.com": `derived.cloudflare_zone["zone-example-com"]`, "example.co.uk": `derived.cloudflare_zone["zone-example-co-uk"]`,
-		"example.org": "data.cloudflare_zone.org"}
+		"example.org": "data.cloudflare_zone.org", "example.dev": `derived.cloudflare_zone["zone-example-dev"]`}
 	if len(zones) != len(want) {
 		t.Errorf("zones %v", zones)
 	}
@@ -123,6 +126,7 @@ func TestDerivedZonesAndDomains(t *testing.T) {
 		`contains ent_dom_org external:data.cloudflare_zone.org`,
 		`contains ent_dom_com external:googleworkspace_domain.primary`,
 		`contains ent_dom_net external:googleworkspace_domain_alias.alias`,
+		`contains ent_dom_dev external:derived.cloudflare_zone["zone-example-dev"]`,
 	} {
 		if !rels[w] {
 			t.Errorf("missing %s", w)
