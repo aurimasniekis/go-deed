@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Checkbox, Group, ScrollArea, Stack, Text, TextInput, Tooltip } from '@mantine/core'
+import { ActionIcon, Button, Checkbox, Group, ScrollArea, Select, Stack, Text, TextInput, Tooltip } from '@mantine/core'
 import { IconSearch, IconX } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { RefIcon } from '@/components/icons'
@@ -49,6 +49,32 @@ export function visibilityItems(
       })
       .sort(byLabel),
   }
+}
+
+/**
+ * The values of one label key on the loaded map with their counts (entities, or the members of overview groups by that
+ * label), keyed `key:value` like the hideLabel filter. Entities without the key are not listed: hiding never touches
+ * them.
+ */
+export function labelItems(model: GraphModel, key: string, hideLabel: string[]): VisibilityItem[] {
+  const values = new Map<string, number>()
+  for (const n of model.nodes.values()) {
+    if (n.cluster) {
+      if (n.cluster.groupBy === `label:${key}` && n.cluster.value !== '')
+        values.set(n.cluster.value, (values.get(n.cluster.value) ?? 0) + n.cluster.count)
+    } else if (!n.redacted) {
+      const v = n.labels?.[key]
+      if (v !== undefined) values.set(v, (values.get(v) ?? 0) + 1)
+    }
+  }
+  const prefix = `${key}:`
+  for (const kv of hideLabel) {
+    const v = kv.startsWith(prefix) ? kv.slice(prefix.length) : undefined
+    if (v !== undefined && !values.has(v)) values.set(v, 0)
+  }
+  return [...values]
+    .map(([v, count]) => ({ key: prefix + v, label: v, count, hidden: hideLabel.includes(prefix + v) }))
+    .sort((a, b) => a.label.localeCompare(b.label))
 }
 
 function Section({
@@ -128,20 +154,33 @@ function Section({
 }
 
 /**
- * Show or hide kinds and relationship types on the map (the hidden ones stay listed). Hiding is a filter like the
- * others: it goes to the URL and is saved with views; the focus entity always stays.
+ * Show or hide kinds, label values and relationship types on the map (the hidden ones stay listed). Hiding is a filter
+ * like the others: it goes to the URL and is saved with views; the focus entity always stays.
  */
 export function VisibilityPanel({
   kinds,
   types,
+  labelKeys,
+  labelKey,
+  onLabelKey,
+  labels,
+  hideLabel,
   onChange,
   onClose,
 }: {
   kinds: VisibilityItem[]
   types: VisibilityItem[]
-  onChange: (hide: { hideKind?: string[]; hideType?: string[] }) => void
+  /** Label keys to choose from, and the chosen one with its values. */
+  labelKeys: string[]
+  labelKey: string | null
+  onLabelKey: (key: string) => void
+  labels: VisibilityItem[]
+  /** Every hidden label value (all keys), kept when the values of the chosen key change. */
+  hideLabel: string[]
+  onChange: (hide: { hideKind?: string[]; hideType?: string[]; hideLabel?: string[] }) => void
   onClose: () => void
 }) {
+  const otherKeys = hideLabel.filter((kv) => !labels.some((i) => i.key === kv))
   const [q, setQ] = useState('')
   const filter = q.trim().toLowerCase()
   const hiddenOf = (items: VisibilityItem[]) => items.filter((i) => i.hidden).map((i) => i.key)
@@ -157,7 +196,7 @@ export function VisibilityPanel({
       style={{ width: 260 }}
       data-testid="map-visibility"
       role="region"
-      aria-label="Show and hide kinds and relationships"
+      aria-label="Show and hide kinds, labels and relationships"
     >
       <Group justify="space-between" px="sm" pt={6}>
         <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.04em' }}>
@@ -180,7 +219,7 @@ export function VisibilityPanel({
           onChange={(e) => {
             setQ(e.currentTarget.value)
           }}
-          aria-label="Filter kinds and relationship types"
+          aria-label="Filter kinds, labels and relationship types"
         />
       )}
       <ScrollArea.Autosize mah={320} type="auto" px="sm" pb="sm" pt={6} viewportProps={{ tabIndex: 0 }}>
@@ -200,6 +239,44 @@ export function VisibilityPanel({
               onChange({ hideKind: [] })
             }}
           />
+          {labelKeys.length > 0 && (
+            <Stack gap={4}>
+              <Select
+                size="xs"
+                label="Labels"
+                data={labelKeys}
+                value={labelKey}
+                onChange={(k) => {
+                  if (k) onLabelKey(k)
+                }}
+                allowDeselect={false}
+                searchable
+                aria-label="Label key"
+                data-testid="map-visibility-label-key"
+                comboboxProps={{ withinPortal: true }}
+              />
+              {labelKey && labels.length === 0 && (
+                <Text size="xs" c="dimmed">
+                  No entity on the map has the label {labelKey}.
+                </Text>
+              )}
+              <Section
+                title={labelKey ? `Values of ${labelKey}` : 'Values'}
+                items={labels}
+                filter={filter}
+                testid="map-visibility-labels"
+                onToggle={(kv) => {
+                  onChange({ hideLabel: [...otherKeys, ...toggle(labels, kv)] })
+                }}
+                onOnly={(kv) => {
+                  onChange({ hideLabel: [...otherKeys, ...only(labels, kv)] })
+                }}
+                onShowAll={() => {
+                  onChange({ hideLabel: otherKeys })
+                }}
+              />
+            </Stack>
+          )}
           <Section
             title="Relationships"
             items={types}

@@ -36,6 +36,7 @@ import { ConfirmModal, Field, Mono, PageHeader, TimeAgo } from '@/components/com
 import { AnchorLink } from '@/components/links'
 import { ErrorState, LoadingRows } from '@/components/States'
 import { useTitle } from '@/lib/appStore'
+import { LabelRulesSection } from './LabelRules'
 
 function ProjectModal({ p, opened, onClose }: { p: ProjectView | null; opened: boolean; onClose: () => void }) {
   const qc = useQueryClient()
@@ -298,7 +299,8 @@ export function ProjectDetailPage({ project }: { project: string }) {
           <Title order={2} fz={14} mb="xs">
             Shortcuts
           </Title>
-          <Stack gap={4}>
+          {/* 8 px apart: WCAG 2.2 target spacing for these one-line links. */}
+          <Stack gap={8}>
             <AnchorLink to="/inventory" search={{ project: p.name }} size="sm">
               Inventory of this project
             </AnchorLink>
@@ -425,6 +427,7 @@ export function ProjectDetailPage({ project }: { project: string }) {
           </Table>
         </Card>
       )}
+      <LabelRulesSection project={p.name} admin={admin} />
       <ConfirmModal
         opened={del}
         title="Delete project"

@@ -144,9 +144,18 @@ test('node metrics: on-map bindings inside detailed cards', async ({ page }) => 
   await expect(strip).toContainText('req/s', { timeout: 20_000 })
   // Inside the card, which the layout made taller for its metric row.
   await expect.poll(async () => (await card.boundingBox())?.height ?? 0).toBeGreaterThan(80)
-  const cardBox = await card.boundingBox()
-  const stripBox = await strip.boundingBox()
-  expect(cardBox && stripBox && stripBox.y + stripBox.height <= cardBox.y + cardBox.height + 1).toBe(true)
+  // Measured in one go: the view may still be animating its fit.
+  await expect
+    .poll(() =>
+      card.evaluate((c) => {
+        const m = c.querySelector('[data-testid="node-metrics"]')
+        if (!m) return false
+        const cb = c.getBoundingClientRect()
+        const mb = m.getBoundingClientRect()
+        return mb.top >= cb.top && mb.bottom <= cb.bottom + 1
+      }),
+    )
+    .toBe(true)
   await expect(strip).toHaveAttribute('aria-label', /Requests per second [\d.]+ req\/s/)
   await expect(strip).toHaveAttribute('aria-label', /Error ratio [\d.]+%/)
   // The options drawer switches them off.
@@ -196,6 +205,48 @@ test('show / hide panel: kinds and relationship types', async ({ page }) => {
   await kinds.getByRole('button', { name: 'Show all' }).click()
   await expect.poll(nodes).toBe(before)
   await expect(page).not.toHaveURL(/hideKind=/)
+})
+
+test('label rules: a group label from the project page, grouped and hidden on the map', async ({ page }) => {
+  // A rule on the project page labels the DNS records group=dns.
+  await page.goto('/settings/projects/home')
+  await page.getByTestId('label-rule-new').click()
+  const modal = page.getByRole('dialog')
+  await modal.getByLabel('Name').fill('dns')
+  const kinds = modal.getByRole('textbox', { name: 'Kinds' })
+  await kinds.fill('dns_*')
+  await kinds.press('Enter')
+  await modal.getByTestId('label-rule-labels').fill('group=dns')
+  await modal.getByTestId('label-rule-save').click()
+  await expect(modal).toBeHidden()
+  await expect(page.getByRole('table', { name: 'Label rules' })).toContainText('group=dns')
+  await expectAccessible(page, 'project label rules')
+
+  // The overview groups by the label: one group for the DNS records.
+  await page.goto('/map?mode=overview&group=label:group')
+  const canvas = page.getByTestId('map-canvas')
+  await expect(canvas).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await expect(page.locator('[data-cluster-key="label:group|dns"]')).toBeVisible()
+
+  // Show / hide: untick the value and the records leave the focused map.
+  const record = entityId('dns_record/grafana.example-home.net')
+  await page.goto(`/map?focus=${entityId('server/srv-hel1-01')}&mode=neighborhood&depth=1`)
+  await expect(canvas).toHaveAttribute('data-layout-ready', 'true', { timeout: 20_000 })
+  await expect(page.locator(`[data-entity-id="${record}"]`)).toBeVisible()
+  await canvas.focus()
+  await page.keyboard.press('v')
+  const labels = page.getByTestId('map-visibility-labels')
+  await labels.getByRole('checkbox', { name: 'Hide dns' }).click()
+  await expect(page).toHaveURL(/hideLabel=group%3Adns|hideLabel=group:dns/)
+  await expect(page.locator(`[data-entity-id="${record}"]`)).toHaveCount(0)
+  await labels.getByRole('button', { name: 'Show all' }).click()
+  await expect(page.locator(`[data-entity-id="${record}"]`)).toBeVisible()
+
+  // Clean up: deleting the rule removes its labels.
+  await page.goto('/settings/projects/home')
+  await page.getByRole('button', { name: 'Delete dns' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete rule' }).click()
+  await expect(page.getByText('No label rules.')).toBeVisible()
 })
 
 test('copy image: the whole map at 1:1, on the clipboard', async ({ page }) => {

@@ -14,7 +14,8 @@ import (
 // (RemergeIfRulesChanged): otherwise conflicts recorded under the old rules would stay until each entity changes.
 //
 //	2 (0.5.0): icons, terraform/* labels and annotations, and values a source policy ranks lower are not conflicts.
-const MergeRulesVersion = "2"
+//	3 (0.7.0): annotations and overrides alone no longer keep an entity alive.
+const MergeRulesVersion = "3"
 
 const mergeRulesKey = "catalog.merge_rules_version"
 

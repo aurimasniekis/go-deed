@@ -34,6 +34,7 @@ const (
 	AlertRule     = "arl"
 	Silence       = "sil"
 	Bridge        = "brg"
+	LabelRule     = "lbr"
 	User          = "usr"
 	Identity      = "idn"
 	Session       = "ses"

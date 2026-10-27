@@ -5,6 +5,23 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Added
+- Label rules: project rules that add labels (such as `group=github`) to entities other sources own, matched by kind,
+  describing source and existing labels (globs allowed), below every source and never keeping an entity alive
+  (`/projects/{project}/label-rules`, *Settings → Projects → Label rules*, Terraform `deed_label_rule`; schema
+  migration 11). Changing a rule re-merges the project's entities. See docs/LABEL_RULES.md.
+- Map: *Group by label* in the overview (`group=label:<key>`, one group per value) and a *Labels* section in *Show /
+  hide* (`hideLabel=key:value`).
+- `GET /entities/label-keys`: the label keys in use with entity and value counts.
+- Overrides of entities other sources own (`PUT /entities/{id}/declarations/overrides`) are documented as such, with
+  Terraform's `deed_entity_override`.
+
+### Changed
+- Annotations and overrides alone no longer keep an entity alive: when the last source lets go of an entity it is
+  tombstoned, and its override reads as gone (404) and refuses changes (409) until a source describes it again, when
+  it applies again. Entities kept alive only by annotations are tombstoned by the one-time re-merge at start-up
+  (merge rules version 3).
+
 ## [0.6.0] - 2026-10-27
 
 No schema migration.

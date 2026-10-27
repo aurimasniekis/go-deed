@@ -517,12 +517,24 @@ func (e *Engine) Expand(ctx context.Context, scope Scope, key string, limit int)
 	return res, nil
 }
 
+// labelCol is the overview grouping expression of a label key ({t}: the entities alias); entities without it group as "".
+// The key is a valid label key, so it cannot contain quotes.
+func labelCol(key string) string {
+	return `COALESCE(json_extract({t}.labels_json, '$."` + key + `"'), '')`
+}
+
 // expandGroup loads the entities of an overview group and the relationships among them.
 func (e *Engine) expandGroup(ctx context.Context, scope Scope, groupBy, value string, limit int) (*Result, error) {
 	if limit <= 0 || limit > e.MaxNodes {
 		limit = e.MaxNodes
 	}
 	start := time.Now()
+	if key, ok := strings.CutPrefix(groupBy, "label:"); ok {
+		if !catalog.ValidLabelKey(key) {
+			return nil, apperr.New(apperr.CodeInvalid, "unknown cluster key")
+		}
+		return e.expandLabelGroup(ctx, scope, key, value, limit, start)
+	}
 	f := catalog.EntityFilter{ProjectIDs: scope.Readable, Limit: min(limit, 500), Sort: "name"}
 	switch groupBy {
 	case "kind":
@@ -935,7 +947,12 @@ func (e *Engine) overviewSingles(ctx context.Context, scope Scope, nodes []Node,
 // each bundle, which costs a second pass over the catalog's assertions (the map asks for it in colour-by-source mode).
 func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, groupBy string, withSources bool) (*Result, error) {
 	start := time.Now()
-	col := map[string]string{"project": "e.project_id", "kind": "e.kind", "environment": "e.environment", "owner": "e.owner"}[groupBy]
+	// {t} is the entities alias: e for groups, fe and te for the two ends of a bundle.
+	colT := map[string]string{"project": "{t}.project_id", "kind": "{t}.kind", "environment": "{t}.environment", "owner": "{t}.owner"}[groupBy]
+	if key, ok := strings.CutPrefix(groupBy, "label:"); ok && catalog.ValidLabelKey(key) {
+		colT = labelCol(key)
+	}
+	col := strings.ReplaceAll(colT, "{t}", "e")
 	if projects == nil {
 		projects = scope.Readable
 	}
@@ -943,7 +960,7 @@ func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, g
 		if k := e.groupingKind(groupBy); k != nil {
 			return e.overviewByKind(ctx, scope, projects, k)
 		}
-		return nil, apperr.New(apperr.CodeInvalid, "group_by must be project, kind, environment, owner or a kind with a map grouping")
+		return nil, apperr.New(apperr.CodeInvalid, "group_by must be project, kind, environment, owner, label:<key> or a kind with a map grouping")
 	}
 	var where string
 	var args []any
@@ -997,8 +1014,8 @@ func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, g
 	if err != nil {
 		return nil, err
 	}
-	ecol := strings.ReplaceAll(col, "e.", "fe.")
-	tcol := strings.ReplaceAll(col, "e.", "te.")
+	ecol := strings.ReplaceAll(colT, "{t}", "fe")
+	tcol := strings.ReplaceAll(colT, "{t}", "te")
 	ewhere := strings.ReplaceAll(where, "e.project_id", "fe.project_id")
 	rows, err = e.Store.R().QueryContext(ctx, `SELECT `+ecol+`, `+tcol+`, r.type, COUNT(*), MAX(r.evidence_class = 'declared')
 		FROM relations r JOIN entities fe ON fe.id = r.from_id JOIN entities te ON te.id = r.to_id
@@ -1041,4 +1058,36 @@ func (e *Engine) Overview(ctx context.Context, scope Scope, projects []string, g
 	}
 	res.ElapsedMS = time.Since(start).Milliseconds()
 	return res, nil
+}
+
+// expandLabelGroup loads the entities of an overview group by label value ("" = entities without the key).
+func (e *Engine) expandLabelGroup(ctx context.Context, scope Scope, key, value string, limit int, start time.Time) (*Result, error) {
+	q := `SELECT e.id FROM entities e WHERE e.tombstoned_at IS NULL AND ` + strings.ReplaceAll(labelCol(key), "{t}", "e") + ` = ?`
+	args := []any{value}
+	if scope.Readable != nil {
+		if len(scope.Readable) == 0 {
+			return &Result{Nodes: []Node{}, Edges: []Edge{}, Notes: []string{}}, nil
+		}
+		q += ` AND e.project_id IN (` + placeholders(len(scope.Readable)) + `)`
+		for _, p := range scope.Readable {
+			args = append(args, p)
+		}
+	}
+	rows, err := e.Store.R().QueryContext(ctx, q+` ORDER BY e.name LIMIT ?`, append(args, limit+1)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return e.groupMembers(ctx, scope, ids, limit, start)
 }

@@ -83,6 +83,8 @@ export interface MapFilters {
   /** Kinds and relationship types switched off in the legend or the visibility panel (the rest stays shown). */
   hideKind: string[]
   hideType: string[]
+  /** Label values switched off, as `key:value`: entities with that value (and its overview group) are hidden. */
+  hideLabel: string[]
 }
 
 export const NO_FILTERS: MapFilters = {
@@ -98,13 +100,28 @@ export const NO_FILTERS: MapFilters = {
   stale: true,
   hideKind: [],
   hideType: [],
+  hideLabel: [],
+}
+
+function labelHidden(f: MapFilters, labels: Record<string, string> | undefined): boolean {
+  if (!f.hideLabel.length || !labels) return false
+  return f.hideLabel.some((kv) => {
+    const i = kv.indexOf(':')
+    return i > 0 && labels[kv.slice(0, i)] === kv.slice(i + 1)
+  })
 }
 
 function nodeMatches(n: MapNode, f: MapFilters): boolean {
-  // A hidden kind hides its overview group too; the focus entity always stays.
-  if (n.cluster) return !(n.cluster.groupBy === 'kind' && f.hideKind.includes(n.cluster.value))
+  // A hidden kind or label value hides its overview group too; the focus entity always stays.
+  if (n.cluster) {
+    const by = n.cluster.groupBy
+    if (by === 'kind') return !f.hideKind.includes(n.cluster.value)
+    if (by.startsWith('label:')) return !f.hideLabel.includes(`${by.slice(6)}:${n.cluster.value}`)
+    return true
+  }
   if (n.root) return true
   if (f.hideKind.includes(n.kind)) return false
+  if (labelHidden(f, n.labels)) return false
   if (f.kind.length && !f.kind.includes(n.kind)) return false
   if (f.project.length && !f.project.includes(n.projectId)) return false
   if (f.environment.length && !f.environment.includes(n.environment ?? '')) return false

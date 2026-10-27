@@ -159,6 +159,7 @@ const LAYER_LABEL: Record<string, string> = {
   observation: 'observation',
   annotation: 'annotation',
   override: 'override',
+  rule: 'label rule',
 }
 
 const healthRank: Record<string, number> = { failed: 3, warning: 2, ok: 1, unknown: 0 }

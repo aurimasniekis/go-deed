@@ -204,6 +204,11 @@ func (d *Deps) declaration(ctx context.Context, entityID, source string) (*Decla
 		if !f.Live {
 			continue
 		}
+		// An annotation or override of an entity no source describes any more is dormant, not current: reads say it is
+		// gone (Terraform plans to create it again, which fails clearly until the entity is back).
+		if e.Status.TombstonedAt != nil && f.Layer.Overlay() {
+			return nil, apperr.New(apperr.CodeNotFound, "entity %s is gone (no source describes it); its %s are dormant", e.Metadata.ID, source)
+		}
 		md, _ := f.Fields["metadata"].(map[string]any)
 		spec, _ := f.Fields["spec"].(map[string]any)
 		if md == nil {
@@ -379,6 +384,10 @@ func registerEntities(api huma.API, d *Deps) {
 			src, err := d.declaringSource(ctx, e.Metadata.ProjectID, in.Source)
 			if err != nil {
 				return nil, d.Fail("put-declaration", err)
+			}
+			if e.Status.TombstonedAt != nil && src.Layer.Overlay() {
+				return nil, d.Fail("put-declaration", apperr.New(apperr.CodeConflict,
+					"entity %s/%s is gone (no source describes it); annotations and overrides apply only to live entities", e.Kind, e.Metadata.Name))
 			}
 			v, err := in.Version()
 			if err != nil {

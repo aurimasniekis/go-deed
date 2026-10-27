@@ -3580,6 +3580,132 @@
         ],
         "type": "object"
       },
+      "LabelKey": {
+        "additionalProperties": false,
+        "properties": {
+          "entities": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "values": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "entities",
+          "values"
+        ],
+        "type": "object"
+      },
+      "LabelRule": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "match": {
+            "$ref": "#/components/schemas/LabelRuleMatch"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "resource_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "description",
+          "match",
+          "labels",
+          "created_at",
+          "updated_at",
+          "resource_version"
+        ],
+        "type": "object"
+      },
+      "LabelRuleInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Labels to add (at most 32); a source's own label for the same key wins.",
+            "type": "object"
+          },
+          "match": {
+            "$ref": "#/components/schemas/LabelRuleMatch"
+          },
+          "name": {
+            "description": "Unique in the project (lowercase slug).",
+            "maxLength": 63,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LabelRuleMatch": {
+        "additionalProperties": false,
+        "properties": {
+          "kinds": {
+            "description": "Entity kinds (globs allowed); any may match.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Labels the entity's sources set, by key: value or glob; all must match.",
+            "type": "object"
+          },
+          "sources": {
+            "description": "Names of sources that describe the entity (globs allowed); any may match.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "Link": {
         "additionalProperties": false,
         "properties": {
@@ -8011,6 +8137,61 @@
         ]
       }
     },
+    "/entities/label-keys": {
+      "get": {
+        "operationId": "list-label-keys",
+        "parameters": [
+          {
+            "description": "Project ID or name (default: every project you can read).",
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "description": "Project ID or name (default: every project you can read).",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LabelKey"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Label keys in use, with entity and value counts (map grouping, show / hide)",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
     "/entities/lookup": {
       "get": {
         "operationId": "lookup-entity",
@@ -9447,13 +9628,13 @@
             }
           },
           {
-            "description": "project, kind, environment, owner, or a kind with a map grouping (location, region, label, group, custom kinds).",
+            "description": "project, kind, environment, owner, label:\u003ckey\u003e (one group per value of a label), or a kind with a map grouping (location, region, label, group, custom kinds).",
             "explode": false,
             "in": "query",
             "name": "group_by",
             "schema": {
               "default": "kind",
-              "description": "project, kind, environment, owner, or a kind with a map grouping (location, region, label, group, custom kinds).",
+              "description": "project, kind, environment, owner, label:\u003ckey\u003e (one group per value of a label), or a kind with a map grouping (location, region, label, group, custom kinds).",
               "maxLength": 128,
               "type": "string"
             }
@@ -11339,6 +11520,340 @@
           }
         ],
         "summary": "Update a project (project admin)",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{project}/label-rules": {
+      "get": {
+        "operationId": "list-label-rules",
+        "parameters": [
+          {
+            "description": "Project ID or name.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Project ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LabelRule"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Label rules of a project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "description": "Adds labels to the project's entities its match selects, below every source: a source's own label for the same key wins, and a rule never keeps an entity alive. The project's entities are re-merged before the response.",
+        "operationId": "create-label-rule",
+        "parameters": [
+          {
+            "description": "Project ID or name.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Project ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelRuleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelRule"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a label rule (project admin)",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{project}/label-rules/{rule}": {
+      "delete": {
+        "operationId": "delete-label-rule",
+        "parameters": [
+          {
+            "description": "Project ID or name.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Project ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Label rule ID or name.",
+            "in": "path",
+            "name": "rule",
+            "required": true,
+            "schema": {
+              "description": "Label rule ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a label rule (project admin)",
+        "tags": [
+          "projects"
+        ]
+      },
+      "get": {
+        "operationId": "get-label-rule",
+        "parameters": [
+          {
+            "description": "Project ID or name.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Project ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Label rule ID or name.",
+            "in": "path",
+            "name": "rule",
+            "required": true,
+            "schema": {
+              "description": "Label rule ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelRule"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a label rule",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "update-label-rule",
+        "parameters": [
+          {
+            "description": "Project ID or name.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Project ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Label rule ID or name.",
+            "in": "path",
+            "name": "rule",
+            "required": true,
+            "schema": {
+              "description": "Label rule ID or name.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag (resource version) the change is based on; mismatches fail with 412.",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelRuleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelRule"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update a label rule (project admin)",
         "tags": [
           "projects"
         ]

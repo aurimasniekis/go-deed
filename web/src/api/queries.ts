@@ -86,3 +86,12 @@ export function sourcesQuery(project?: string) {
 export function useSources(project?: string) {
   return useQuery(sourcesQuery(project))
 }
+
+/** Label keys in use on the entities you can read, most used first (map grouping and show / hide). */
+export function useLabelKeys() {
+  return useQuery({
+    queryKey: ['entities', 'label-keys'],
+    queryFn: async () => unwrap(await api.GET('/entities/label-keys')),
+    staleTime: 60_000,
+  })
+}

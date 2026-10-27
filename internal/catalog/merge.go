@@ -31,6 +31,12 @@ func (l Layer) Valid() bool {
 	return slices.Contains(Layers, l)
 }
 
+// Overlay reports whether a layer only changes entities other sources describe (annotations, overrides, label rules):
+// an entity whose live facets are all overlays is tombstoned.
+func (l Layer) Overlay() bool {
+	return l == LayerAnnotation || l == LayerOverride || l == LayerRule
+}
+
 // DefaultPriority is the precedence of a layer: higher wins. Sources may override it (and per field) in their policy.
 func (l Layer) DefaultPriority() int {
 	switch l {
@@ -44,6 +50,8 @@ func (l Layer) DefaultPriority() int {
 		return 60
 	case LayerDiscovered:
 		return 40
+	case LayerRule:
+		return 5
 	}
 	return 0
 }
@@ -173,7 +181,7 @@ func Merge(facets []MergeFacet) MergeResult {
 		for _, c := range ls[1:] {
 			// A conflict is a disagreement that only claim order settles: same layer, same priority (a source policy that
 			// ranks a field lower has decided it), and not an expected per-source difference.
-			if c.f.Layer == ls[0].f.Layer && c.prio == ls[0].prio && c.f.SourceID != ls[0].f.SourceID && !quietPointer(p) &&
+			if c.f.Layer == ls[0].f.Layer && c.f.Layer != LayerRule && c.prio == ls[0].prio && c.f.SourceID != ls[0].f.SourceID && !quietPointer(p) &&
 				!jsonEqual(c.value, ls[0].value) {
 				res.Conflicts = append(res.Conflicts, Conflict{Pointer: p, Layer: c.f.Layer, WinnerSource: ls[0].f.SourceID, LoserSource: c.f.SourceID,
 					WinnerValue: compact(ls[0].value), LoserValue: compact(c.value)})

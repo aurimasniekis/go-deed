@@ -78,6 +78,13 @@ export const LAYER: Record<string, StatusMeta & { rank: number }> = {
     description: 'Time-bounded observations.',
     rank: 0,
   },
+  rule: {
+    label: 'Label rule',
+    tone: 'gray',
+    icon: 'tags',
+    description: "A project label rule (below every source; a source's own label wins).",
+    rank: 5,
+  },
 }
 
 export const SUPPORT_LEVEL: Record<string, StatusMeta> = {

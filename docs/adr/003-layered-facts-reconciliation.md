@@ -52,6 +52,9 @@ through the API/provider, however, are validated before writing and rejected wit
 ## Deletion and retention
 - Deleting a provider resource removes only that source's facet. When no live facet remains the entity is tombstoned
   (`entities.tombstoned_at`). Tombstoned entities are hidden by default, revivable within 30 days, then compacted.
+- Overlays — annotations, overrides and label rules (0.7.0) — change entities other sources describe; alone they never
+  keep one alive. An entity whose live facets are all overlays is tombstoned; the overlay facets stay (dormant) and
+  apply again when a source describes the entity again (docs/LABEL_RULES.md).
 - Relations: `relations(id, type, from, to, project)` with per-source `relation_assertions` (layer, inferred flag,
   evidence JSON, confidence 0–1, first/last seen, expires_at, revision, tombstone). A relation is live while any
   non-tombstoned, non-expired assertion exists.

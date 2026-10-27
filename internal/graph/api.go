@@ -51,7 +51,7 @@ type impactOutput struct {
 
 type overviewInput struct {
 	Project []string `query:"project,explode"`
-	GroupBy string   `query:"group_by" maxLength:"128" default:"kind" doc:"project, kind, environment, owner, or a kind with a map grouping (location, region, label, group, custom kinds)."`
+	GroupBy string   `query:"group_by" maxLength:"128" default:"kind" doc:"project, kind, environment, owner, label:<key> (one group per value of a label), or a kind with a map grouping (location, region, label, group, custom kinds)."`
 	Sources bool     `query:"sources" doc:"Also list the asserting sources of each bundled edge (one more aggregate over the catalog; off by default)."`
 }
 

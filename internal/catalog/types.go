@@ -35,6 +35,9 @@ var (
 // ValidName reports whether s is a valid entity or source name.
 func ValidName(s string) bool { return nameRE.MatchString(s) }
 
+// ValidLabelKey reports whether s is a valid label key (`prefix/name`, Kubernetes-style; no quotes or spaces).
+func ValidLabelKey(s string) bool { return labelKeyRE.MatchString(s) }
+
 // ValidKindName reports whether s is a valid kind name.
 func ValidKindName(s string) bool { return kindNameRE.MatchString(s) }
 

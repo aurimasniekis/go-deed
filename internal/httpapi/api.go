@@ -116,6 +116,7 @@ func New(mux *http.ServeMux, d *Deps) huma.API {
 	registerUsers(api, d)
 	registerServiceAccounts(api, d)
 	registerProjects(api, d)
+	registerLabelRules(api, d)
 	registerKinds(api, d)
 	registerEntities(api, d)
 	registerRelations(api, d)

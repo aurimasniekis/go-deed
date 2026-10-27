@@ -375,6 +375,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/entities/label-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Label keys in use, with entity and value counts (map grouping, show / hide) */
+        get: operations["list-label-keys"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/entities/lookup": {
         parameters: {
             query?: never;
@@ -1139,6 +1156,46 @@ export interface paths {
         head?: never;
         /** Update a project (project admin) */
         patch: operations["update-project"];
+        trace?: never;
+    };
+    "/projects/{project}/label-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Label rules of a project */
+        get: operations["list-label-rules"];
+        put?: never;
+        /**
+         * Create a label rule (project admin)
+         * @description Adds labels to the project's entities its match selects, below every source: a source's own label for the same key wins, and a rule never keeps an entity alive. The project's entities are re-merged before the response.
+         */
+        post: operations["create-label-rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project}/label-rules/{rule}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a label rule */
+        get: operations["get-label-rule"];
+        put?: never;
+        post?: never;
+        /** Delete a label rule (project admin) */
+        delete: operations["delete-label-rule"];
+        options?: never;
+        head?: never;
+        /** Update a label rule (project admin) */
+        patch: operations["update-label-rule"];
         trace?: never;
     };
     "/projects/{project}/members": {
@@ -3102,6 +3159,49 @@ export interface components {
             updated_at: string;
             versions: components["schemas"]["KindVersion"][];
         };
+        LabelKey: {
+            /** Format: int64 */
+            entities: number;
+            key: string;
+            /** Format: int64 */
+            values: number;
+        };
+        LabelRule: {
+            /** Format: date-time */
+            created_at: string;
+            description: string;
+            id: string;
+            labels: {
+                [key: string]: string;
+            };
+            match: components["schemas"]["LabelRuleMatch"];
+            name: string;
+            project_id: string;
+            /** Format: int64 */
+            resource_version: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        LabelRuleInput: {
+            description?: string;
+            /** @description Labels to add (at most 32); a source's own label for the same key wins. */
+            labels?: {
+                [key: string]: string;
+            };
+            match?: components["schemas"]["LabelRuleMatch"];
+            /** @description Unique in the project (lowercase slug). */
+            name?: string;
+        };
+        LabelRuleMatch: {
+            /** @description Entity kinds (globs allowed); any may match. */
+            kinds?: string[];
+            /** @description Labels the entity's sources set, by key: value or glob; all must match. */
+            labels?: {
+                [key: string]: string;
+            };
+            /** @description Names of sources that describe the entity (globs allowed); any may match. */
+            sources?: string[];
+        };
         Link: {
             title?: string;
             type: string;
@@ -4854,6 +4954,38 @@ export interface operations {
             };
         };
     };
+    "list-label-keys": {
+        parameters: {
+            query?: {
+                /** @description Project ID or name (default: every project you can read). */
+                project?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelKey"][];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     "lookup-entity": {
         parameters: {
             query: {
@@ -5538,7 +5670,7 @@ export interface operations {
         parameters: {
             query?: {
                 project?: string[];
-                /** @description project, kind, environment, owner, or a kind with a map grouping (location, region, label, group, custom kinds). */
+                /** @description project, kind, environment, owner, label:<key> (one group per value of a label), or a kind with a map grouping (location, region, label, group, custom kinds). */
                 group_by?: string;
                 /** @description Also list the asserting sources of each bundled edge (one more aggregate over the catalog; off by default). */
                 sources?: boolean;
@@ -6703,6 +6835,184 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "list-label-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project ID or name. */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelRule"][];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "create-label-rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project ID or name. */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelRuleInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelRule"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "get-label-rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project ID or name. */
+                project: string;
+                /** @description Label rule ID or name. */
+                rule: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelRule"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "delete-label-rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project ID or name. */
+                project: string;
+                /** @description Label rule ID or name. */
+                rule: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "update-label-rule": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag (resource version) the change is based on; mismatches fail with 412. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Project ID or name. */
+                project: string;
+                /** @description Label rule ID or name. */
+                rule: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelRuleInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelRule"];
                 };
             };
             /** @description Error */

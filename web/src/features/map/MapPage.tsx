@@ -57,7 +57,7 @@ import {
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { isInstallationAdmin, useMe } from '@/api/auth'
 import { api, unwrap, type View } from '@/api/client'
-import { keys, useKinds, useProjects, useRelTypes, useSources } from '@/api/queries'
+import { keys, useKinds, useLabelKeys, useProjects, useRelTypes, useSources } from '@/api/queries'
 import { onLiveChanges } from '@/api/useLive'
 import { EmptyState, ErrorState } from '@/components/States'
 import { SavedViewsMenu } from '@/features/views/SavedViews'
@@ -74,7 +74,7 @@ import { maskModel } from './mask'
 import { layoutCache, runLayout, warmLayout } from './layout'
 import type { LayoutResult } from './layoutTypes'
 import { MapLegend } from './Legend'
-import { VisibilityPanel, visibilityItems } from './VisibilityPanel'
+import { labelItems, VisibilityPanel, visibilityItems } from './VisibilityPanel'
 import {
   ALL_DETAIL,
   DetailContext,
@@ -202,6 +202,11 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
   const relTypes = useRelTypes()
   const kinds = useKinds()
   const projects = useProjects()
+  const labelKeys = useLabelKeys()
+  const groupLabelKeys = useMemo(
+    () => (labelKeys.data ?? []).map((k) => k.key).filter((k) => !k.startsWith('terraform/')),
+    [labelKeys.data],
+  )
   const style = useSelector(mapStore, (s) => s.style)
   const selected = useSelector(mapStore, (s) => s.selected)
   const collapsed = useSelector(mapStore, (s) => s.collapsed)
@@ -283,6 +288,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
       stale: search.stale !== false,
       hideKind: decodeList(search.hideKind),
       hideType: decodeList(search.hideType),
+      hideLabel: decodeList(search.hideLabel),
     }),
     [search, data.sourceIds],
   )
@@ -593,7 +599,7 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
         data: {
           node: n,
           kindTitle: title,
-          kindIcon: k?.icon ?? 'tabler:cube',
+          kindIcon: n.cluster?.groupBy.startsWith('label:') ? 'tabler:tags' : (k?.icon ?? 'tabler:cube'),
           kindColor: kindAccent(k?.color, k?.group),
           compact: compactCards,
           iconSize: style.iconSize,
@@ -853,12 +859,35 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
     [data.model, filters.hideKind, filters.hideType, kindMap, typeTitle, typeColor, style.typeColors],
   )
   const setHidden = useCallback(
-    (h: { hideKind?: string[]; hideType?: string[] }) =>
+    (h: { hideKind?: string[]; hideType?: string[]; hideLabel?: string[] }) =>
       patch({
         ...(h.hideKind ? { hideKind: encodeList(h.hideKind) } : {}),
         ...(h.hideType ? { hideType: encodeList(h.hideType) } : {}),
+        ...(h.hideLabel ? { hideLabel: encodeList(h.hideLabel) } : {}),
       }),
     [patch],
+  )
+  // Label keys on the loaded map (and the overview's label grouping); `group` first when there is one.
+  const mapLabelKeys = useMemo(() => {
+    const ks = new Set<string>()
+    for (const n of data.model.nodes.values()) for (const k of Object.keys(n.labels ?? {})) ks.add(k)
+    if (search.group?.startsWith('label:')) ks.add(search.group.slice(6))
+    for (const kv of filters.hideLabel) ks.add(kv.slice(0, Math.max(0, kv.indexOf(':'))))
+    ks.delete('')
+    return [...ks]
+      .filter((k) => !k.startsWith('terraform/'))
+      .sort((a, b) => (a === 'group' ? -1 : b === 'group' ? 1 : a.localeCompare(b)))
+  }, [data.model, search.group, filters.hideLabel])
+  const [labelKeyChoice, setLabelKeyChoice] = useState<string | null>(null)
+  const labelKey =
+    labelKeyChoice && mapLabelKeys.includes(labelKeyChoice)
+      ? labelKeyChoice
+      : search.group?.startsWith('label:')
+        ? search.group.slice(6)
+        : (mapLabelKeys[0] ?? null)
+  const labelValues = useMemo(
+    () => (labelKey ? labelItems(data.model, labelKey, filters.hideLabel) : []),
+    [data.model, labelKey, filters.hideLabel],
   )
   const toggleType = useCallback(
     (t: string) =>
@@ -1232,6 +1261,8 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                   value: k,
                   label: `Group by ${(kindMap.get(k)?.title ?? humanize(k)).toLowerCase()}`,
                 })),
+                // Label keys (one group per value); Terraform's bookkeeping labels are not useful groups.
+                ...groupLabelKeys.map((k) => ({ value: `label:${k}`, label: `Group by label ${k}` })),
               ]}
               value={search.group ?? 'kind'}
               onChange={(v) => go({ group: v ?? 'kind' })}
@@ -1315,16 +1346,20 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
             }
             onApply={applyView}
           />
-          <Tooltip label="Show or hide kinds and relationship types (v)">
+          <Tooltip label="Show or hide kinds, label values and relationship types (v)">
             <Button
-              variant={visibilityOpen || filters.hideKind.length + filters.hideType.length > 0 ? 'light' : 'default'}
+              variant={
+                visibilityOpen || filters.hideKind.length + filters.hideType.length + filters.hideLabel.length > 0
+                  ? 'light'
+                  : 'default'
+              }
               leftSection={<IconEye size={14} />}
               aria-pressed={visibilityOpen}
               onClick={() => setPanel('visibilityOpen', !visibilityOpen)}
               data-testid="map-visibility-toggle"
             >
-              {filters.hideKind.length + filters.hideType.length > 0
-                ? `Hidden ${filters.hideKind.length + filters.hideType.length}`
+              {filters.hideKind.length + filters.hideType.length + filters.hideLabel.length > 0
+                ? `Hidden ${filters.hideKind.length + filters.hideType.length + filters.hideLabel.length}`
                 : 'Show / hide'}
             </Button>
           </Tooltip>
@@ -1571,6 +1606,11 @@ function MapInner({ search, setSearch }: { search: MapSearch; setSearch: (s: Map
                       <VisibilityPanel
                         kinds={visibility.kinds}
                         types={visibility.types}
+                        labelKeys={mapLabelKeys}
+                        labelKey={labelKey}
+                        onLabelKey={setLabelKeyChoice}
+                        labels={labelValues}
+                        hideLabel={filters.hideLabel}
                         onChange={setHidden}
                         onClose={() => setPanel('visibilityOpen', false)}
                       />

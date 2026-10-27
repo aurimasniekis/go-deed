@@ -156,6 +156,8 @@ export function inventoryQuery(s: InventorySearch, globalProjects: string[] = []
 export const MAP_GROUPS = ['project', 'kind', 'environment', 'owner'] as const
 /** A kind name (`location`, `example.com/rack_row`) as it may appear in a group or cluster parameter. */
 const KIND_NAME = /^[a-z0-9][a-z0-9._/-]{0,127}$/
+/** A label key (`prefix/name`), as Deed validates it. */
+export const LABEL_KEY = /^([a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?\/)?[a-zA-Z0-9]([a-zA-Z0-9._-]{0,61}[a-zA-Z0-9])?$/
 export const MAP_CLUSTERING = ['none', 'project', 'environment', 'kind', 'host'] as const
 export const MAP_LAYOUTS = ['layered', 'force', 'radial'] as const
 export const MAP_DIRECTIONS = ['RIGHT', 'DOWN', 'LEFT', 'UP'] as const
@@ -194,6 +196,8 @@ export interface MapSearch {
   /** Kinds and relationship types switched off (legend, visibility panel). */
   hideKind?: string
   hideType?: string
+  /** Label values switched off, as `key:value` (show / hide panel). */
+  hideLabel?: string
   /** Expanded cluster keys. */
   expand?: string
   /** Breadcrumb trail of focus IDs. */
@@ -210,7 +214,11 @@ export function validateMapSearch(s: Record<string, unknown>): MapSearch {
     depth: decodeInt(s.depth, 1, 6),
     dir,
     group:
-      decodeEnum(s.group, MAP_GROUPS) ?? (typeof s.group === 'string' && KIND_NAME.test(s.group) ? s.group : undefined),
+      decodeEnum(s.group, MAP_GROUPS) ??
+      (typeof s.group === 'string' &&
+      (KIND_NAME.test(s.group) || (s.group.startsWith('label:') && LABEL_KEY.test(s.group.slice(6))))
+        ? s.group
+        : undefined),
     cluster:
       decodeEnum(s.cluster, MAP_CLUSTERING) ??
       (typeof s.cluster === 'string' && s.cluster.startsWith('by:') && KIND_NAME.test(s.cluster.slice(3))
@@ -233,6 +241,7 @@ export function validateMapSearch(s: Record<string, unknown>): MapSearch {
     stale: decodeBool(s.stale),
     hideKind: encodeList(decodeList(s.hideKind).slice(0, 200)),
     hideType: encodeList(decodeList(s.hideType).slice(0, 200)),
+    hideLabel: encodeList(decodeList(s.hideLabel).slice(0, 200)),
     expand: encodeList(decodeList(s.expand).slice(0, 50)),
     trail: encodeList(decodeList(s.trail).slice(-12)),
     sel: decodeString(s.sel, 128),

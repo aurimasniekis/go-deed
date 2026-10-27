@@ -737,7 +737,7 @@ func (s *Service) recomputeTx(ctx context.Context, tx *store.Tx, entityID string
 	}
 	nowUS := tx.Now.UnixMicro()
 	var live []MergeFacet
-	declared := false
+	declared, described := false, false
 	for _, f := range facets {
 		if f.tombstoned || (f.expires.Valid && f.expires.Int64 <= nowUS) {
 			continue
@@ -746,9 +746,12 @@ func (s *Service) recomputeTx(ctx context.Context, tx *store.Tx, entityID string
 		if f.Layer == LayerDeclared {
 			declared = true
 		}
+		described = described || !f.Layer.Overlay()
 	}
 	ch := &EntityChange{EntityID: entityID, ProjectID: row.project, Kind: row.kind, Name: row.name, SourceID: o.sourceID, Valid: true}
-	if len(live) == 0 {
+	// Annotations and overrides change an entity other sources describe; alone they never keep it alive. Their facets
+	// stay, and apply again if a source describes the entity again.
+	if !described {
 		if row.tombstoned.Valid {
 			return nil, nil
 		}
@@ -767,7 +770,10 @@ func (s *Service) recomputeTx(ctx context.Context, tx *store.Tx, entityID string
 		ch.Action, ch.Tombstoned = "tombstoned", true
 		return ch, s.emitEntityChange(ctx, tx, ch, o)
 	}
-	m := Merge(live)
+	m, err := s.withRules(ctx, tx, row.project, row.kind, live, Merge(live))
+	if err != nil {
+		return nil, err
+	}
 	k := s.reg.kind(row.kind)
 	var fe []apperr.FieldError
 	schemaVersion := ""

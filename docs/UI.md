@@ -217,12 +217,16 @@ the ADR-011 budget. In the overview a group of a single entity is shown as that 
   topology changes), and values load at every zoom level so zooming never changes sizes. They are off for compact
   cards, clusters and redacted stubs; dimmed cards keep the space but hide the values; the options drawer switches
   them off.
-- **Show / hide** (toolbar, or `v`): a panel listing the kinds and relationship types on the loaded map with their
-  counts. Unticking hides them (the focus entity always stays; hiding a kind also hides its overview group), *only*
-  keeps just that one, *Show all* brings everything back, and hidden entries stay listed, struck through. With colour by
-  relationship type, the legend's entries do the same: click one to hide its relationships, click the struck-through
-  entry to show them again. Hidden kinds and types are filters (`hideKind`, `hideType` in the URL), so they are saved
-  with views; the toolbar button counts them.
+- **Show / hide** (toolbar, or `v`): a panel listing the kinds, the values of a label key (*Labels*: pick the key,
+  `group` first) and the relationship types on the loaded map with their counts. Unticking hides them (the focus
+  entity always stays; hiding a kind or label value also hides its overview group; entities without the key are never
+  hidden by it), *only* keeps just that one, *Show all* brings everything back, and hidden entries stay listed, struck
+  through. With colour by relationship type, the legend's entries do the same: click one to hide its relationships,
+  click the struck-through entry to show them again. Hidden kinds, label values and types are filters (`hideKind`,
+  `hideLabel=key:value`, `hideType` in the URL), so they are saved with views; the toolbar button counts them.
+- **Group by label**: the overview's *Group by* lists the label keys in use (`/entities/label-keys`, Terraform's
+  `terraform/*` keys left out): one group per value, `(none)` for entities without the key. Label rules add such
+  labels to entities other sources own ([LABEL_RULES.md](LABEL_RULES.md)).
 - **Copy image** (toolbar, or *Copy map as image (1:1)* in the canvas context menu) puts the whole current drawing on
   the clipboard as a PNG at zoom 1 — every node as a card at its real size, not the zoomed-out view that fits the
   screen — with the current filters, styles, selection dimming and mask mode. Controls, minimap, legend and dot grid

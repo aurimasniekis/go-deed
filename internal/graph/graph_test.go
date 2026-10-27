@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aurimasniekis/go-deed/internal/audit"
 	"github.com/aurimasniekis/go-deed/internal/catalog"
 	"github.com/aurimasniekis/go-deed/internal/clock"
 	"github.com/aurimasniekis/go-deed/internal/graph"
@@ -154,5 +155,45 @@ func TestOverview(t *testing.T) {
 	}
 	if _, err := e.Expand(context.Background(), graph.Scope{}, "color|red", 10); err == nil {
 		t.Fatal("unknown group accepted")
+	}
+}
+
+// Overview by a label key: one group per value (entities without the key in ""), bundles between groups, expansion.
+func TestOverviewByLabel(t *testing.T) {
+	env, e, _ := fixture(t)
+	ctx := context.Background()
+	pr, err := env.Catalog.Project(ctx, "home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectID := pr.ID
+	if _, err := env.Catalog.CreateLabelRule(ctx, audit.System, projectID, catalog.LabelRuleInput{Name: "dns",
+		Match: &catalog.LabelRuleMatch{Kinds: []string{"dns_*"}}, Labels: map[string]string{"group": "dns"}}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.Overview(ctx, graph.Scope{}, nil, "label:group", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var key string
+	for _, n := range res.Nodes {
+		if n.Cluster != nil && n.Cluster.Value == "dns" {
+			key = n.Cluster.Key
+		}
+	}
+	if key != "label:group|dns" {
+		t.Fatalf("label groups: %+v", res.Nodes)
+	}
+	ex, err := e.Expand(ctx, graph.Scope{}, key, 100)
+	if err != nil || len(ex.Nodes) == 0 {
+		t.Fatalf("expand: %+v %v", ex, err)
+	}
+	for _, n := range ex.Nodes {
+		if !strings.HasPrefix(n.Kind, "dns_") {
+			t.Errorf("non-dns member %s %s", n.Kind, n.Name)
+		}
+	}
+	if _, err := e.Overview(ctx, graph.Scope{}, nil, `label:bad"key`, false); err == nil {
+		t.Fatal("invalid label key accepted")
 	}
 }
