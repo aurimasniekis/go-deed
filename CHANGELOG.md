@@ -5,6 +5,12 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-27
+
+No schema migration. Re-sync `terraform_state`, HallPass, Porch and `pulse_admin` sources after upgrading: entities
+that collided on one name come apart, renamed rulesets and certificates keep their old names as aliases, and conflicts
+that were only icons or Terraform addresses resolve on the next recompute.
+
 ### Fixed
 - Terraform import: certificates of different states that all named their resource `origin` merged into one
   `certificate/origin-origin`. Cloudflare origin certificates are now named after their first host
@@ -157,7 +163,8 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/aurimasniekis/go-deed/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/aurimasniekis/go-deed/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/aurimasniekis/go-deed/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/aurimasniekis/go-deed/compare/v0.3.0...v0.3.1
