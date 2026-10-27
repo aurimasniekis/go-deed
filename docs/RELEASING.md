@@ -32,6 +32,12 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.5.0** (2026-10-27, `3a4921e`, tag checked against the release commit): release run 40517045515 succeeded.
+  Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), a v0.4.0
+  database served by the release binary (no migration; entities, bindings and the audit chain intact), and infra's
+  certificate collision replayed: three pushed states whose origin certificates v0.4.0 merged into
+  `certificate/origin-origin` (with a non-RFC 3339 `not_after`) re-pushed to the release binary gave three
+  certificates named after their hosts with RFC 3339 dates, the old name kept as an alias.
 - **v0.4.0** (2026-10-27, `e8f12b4`, tag checked against the release commit): release run 40505500552 succeeded.
   Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and an upgrade
   of a v0.3.2 database (a Terraform-imported project, a Prometheus integration and a binding) by the release binary:
