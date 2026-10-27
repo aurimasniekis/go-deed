@@ -32,6 +32,11 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.7.0** (2026-10-27, `4275583`, tag checked against the release commit): release run 40563603655 succeeded.
+  Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and an upgrade
+  of a v0.6.0 database by the release binary: snapshot, migration 10 → 11, the one-time re-merge (13 entities, rules
+  version 3) tombstoning an entity that only a UI annotation kept alive under 0.6.0, a new label rule labelling the
+  project's DNS zones and the overview grouping by it, audit chain verified.
 - **v0.6.0** (2026-10-27, `cacf828`, tag checked against the release commit): release run 40529323045 succeeded.
   Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and a v0.5.1
   database served by the release binary (no migration, no re-merge: rules version already current; entities, the
