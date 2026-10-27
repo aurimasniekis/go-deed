@@ -168,5 +168,16 @@ func (Grafana) Query(ctx context.Context, c Conn, q Query) (*TelemetryData, erro
 		}
 		d.Links = append(d.Links, TelemetryLink{Title: title, URL: base + h.URL, Kind: "dashboard"})
 	}
+	if len(d.Links) == 0 {
+		// Nothing matched: still give the user somewhere to go, Grafana's own search for the same terms.
+		search := url.Values{"query": {arg}}
+		title := "Search Grafana for " + arg
+		if tag, ok := strings.CutPrefix(arg, "tag:"); ok {
+			search, title = url.Values{"tag": {tag}}, "Grafana dashboards tagged "+tag
+		}
+		d.Links = []TelemetryLink{{Title: title, URL: base + "/dashboards?" + search.Encode(), Kind: "search"}}
+		d.Inferred = true
+		d.Note = "no dashboard matched; link to Grafana's search"
+	}
 	return d, nil
 }

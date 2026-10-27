@@ -78,6 +78,8 @@ type Binding struct {
 	FreshnessSeconds int               `json:"freshness_seconds"`
 	Role             string            `json:"role"`
 	RelationshipType string            `json:"relationship_type,omitempty"`
+	Guard            string            `json:"guard,omitempty" doc:"Query template; the binding applies to an entity only when it returns data. Returned to admins only."`
+	WhenEmpty        *float64          `json:"when_empty,omitempty" doc:"Scalar value used when the query returns nothing (after the guard passed)."`
 	CreatedAt        time.Time         `json:"created_at"`
 	UpdatedAt        time.Time         `json:"updated_at"`
 	ResourceVersion  int64             `json:"resource_version"`
@@ -97,6 +99,13 @@ type BindingInput struct {
 	FreshnessSeconds int                `json:"freshness_seconds,omitempty" minimum:"0" maximum:"86400"`
 	Role             string             `json:"role,omitempty" enum:"chart,health,edge_rate,link,"`
 	RelationshipType *string            `json:"relationship_type,omitempty" maxLength:"64"`
+	Guard            *string            `json:"guard,omitempty" maxLength:"8192" doc:"Applicability query; empty string removes it."`
+	WhenEmpty        *WhenEmptyInput    `json:"when_empty,omitempty" doc:"Omit to keep, {} to remove, {\"value\": 0} to set."`
+}
+
+// WhenEmptyInput sets (Value) or removes (no Value) a binding's value for an empty result.
+type WhenEmptyInput struct {
+	Value *float64 `json:"value,omitempty"`
 }
 
 // Store persists integrations and bindings.
@@ -335,18 +344,22 @@ func (s *Store) RecordTest(ctx context.Context, id string, ok bool, msg string) 
 }
 
 const bindingCols = `id, name, title, integration_id, kinds_json, query, params_json, shape, unit, thresholds_json, freshness_seconds, role,
-	relationship_type, created_at, updated_at, version`
+	relationship_type, created_at, updated_at, version, guard, when_empty`
 
 func scanBinding(r interface{ Scan(...any) error }) (*Binding, error) {
 	var b Binding
 	var kinds, params, th string
 	var c, u int64
+	var whenEmpty sql.NullFloat64
 	if err := r.Scan(&b.ID, &b.Name, &b.Title, &b.IntegrationID, &kinds, &b.Query, &params, &b.Shape, &b.Unit, &th, &b.FreshnessSeconds, &b.Role,
-		&b.RelationshipType, &c, &u, &b.ResourceVersion); err != nil {
+		&b.RelationshipType, &c, &u, &b.ResourceVersion, &b.Guard, &whenEmpty); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrBindingNotFound
 		}
 		return nil, err
+	}
+	if whenEmpty.Valid {
+		b.WhenEmpty = &whenEmpty.Float64
 	}
 	_ = json.Unmarshal([]byte(kinds), &b.Kinds)
 	_ = json.Unmarshal([]byte(params), &b.Params)
@@ -498,6 +511,14 @@ func (s *Store) validateBinding(ctx context.Context, b *Binding) error {
 			v.Add("query", "unknown placeholder {{%s}}", ph)
 		}
 	}
+	for _, ph := range placeholders(b.Guard) {
+		if !seen[ph] && !builtins[ph] {
+			v.Add("guard", "unknown placeholder {{%s}}", ph)
+		}
+	}
+	if b.WhenEmpty != nil && b.Shape != ShapeScalar {
+		v.Add("when_empty", "only scalar bindings have a value for an empty result")
+	}
 	if err := v.Err(); err != nil {
 		return err
 	}
@@ -506,7 +527,30 @@ func (s *Store) validateBinding(ctx context.Context, b *Binding) error {
 	if err := a.ValidateQuery(sample, b.Shape); err != nil {
 		return apperr.Wrap(apperr.CodeInvalid, err, "query: %s", err.Error())
 	}
+	if b.Guard != "" {
+		sample, _ := render(b.Guard, func(name string) (string, bool) { return a.Escape(sampleValue(b.Params, name)), true })
+		if err := a.ValidateQuery(sample, guardShape(a)); err != nil {
+			return apperr.Wrap(apperr.CodeInvalid, err, "guard: %s", err.Error())
+		}
+	}
 	return nil
+}
+
+// guardShape is the shape a guard query runs with: one that accepts any number of series.
+func guardShape(a Adapter) string {
+	for _, s := range []string{ShapeTable, ShapeTimeseries} {
+		if slices.Contains(a.Info().Shapes, s) {
+			return s
+		}
+	}
+	return ShapeScalar
+}
+
+func nullFloat(f *float64) sql.NullFloat64 {
+	if f == nil {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: *f, Valid: true}
 }
 
 func (b *Binding) apply(in BindingInput) {
@@ -546,6 +590,12 @@ func (b *Binding) apply(in BindingInput) {
 	if in.RelationshipType != nil {
 		b.RelationshipType = *in.RelationshipType
 	}
+	if in.Guard != nil {
+		b.Guard = *in.Guard
+	}
+	if in.WhenEmpty != nil {
+		b.WhenEmpty = in.WhenEmpty.Value
+	}
 }
 
 // CreateBinding stores a new binding.
@@ -558,9 +608,9 @@ func (s *Store) CreateBinding(ctx context.Context, actor audit.Actor, in Binding
 	b.ID = ids.New(ids.Binding)
 	err := s.Store.W().TxNamed(ctx, "telemetry.binding_create", func(tx *store.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO bindings (id, name, title, integration_id, kinds_json, query, params_json, shape, unit, thresholds_json,
-			freshness_seconds, role, relationship_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			freshness_seconds, role, relationship_type, created_at, updated_at, guard, when_empty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			b.ID, b.Name, b.Title, b.IntegrationID, js(b.Kinds), b.Query, js(b.Params), b.Shape, b.Unit, js(b.Thresholds), b.FreshnessSeconds, b.Role,
-			b.RelationshipType, tx.NowMicros(), tx.NowMicros())
+			b.RelationshipType, tx.NowMicros(), tx.NowMicros(), b.Guard, nullFloat(b.WhenEmpty))
 		if store.IsConstraint(err) {
 			return apperr.New(apperr.CodeAlreadyExists, "a binding named %q already exists", b.Name)
 		}
@@ -593,9 +643,10 @@ func (s *Store) UpdateBinding(ctx context.Context, actor audit.Actor, idOrName s
 	}
 	err = s.Store.W().TxNamed(ctx, "telemetry.binding_update", func(tx *store.Tx) error {
 		n, err := tx.ExecN(ctx, `UPDATE bindings SET name = ?, title = ?, integration_id = ?, kinds_json = ?, query = ?, params_json = ?, shape = ?, unit = ?,
-			thresholds_json = ?, freshness_seconds = ?, role = ?, relationship_type = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?`,
+			thresholds_json = ?, freshness_seconds = ?, role = ?, relationship_type = ?, guard = ?, when_empty = ?, updated_at = ?, version = version + 1
+			WHERE id = ? AND version = ?`,
 			b.Name, b.Title, b.IntegrationID, js(b.Kinds), b.Query, js(b.Params), b.Shape, b.Unit, js(b.Thresholds), b.FreshnessSeconds, b.Role,
-			b.RelationshipType, tx.NowMicros(), b.ID, cur)
+			b.RelationshipType, b.Guard, nullFloat(b.WhenEmpty), tx.NowMicros(), b.ID, cur)
 		if store.IsConstraint(err) {
 			return apperr.New(apperr.CodeAlreadyExists, "a binding named %q already exists", b.Name)
 		}

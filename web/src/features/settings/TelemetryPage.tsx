@@ -368,6 +368,8 @@ function BindingModal({
           relationship_type: b.relationship_type ?? '',
           thresholds: b.thresholds,
           freshness_seconds: b.freshness_seconds,
+          guard: b.guard ?? '',
+          when_empty: b.when_empty != null ? { value: b.when_empty } : {},
         }
       : {
           name: '',
@@ -380,6 +382,8 @@ function BindingModal({
           unit: '',
           role: 'chart',
           freshness_seconds: 60,
+          guard: '',
+          when_empty: {},
         },
   )
   const integ = integrations.find((i) => i.id === v.integration || i.name === v.integration)
@@ -485,6 +489,27 @@ function BindingModal({
           styles={{ input: { fontFamily: 'var(--deed-mono)', fontSize: 12 } }}
           spellCheck={false}
         />
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          <Textarea
+            label="Guard query (optional)"
+            description='The binding applies to an entity only when this query returns data, e.g. up{instance="{{instance}}"}. Without data the entity shows “not applicable”.'
+            value={v.guard ?? ''}
+            onChange={(e) => setV({ ...v, guard: e.currentTarget.value })}
+            autosize
+            minRows={1}
+            styles={{ input: { fontFamily: 'var(--deed-mono)', fontSize: 12 } }}
+            spellCheck={false}
+            data-testid="binding-guard"
+          />
+          <NumberInput
+            label="Value when empty (optional)"
+            description="Scalar bindings: use this when the query returns nothing (after the guard passed), e.g. 0 for an error rate. Leave empty for “no data”."
+            value={v.when_empty?.value ?? ''}
+            onChange={(x) => setV({ ...v, when_empty: typeof x === 'number' ? { value: x } : {} })}
+            disabled={(v.shape ?? 'scalar') !== 'scalar'}
+            data-testid="binding-when-empty"
+          />
+        </SimpleGrid>
         <Stack gap={4}>
           <Group justify="space-between">
             <div>

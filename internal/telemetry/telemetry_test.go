@@ -330,6 +330,10 @@ func TestLokiNATSOpenSearchGrafana(t *testing.T) {
 			osBody.Store(string(b))
 			_, _ = io.WriteString(w, `{"count":5,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0}}`)
 		case "/api/search":
+			if req.URL.Query().Get("query") == "nothing" {
+				_, _ = io.WriteString(w, `[]`)
+				return
+			}
 			_, _ = io.WriteString(w, `[{"uid":"abc","title":"Node","url":"/d/abc/node","folderTitle":"Infra"},{"uid":"x","title":"Evil","url":"https://evil.example.net/"}]`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -375,6 +379,12 @@ func TestLokiNATSOpenSearchGrafana(t *testing.T) {
 	res := run(BindingInput{Name: "dash", Integration: "grafana", Query: `search node`, Shape: ShapeLink})
 	if res.Data == nil || len(res.Data.Links) != 1 || res.Data.Links[0].URL != srv.URL+"/d/abc/node" {
 		t.Fatalf("grafana search (foreign URL dropped): %+v", res.Data)
+	}
+	// No dashboard matches: a link to Grafana's own search instead of "no data".
+	res = run(BindingInput{Name: "none", Integration: "grafana", Query: `search nothing`, Shape: ShapeLink})
+	if res.Status != StatusInferred || res.Data == nil || len(res.Data.Links) != 1 || res.Data.Links[0].URL != srv.URL+"/dashboards?query=nothing" ||
+		res.Data.Links[0].Kind != "search" {
+		t.Fatalf("grafana search fallback: %+v %+v", res, res.Data)
 	}
 	res = run(BindingInput{Name: "board", Integration: "grafana", Query: `dashboard abc?var-host={{h}}`, Shape: ShapeLink,
 		Params: []BindingParam{{Name: "h", Type: "string", From: "/spec/url"}}})
@@ -563,5 +573,59 @@ func TestOpenSearchRealAnswers(t *testing.T) {
 		if res := run("none-"+shape, `nomatch-* {"match_all": {}}`, shape); res.Status != StatusUnavailable || res.Error != "no data" {
 			t.Fatalf("no matching index (%s): %+v", shape, res)
 		}
+	}
+}
+
+// A guard decides whether a binding applies to an entity; when_empty gives an empty result a value. Together they
+// replace `or vector(0)`, which made every entity of the kind look measured and healthy.
+func TestBindingGuardAndWhenEmpty(t *testing.T) {
+	r := newRig(t)
+	prom := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		q := req.FormValue("query")
+		if strings.HasPrefix(q, "up{") && strings.Contains(q, `instance="web-1"`) {
+			_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"web-1"},"value":[1790000000,"1"]}]}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+	}))
+	defer prom.Close()
+	r.integration(t, "prom", "prometheus", local(prom.URL), nil)
+	ctx := context.Background()
+	zero, one := 0.0, 1.0
+	guard := `up{instance="{{h}}"}`
+	params := []BindingParam{{Name: "h", Type: "label", From: "/spec/hostname"}}
+	b := r.binding(t, BindingInput{Name: "errors", Integration: "prom", Query: `sum(rate(http_errors_total{instance="{{h}}"}[{{window}}]))`,
+		Params: params, Role: "health", Thresholds: &BindingThresholds{Warning: &one}, Guard: &guard, WhenEmpty: &WhenEmptyInput{Value: &zero}})
+	if b.Guard != guard || b.WhenEmpty == nil || *b.WhenEmpty != 0 {
+		t.Fatalf("stored: %+v", b)
+	}
+	watched := r.entity(t, "home", "server", "web-1", map[string]any{"hostname": "web-1"})
+	unwatched := r.entity(t, "home", "server", "web-2", map[string]any{"hostname": "web-2"})
+	res := r.svc.Run(ctx, b, Subject{Entity: watched}, "1h")
+	if res.Status != StatusMeasured || res.Data == nil || res.Data.Value == nil || *res.Data.Value != 0 || res.Health == nil || res.Health.State != "ok" {
+		t.Fatalf("guarded, empty result: %+v %+v", res, res.Data)
+	}
+	res = r.svc.Run(ctx, b, Subject{Entity: unwatched}, "1h")
+	if res.Status != StatusUnavailable || !strings.Contains(res.Error, "not applicable") || res.Health != nil {
+		t.Fatalf("unguarded entity: %+v", res)
+	}
+	// Validation: when_empty is for scalars; the guard's placeholders must be declared.
+	bad := `up{instance="{{nope}}"}`
+	if _, err := r.st.CreateBinding(ctx, audit.System, BindingInput{Name: "x", Integration: "prom", Query: `up`, Guard: &bad}); err == nil {
+		t.Fatal("unknown guard placeholder accepted")
+	}
+	if _, err := r.st.CreateBinding(ctx, audit.System, BindingInput{Name: "y", Integration: "prom", Query: `up`, Shape: ShapeTimeseries,
+		WhenEmpty: &WhenEmptyInput{Value: &zero}}); err == nil {
+		t.Fatal("when_empty accepted on a timeseries binding")
+	}
+	// Removing both: {} and "".
+	empty := ""
+	b2, err := r.st.UpdateBinding(ctx, audit.System, "errors", 0, BindingInput{Guard: &empty, WhenEmpty: &WhenEmptyInput{}})
+	if err != nil || b2.Guard != "" || b2.WhenEmpty != nil {
+		t.Fatalf("clear: %+v %v", b2, err)
+	}
+	if res := r.svc.Run(ctx, b2, Subject{Entity: unwatched}, "1h"); res.Error != "no data" {
+		t.Fatalf("without guard and when_empty: %+v", res)
 	}
 }

@@ -15,7 +15,7 @@ credentials (never returned by the API, logged or audited). Owners and admins ma
 | `loki` | scalar, timeseries, table | LogQL **metric** queries only — log lines are never fetched | bearer token or basic auth |
 | `natsmon` | scalar, table | `[rate ]<endpoint>[?query] <path>` against the NATS monitoring port | none (keep it private) |
 | `opensearch` | scalar, timeseries | `<index-pattern> <query DSL>`; counts and date histograms only, scripts refused | basic, API key or bearer |
-| `grafana` | link | `search <terms>`, `search tag:<tag>`, `dashboard <uid>?var-x=…` | service-account token (Viewer) |
+| `grafana` | link | `search <terms>`, `search tag:<tag>`, `dashboard <uid>?var-x=…`; a search that matches nothing returns a link to Grafana's own search for the same terms (inferred) | service-account token (Viewer) |
 | `pulse` | scalar, timeseries, table | `rate|messages|bytes publisher=… subject=… type=…` over Deed's own tail rollups | none (built-in) |
 
 Every adapter goes through the SSRF-safe client: only the configured origin is reachable, addresses are checked at
@@ -59,6 +59,14 @@ shape, a unit and typed parameters filled from the entity:
 - Built-in placeholders: `{{window}}` (the requested window as a Prometheus duration) and `{{step}}`.
 - Roles: `chart` (default), `health` (scalar + `thresholds` → ok/warning/critical, kept separate from structural
   health), `link`, and `edge_rate` (scalar rate for a `relationship_type`, used by traffic overlays).
+- `guard` (optional): a query with the same placeholders; the binding applies to an entity only when it returns data.
+  Otherwise the result is "not applicable" (no value, no health). Use it for "this host has node_exporter":
+  `up{job="node",instance="{{instance}}"}`. The guard runs with a multi-series shape (table where the adapter has it)
+  and is cached like the query.
+- `when_empty` (optional, scalar bindings): the value of an empty result after the guard passed, e.g. `0` for an
+  error rate whose counter has no series yet. Together they replace `… or vector(0)`, which made every entity of the
+  kind look measured (and healthy) even when nothing about it was scraped. On update, omit to keep, `{}` to remove,
+  `{"value": 0}` to set; an empty `guard` string removes the guard.
 - Bindings are validated on save: unknown placeholders, unbalanced queries, log (non-metric) LogQL, OpenSearch
   scripts and unsupported shapes are refused.
 

@@ -478,6 +478,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "guard": {
+            "description": "Query template; the binding applies to an entity only when it returns data. Returned to admins only.",
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -529,6 +533,11 @@
           "updated_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "when_empty": {
+            "description": "Scalar value used when the query returns nothing (after the guard passed).",
+            "format": "double",
+            "type": "number"
           }
         },
         "required": [
@@ -557,6 +566,11 @@
             "maximum": 86400,
             "minimum": 0,
             "type": "integer"
+          },
+          "guard": {
+            "description": "Applicability query; empty string removes it.",
+            "maxLength": 8192,
+            "type": "string"
           },
           "integration": {
             "description": "Integration ID or name.",
@@ -619,6 +633,10 @@
           "unit": {
             "maxLength": 32,
             "type": "string"
+          },
+          "when_empty": {
+            "$ref": "#/components/schemas/WhenEmptyInput",
+            "description": "Omit to keep, {} to remove, {\"value\": 0} to set."
           }
         },
         "type": "object"
@@ -6170,6 +6188,16 @@
           "resource_version",
           "editable"
         ],
+        "type": "object"
+      },
+      "WhenEmptyInput": {
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "format": "double",
+            "type": "number"
+          }
+        },
         "type": "object"
       }
     },

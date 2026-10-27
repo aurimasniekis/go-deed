@@ -5,6 +5,15 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Added
+- Telemetry bindings: `guard` (the binding applies to an entity only when the guard query returns data; otherwise
+  "not applicable") and `when_empty` (the value of an empty scalar result), replacing `or vector(0)` tricks that made
+  every entity of a kind look measured and healthy. Editable in *Settings → Telemetry*. Schema migration 10.
+
+### Changed
+- Grafana link bindings whose search matches no dashboard return a link to Grafana's own search for the same terms
+  (inferred) instead of "no data".
+
 ## [0.3.2] - 2026-10-27
 
 No schema migration. Re-sync terraform_state sources to derive the zones that have no records.

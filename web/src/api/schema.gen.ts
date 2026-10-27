@@ -2116,6 +2116,8 @@ export interface components {
             created_at: string;
             /** Format: int64 */
             freshness_seconds: number;
+            /** @description Query template; the binding applies to an entity only when it returns data. Returned to admins only. */
+            guard?: string;
             id: string;
             integration_id: string;
             /** @description Entity kinds the binding applies to (empty = every kind). */
@@ -2134,10 +2136,17 @@ export interface components {
             unit: string;
             /** Format: date-time */
             updated_at: string;
+            /**
+             * Format: double
+             * @description Scalar value used when the query returns nothing (after the guard passed).
+             */
+            when_empty?: number;
         };
         BindingInput: {
             /** Format: int64 */
             freshness_seconds?: number;
+            /** @description Applicability query; empty string removes it. */
+            guard?: string;
             /** @description Integration ID or name. */
             integration?: string;
             kinds?: string[];
@@ -2152,6 +2161,8 @@ export interface components {
             thresholds?: components["schemas"]["BindingThresholds"];
             title?: string;
             unit?: string;
+            /** @description Omit to keep, {} to remove, {"value": 0} to set. */
+            when_empty?: components["schemas"]["WhenEmptyInput"];
         };
         BindingParam: {
             default?: string;
@@ -3868,6 +3879,10 @@ export interface components {
             state: unknown;
             /** Format: date-time */
             updated_at: string;
+        };
+        WhenEmptyInput: {
+            /** Format: double */
+            value?: number;
         };
     };
     responses: never;

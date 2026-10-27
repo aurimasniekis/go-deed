@@ -202,6 +202,21 @@ func (s *Service) Run(ctx context.Context, b *Binding, subj Subject, window stri
 		res.Error = "adapter not available in this build"
 		return res
 	}
+	if b.Guard != "" {
+		// The guard decides whether the binding applies to this entity at all (a host without node_exporter): no data
+		// means "not applicable", not 0 or "no data".
+		g := *b
+		g.ID, g.Query, g.Guard, g.WhenEmpty, g.Role, g.Shape = b.ID+"#guard", b.Guard, "", nil, "chart", guardShape(a)
+		gr := s.Run(ctx, &g, subj, window)
+		switch {
+		case gr.Status == StatusUnavailable && gr.Error == "no data":
+			res.Error = "not applicable: the guard query found no data"
+			return res
+		case gr.Status == StatusUnavailable:
+			res.Error = "guard: " + gr.Error
+			return res
+		}
+	}
 	step := max(w/60, 15*time.Second).Truncate(time.Second)
 	docs := map[string]any{"": docOf(subj.Entity), "from": docOf(subj.From), "to": docOf(subj.To)}
 	text, err := render(b.Query, func(name string) (string, bool) {
@@ -306,6 +321,12 @@ func (s *Service) fill(res *TelemetryResult, b *Binding, d *TelemetryData, at ti
 	res.Status = StatusMeasured
 	if d.Inferred {
 		res.Status = StatusInferred
+	}
+	if d.empty() && b.WhenEmpty != nil {
+		// The binding defines the value of an empty result (an error counter with no series means 0).
+		v := *b.WhenEmpty
+		d = &TelemetryData{Value: &v, Note: "no data; the binding's value for an empty result"}
+		res.Data = d
 	}
 	if d.empty() {
 		res.Status, res.Error = StatusUnavailable, "no data"
