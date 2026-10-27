@@ -32,6 +32,10 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.6.0** (2026-10-27, `cacf828`, tag checked against the release commit): release run 40529323045 succeeded.
+  Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and a v0.5.1
+  database served by the release binary (no migration, no re-merge: rules version already current; entities, the
+  map with `hideKind`/`hideType` filters and the audit chain intact).
 - **v0.5.1** (2026-10-27, `dd83b72`, tag checked against the release commit): release run 40521323785 succeeded.
   Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and a v0.5.0
   database with a conflict row recorded under the old rules (a `terraform/address` annotation) started by the release
