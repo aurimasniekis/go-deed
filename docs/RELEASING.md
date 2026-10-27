@@ -32,6 +32,11 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.3.2** (2026-10-27, `4f1ef6f`, tag checked against the release commit): release run 40483001616 succeeded.
+  Checked before publishing: checksums, provenance of the archive and the image, and infra's failing case replayed: a
+  v0.3.0 database whose Workspace import had bound `domain` entities (one adopted by a hand-declared hub domain),
+  re-synced by the release binary with the 0.3.2 mappings: run `ok`, 0 item errors, the records-less zone derived, the
+  hub domain containing its zone and its Workspace service.
 - **v0.3.1** (2026-10-26, `89d8a3f`, tag checked against the release commit before pushing): release run 40401862832
   succeeded. Checked before publishing: checksums, SLSA provenance of the archive and the image, the 0.3.0 database
   served without migration, and the zone-module fixture pushed to the release binary: zones derived from records, and a
