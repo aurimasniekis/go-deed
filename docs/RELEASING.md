@@ -32,6 +32,11 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.5.1** (2026-10-27, `dd83b72`, tag checked against the release commit): release run 40521323785 succeeded.
+  Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and a v0.5.0
+  database with a conflict row recorded under the old rules (a `terraform/address` annotation) started by the release
+  binary: no migration, 12 entities re-merged once in the background, the stale conflict gone, rules version 2
+  recorded, entities and audit chain intact.
 - **v0.5.0** (2026-10-27, `3a4921e`, tag checked against the release commit): release run 40517045515 succeeded.
   Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), a v0.4.0
   database served by the release binary (no migration; entities, bindings and the audit chain intact), and infra's
