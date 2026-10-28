@@ -36,5 +36,7 @@ Deed is not a metrics or log store (it queries and caches summaries), not a CMDB
 and not a deployment tool: it never changes your infrastructure.
 
 ## Status
-Under active development, not released, not externally security reviewed. The
-[validation record](/reference/validation) lists what has been exercised end to end and what is still pending.
+Pre-1.0 and under active development, not externally security reviewed. Releases (Linux and macOS binaries, a
+container image, SBOMs and checksums) are on [GitHub Releases](https://github.com/aurimasniekis/go-deed/releases);
+[Versioning](/reference/versioning) says what stays compatible. The [validation record](/reference/validation) lists
+what has been exercised end to end and what is still pending.

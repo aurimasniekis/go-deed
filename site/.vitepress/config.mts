@@ -145,7 +145,7 @@ export default defineConfig({
     socialLinks: [{ icon: 'github', link: repo }],
     editLink: { pattern: repo + '/edit/main/site/:path' },
     footer: {
-      message: 'Apache-2.0 · Not externally security reviewed · Not yet released',
+      message: 'Apache-2.0 · Pre-1.0 · Not externally security reviewed',
       copyright: 'Copyright 2026 Aurimas Niekis',
     },
     search: { provider: 'local' },

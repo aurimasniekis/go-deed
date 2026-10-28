@@ -1,10 +1,12 @@
 # Try it locally
 
-Requirements: Go 1.27, Docker (for the optional dev stack), and for the UI, Node 24 with pnpm.
+Requirements: Go 1.27, Node 24 with pnpm (the web UI is built first and embedded in the binary; `make build` alone
+serves a "web UI is not included" page), and Docker for the optional dev stack. To run a release instead, see
+[Deployment](/operators/deployment).
 
 ```sh
 git clone https://github.com/aurimasniekis/go-deed && cd go-deed
-make build                                          # bin/deed, bin/deed-agent
+make web build                                      # the UI, then bin/deed and bin/deed-agent with it embedded
 bin/deed migrate -config deploy/dev/deed.yaml
 bin/deed admin bootstrap -config deploy/dev/deed.yaml   # prints a single-use setup link
 bin/deed serve -config deploy/dev/deed.yaml

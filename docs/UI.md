@@ -4,7 +4,14 @@ The web UI is a single-page React application in `web/`, built into `internal/we
 binary (ADR-011). It talks only to the public `/api/v1` API and `/auth/*` routes; everything it can do, the API and
 CLI can do too.
 
-**Map, focused on a service**
+**Map: telemetry values inside node cards, measured traffic on the edges**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-metrics-dark.png">
+  <img src="assets/screenshots/map-metrics-light.png" alt="Map: the neighbourhood of a service, edges coloured by relationship type, measured traffic rates on the edges and telemetry values inside the node cards">
+</picture>
+
+**Map, focused on a service, with the legend**
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-focus-dark.png">
@@ -16,6 +23,41 @@ CLI can do too.
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-source-dark.png">
   <img src="assets/screenshots/map-source-light.png" alt="Map coloured by asserting source, with the edge inspector">
+</picture>
+
+**Overview grouped by kind**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-overview-dark.png">
+  <img src="assets/screenshots/map-overview-light.png" alt="Map overview: one group node per kind, relationships between the groups">
+</picture>
+
+**Overview grouped by a label, two groups expanded in place**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-grouped-dark.png">
+  <img src="assets/screenshots/map-grouped-light.png" alt="Map overview grouped by the label tier, the core and compute groups expanded into containers of their members">
+</picture>
+
+**Show / hide kinds, label values and relationship types**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-show-hide-dark.png">
+  <img src="assets/screenshots/map-show-hide-light.png" alt="Map with the show / hide panel open: kinds, label values and relationship types with counts">
+</picture>
+
+**Right-click quick actions**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-quick-actions-dark.png">
+  <img src="assets/screenshots/map-quick-actions-light.png" alt="Map with the quick-actions menu of a service open: details, provenance, focus, expand, impact, path and copy actions">
+</picture>
+
+**Mask mode, for screenshots and screen sharing**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-mask-dark.png">
+  <img src="assets/screenshots/map-mask-light.png" alt="Map in mask mode: entity names replaced by stable aliases, the inspector showing no details">
 </picture>
 
 **Dashboard**
@@ -53,8 +95,17 @@ CLI can do too.
   <img src="assets/screenshots/findings-light.png" alt="Findings: certificates, drift, conflicts, missing targets and available updates">
 </picture>
 
-Screenshots are produced by the accessibility suite (`web/e2e/screenshots/`, every view in both themes) against
-synthetic seed data.
+**Label rules on the project page**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/project-label-rules-dark.png">
+  <img src="assets/screenshots/project-label-rules-light.png" alt="Project settings: members and the label rules that add labels to entities other sources own">
+</picture>
+
+Screenshots are produced by the browser suite against synthetic seed data, every view in both themes:
+`web/e2e/a11y.spec.ts` captures every route it scans, `web/e2e/showcase.spec.ts` the map states and settings the route
+scan does not reach (both write to `web/e2e/screenshots/`). The ones shown here are copied to
+`docs/assets/screenshots/` and quantised to 256 colours (`pngquant --speed 1 --strip 256`).
 
 ## Building and developing
 
@@ -111,8 +162,9 @@ Versions                  /versions              newest release / end-of-life st
 Sources                   /sources               list, schema-driven create/edit, test, preview, sync, runs, tokens
 Kinds                     /kinds                 kind list, schema editor; /relationship-types
 Icons                     /settings/icons        custom SVG icons (custom:<name>), monochrome ones tinted per theme
-Settings                  /settings              projects (members, tokens), bridges, users, account (MFA,
-                                                 sessions), telemetry (integrations, bindings), backups, audit, about
+Settings                  /settings              projects (members, label rules), bridges, users (service
+                                                 accounts), account (MFA, sessions, SSO identities), telemetry
+                                                 (integrations, bindings), backups, audit, about
 ```
 
 Every page's state that a user might share — filters, sort, selected tab, map focus/mode/depth/layout/options — lives
@@ -359,5 +411,6 @@ this (shared) machine.
   annotations; relations table), map (filters, grouping, inspector, keyboard, provenance, overview expansion, traffic
   overlay on measured edges only, node metrics, copy image, legend toggles, show / hide), admin (GitHub source
   create/test/preview against the mock, push-token reveal-once, custom kind with schema dry run, audit hash-chain
-  verification, saved views, version re-check, custom icon upload, findings re-evaluation), an axe scan of 27 views in
-  both schemes plus the login page (screenshots to `web/e2e/screenshots/`), and the perf budgets.
+  verification, saved views, version re-check, custom icon upload, findings re-evaluation), an axe scan of 29 views in
+  both schemes plus the login page (screenshots to `web/e2e/screenshots/`, with the feature shots of
+  `showcase.spec.ts`), and the perf budgets.
