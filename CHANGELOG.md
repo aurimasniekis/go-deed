@@ -5,6 +5,10 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+### Security
+- go-jose v4.1.6 (was v4.1.4) for CVE-2026-116587: parsing a JWK set that contains RSA keys could be made to use
+  excessive CPU. Deed parses JWKs when it fetches an OIDC provider's signing keys for single sign-on.
+
 ## [0.7.1] - 2026-10-27
 
 No schema migration. On first start every entity is re-merged once in the background (merge rules version 4), which
