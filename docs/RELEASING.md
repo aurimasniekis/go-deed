@@ -32,6 +32,10 @@ images without pushing; attestation, the draft release and image publication are
 publishing jobs were skipped.
 
 ## Release record
+- **v0.7.2** (2026-10-29, `deaf76a`, annotated tag, not GPG-signed: no signing key where it was cut): release run
+  40835992343 succeeded. Checked before publishing: checksums of every asset, provenance of the linux/amd64 archive
+  and of the image (same digest on GHCR and Docker Hub), the image and archive binaries reporting v0.7.2 at `deaf76a`
+  with go-jose v4.1.6 embedded, and Trivy 0.70.0 on the image: 0 HIGH/CRITICAL (CVE-2026-116587 fixed).
 - **v0.7.1** (2026-10-27, `afef431`, tag checked against the release commit): release run 40569243471 succeeded.
   Checked before publishing: checksums, provenance of the archive and the image (GHCR and Docker Hub), and infra's
   case replayed on a v0.7.0 database: a hallpass_server whose connector (claiming first) sends `labels: {}` next to a
