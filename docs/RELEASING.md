@@ -2,7 +2,7 @@
 
 A release is cut from `main` by pushing a `vX.Y.Z` tag (docs/VERSIONING.md). The release workflow
 (`.github/workflows/release.yaml`, adapted from Porch) stops at a **draft** GitHub release that a maintainer reviews
-and publishes. Nothing has been released yet.
+and publishes. Releases so far are listed under "Release record" below.
 
 > **Not externally reviewed.** Deed has had no external security review. Every release keeps this note in its
 > CHANGELOG section until one has been done and its findings are resolved.

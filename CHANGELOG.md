@@ -5,6 +5,10 @@ and the project uses [Semantic Versioning](https://semver.org/) (docs/VERSIONING
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-29
+
+No schema migration and no re-merge: a dependency update for a security fix.
+
 ### Security
 - go-jose v4.1.6 (was v4.1.4) for CVE-2026-116587: parsing a JWK set that contains RSA keys could be made to use
   excessive CPU. Deed parses JWKs when it fetches an OIDC provider's signing keys for single sign-on.
@@ -230,7 +234,8 @@ First release. It has not been externally reviewed; see [SECURITY.md](SECURITY.m
 - Go SDK (`pkg/deedclient`), `deed-agent` (Docker), synthetic demo seed.
 - Deployment assets (distroless image, compose, systemd), Grafana dashboard and alert rules, Cloudflare guide.
 
-[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/aurimasniekis/go-deed/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/aurimasniekis/go-deed/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/aurimasniekis/go-deed/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/aurimasniekis/go-deed/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/aurimasniekis/go-deed/compare/v0.5.1...v0.6.0
